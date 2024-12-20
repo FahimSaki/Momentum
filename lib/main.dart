@@ -1,8 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/pages/home_page.dart';
+import 'package:habit_tracker/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  runApp(
+    MultiProvider(
+      providers: [
+        // database provider
+        // ChangeNotifierProvider(create: (context) => HabitDatabase()),
+
+        // theme provider
+        ChangeNotifierProvider(create: (context) => ThemeProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -10,9 +23,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: HomePage(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: const HomePage(),
+          theme: themeProvider.themeData,
+        );
+      },
     );
   }
 }
