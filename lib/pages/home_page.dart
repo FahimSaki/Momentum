@@ -1,7 +1,5 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:habit_tracker/theme/theme_provider.dart';
-import 'package:provider/provider.dart';
+import 'package:habit_tracker/components/drawer.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -11,22 +9,42 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // text controller
+  final TextEditingController textController = TextEditingController();
+
+  // create a new habit
+  void createNewHabit() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: TextField(
+          controller: textController,
+          decoration: const InputDecoration(
+            hintText: 'create a new habit',
+          ),
+        ),
+        actions: [
+          // save button
+
+          // cancel button
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         elevation: 0,
       ),
-      drawer: Drawer(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        child: Center(
-          child: CupertinoSwitch(
-            value: Provider.of<ThemeProvider>(context).isDarkMode,
-            onChanged: (value) =>
-                Provider.of<ThemeProvider>(context, listen: false)
-                    .toggleTheme(),
-          ),
-        ),
+      drawer: const MyDrawer(),
+      floatingActionButton: FloatingActionButton(
+        elevation: 0,
+        onPressed: createNewHabit,
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        child: const Icon(Icons.add),
       ),
     );
   }
