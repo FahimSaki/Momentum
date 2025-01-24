@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
+import 'package:habit_tracker/database/habit_database.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,6 +27,22 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           // save button
+          MaterialButton(
+            onPressed: () {
+              // get the new habit name
+              String newHabitName = textController.text;
+
+              // save to db
+              context.read<HabitDatabase>().addHabit(newHabitName);
+
+              // pop box
+              Navigator.pop(context);
+
+              // clear controller
+              textController.clear();
+            },
+            child: const Text('Save'),
+          ),
 
           // cancel button
         ],
