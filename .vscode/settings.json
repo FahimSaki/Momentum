@@ -1,4 +1,3 @@
-{
-    "java.compile.nullAnalysis.mode": "automatic",
-    "cmake.sourceDirectory": "C:/Users/fahim/Documents/Flutter temp/habit_tracker/windows"
+{    
+    "cmake.sourceDirectory": "C:/Users/fahim/Documents/TempCodes/habit_tracker/windows"
 }
