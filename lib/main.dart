@@ -40,5 +40,3 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-// added for git init

@@ -14,6 +14,23 @@ class _HomePageState extends State<HomePage> {
   // text controller
   final TextEditingController textController = TextEditingController();
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        elevation: 0,
+      ),
+      drawer: const MyDrawer(),
+      floatingActionButton: FloatingActionButton(
+        elevation: 0,
+        onPressed: createNewHabit,
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
+      ),
+    );
+  }
+
   // create a new habit
   void createNewHabit() {
     showDialog(
@@ -23,6 +40,9 @@ class _HomePageState extends State<HomePage> {
           controller: textController,
           decoration: const InputDecoration(
             hintText: 'create a new habit',
+            hintStyle: TextStyle(
+              color: Colors.grey,
+            ),
           ),
         ),
         actions: [
@@ -45,24 +65,17 @@ class _HomePageState extends State<HomePage> {
           ),
 
           // cancel button
-        ],
-      ),
-    );
-  }
+          MaterialButton(
+            onPressed: () {
+              // pop box
+              Navigator.pop(context);
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-      ),
-      drawer: const MyDrawer(),
-      floatingActionButton: FloatingActionButton(
-        elevation: 0,
-        onPressed: createNewHabit,
-        backgroundColor: Theme.of(context).colorScheme.tertiary,
-        child: const Icon(Icons.add),
+              // clear controller
+              textController.clear();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }
