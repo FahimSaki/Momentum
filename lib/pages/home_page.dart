@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
 import 'package:habit_tracker/database/habit_database.dart';
+import 'package:habit_tracker/models/habit.dart';
+import 'package:habit_tracker/util/habit_util.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -11,25 +13,15 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  @override
+  void initState() {
+    // read existing habits from db
+    Provider.of<HabitDatabase>(context, listen: false).readHabits();
+    super.initState();
+  }
+
   // text controller
   final TextEditingController textController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-      ),
-      drawer: const MyDrawer(),
-      floatingActionButton: FloatingActionButton(
-        elevation: 0,
-        onPressed: createNewHabit,
-        backgroundColor: Theme.of(context).colorScheme.tertiary,
-        child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
-      ),
-    );
-  }
 
   // create a new habit
   void createNewHabit() {
@@ -77,6 +69,49 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      appBar: AppBar(
+        elevation: 0,
+      ),
+      drawer: const MyDrawer(),
+      floatingActionButton: FloatingActionButton(
+        elevation: 0,
+        onPressed: createNewHabit,
+        backgroundColor: Theme.of(context).colorScheme.tertiary,
+        child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
+      ),
+      body: _buildHabitList(),
+    );
+  }
+
+// build habit list
+  Widget _buildHabitList() {
+    // habit db
+    final habitDatabase = context.watch<HabitDatabase>();
+
+    // current habits
+    List<Habit> currentHabits = habitDatabase.currentHabits;
+
+    // return list of habits UI
+    return ListView.builder(
+      itemBuilder: (context, index) {
+        // get each individual habit
+        final habit = currentHabits[index];
+
+        // check if the habit is completed today
+        bool isCompletedtToday = isHabitCompletedToday(habit.completedDays);
+
+        // return habit tile UI
+        return ListTile(
+          title: Text(habit.name),
+        );
+      },
     );
   }
 }
