@@ -92,7 +92,7 @@ class HabitDatabase extends ChangeNotifier {
           );
         }
 
-        // if habit is not completed -> remove completion date
+        // * if habit is not completed -> remove completion date
         else {
           // remove the current date if it's marked as not completed
           habit.completedDays.removeWhere(

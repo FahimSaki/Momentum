@@ -20,49 +20,64 @@ class HabitTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Slidable(
-      endActionPane: ActionPane(
-        motion: const StretchMotion(),
-        children: [
-          // * edit option
-          CustomSlidableAction(
-            onPressed: editHabit,
-            backgroundColor: Colors.grey.shade800,
-            borderRadius: BorderRadius.circular(8),
-            child: const FaIcon(FontAwesomeIcons.penToSquare),
-          ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 5),
+      child: Slidable(
+        endActionPane: ActionPane(
+          motion: const StretchMotion(),
+          children: [
+            // * edit option
+            CustomSlidableAction(
+              onPressed: editHabit,
+              backgroundColor: Colors.grey.shade800,
+              borderRadius: BorderRadius.circular(8),
+              child: const FaIcon(FontAwesomeIcons.penToSquare),
+            ),
 
-          // delete option
-          SlidableAction(
-            onPressed: deleteHabit,
-            backgroundColor: Colors.red,
-            icon: Icons.delete,
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ],
-      ),
-      child: GestureDetector(
-        onTap: () {
-          if (onChanged != null) {
-            // toggle completion status
-            onChanged!(!isCompleted);
-          }
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: isCompleted
-                ? Colors.green
-                : Theme.of(context).colorScheme.secondary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 25),
-          child: ListTile(
-            title: Text(text),
-            leading: Checkbox(
-              activeColor: Colors.green,
-              value: isCompleted,
-              onChanged: onChanged,
+            // delete option
+            SlidableAction(
+              onPressed: deleteHabit,
+              backgroundColor: Colors.red,
+              icon: Icons.delete,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ],
+        ),
+        child: GestureDetector(
+          onTap: () {
+            if (onChanged != null) {
+              // toggle completion status
+              onChanged!(!isCompleted);
+            }
+          },
+
+          // * habit tile
+          child: Container(
+            decoration: BoxDecoration(
+              color: isCompleted
+                  ? Colors.green
+                  : Theme.of(context).colorScheme.secondary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: ListTile(
+              // * habit name
+              title: Text(
+                text,
+                style: TextStyle(
+                  color: isCompleted
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.inversePrimary,
+                  // decoration: isCompleted ? TextDecoration.lineThrough : null,
+                ),
+              ),
+
+              // * habit completion checkbox
+              leading: Checkbox(
+                activeColor: Colors.green,
+                value: isCompleted,
+                onChanged: onChanged,
+              ),
             ),
           ),
         ),
