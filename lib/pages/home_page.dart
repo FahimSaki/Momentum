@@ -171,24 +171,28 @@ class _HomePageState extends State<HomePage> {
 
 // * build habit list
   Widget _buildHabitList() {
-    // habit db
     final habitDatabase = context.watch<HabitDatabase>();
-
-    // current habits
     List<Habit> currentHabits = habitDatabase.currentHabits;
 
-    // return list of habits UI
+    // Show message if no habits are found
+    if (currentHabits.isEmpty) {
+      return const Center(
+        child: Text(
+          'No habits found.',
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
+      );
+    }
+
+    // Build the list of habits
     return ListView.builder(
+      itemCount: currentHabits.length,
       itemBuilder: (context, index) {
-        // get each individual habit
         final habit = currentHabits[index];
+        bool isCompletedToday = isHabitCompletedToday(habit.completedDays);
 
-        // check if the habit is completed today
-        bool isCompletedtToday = isHabitCompletedToday(habit.completedDays);
-
-        // return habit tile UI
         return HabitTile(
-          isCompleted: isCompletedtToday,
+          isCompleted: isCompletedToday,
           text: habit.name,
           onChanged: (p0) => checkHabitOnOff(p0, habit),
           editHabit: (p1) => editHabitBox(habit),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class HabitTile extends StatelessWidget {
   final String text;
@@ -23,12 +24,12 @@ class HabitTile extends StatelessWidget {
       endActionPane: ActionPane(
         motion: const StretchMotion(),
         children: [
-          // edit option
-          SlidableAction(
+          // * edit option
+          CustomSlidableAction(
             onPressed: editHabit,
             backgroundColor: Colors.grey.shade800,
-            icon: Icons.settings,
             borderRadius: BorderRadius.circular(8),
+            child: const FaIcon(FontAwesomeIcons.penToSquare),
           ),
 
           // delete option
