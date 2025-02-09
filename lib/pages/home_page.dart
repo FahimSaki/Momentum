@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
 import 'package:habit_tracker/components/habit_tile.dart';
+import 'package:habit_tracker/components/heat_map.dart';
 import 'package:habit_tracker/database/habit_database.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:habit_tracker/util/habit_util.dart';
@@ -157,6 +158,8 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       drawer: const MyDrawer(),
       floatingActionButton: FloatingActionButton(
@@ -165,11 +168,46 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.tertiary,
         child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
       ),
-      body: _buildHabitList(),
+      body: ListView(
+        children: [
+          // * H E A T M A P
+          _buildHeatMap(),
+
+          // * H A B I T L I S T
+          _buildHabitList(),
+        ],
+      ),
     );
   }
 
-// * build habit list
+  // * build heat map
+  Widget _buildHeatMap() {
+    // habit database
+    final habitDatabase = context.watch<HabitDatabase>();
+
+    // current habits
+    List<Habit> currentHabits = habitDatabase.currentHabits;
+
+    // return heat map UI
+    return FutureBuilder<DateTime?>(
+      future: habitDatabase.getFirstLaunchDate(),
+      builder: (context, snapshot) {
+        // * once the first launch date is fetched build the heat map
+        if (snapshot.hasData) {
+          return MyHeatMap(
+            startDate: snapshot.data!,
+            datasets: prepareMapDatasets(currentHabits),
+          );
+        }
+        // handle case where empty data
+        else {
+          return Container();
+        }
+      },
+    );
+  }
+
+  // * build habit list
   Widget _buildHabitList() {
     final habitDatabase = context.watch<HabitDatabase>();
     List<Habit> currentHabits = habitDatabase.currentHabits;
@@ -187,6 +225,8 @@ class _HomePageState extends State<HomePage> {
     // Build the list of habits
     return ListView.builder(
       itemCount: currentHabits.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
         final habit = currentHabits[index];
         bool isCompletedToday = isHabitCompletedToday(habit.completedDays);
