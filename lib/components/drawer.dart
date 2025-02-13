@@ -31,8 +31,8 @@ class MyDrawer extends StatelessWidget {
               child: Center(
                 child: Image.asset(
                   isLightMode
-                      ? 'assets/images/notes_logo_lightmode.png'
-                      : 'assets/images/notes_logo_darkmode.png',
+                      ? 'assets/images/momentum_app_logo_light.png'
+                      : 'assets/images/momentum_app_logo_dark.png',
                   width: 170,
                   height: 170,
                 ),
