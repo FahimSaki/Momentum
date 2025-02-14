@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:habit_tracker/theme/theme_provider.dart';
+import 'package:provider/provider.dart';
 
 class HabitTile extends StatelessWidget {
   final String text;
@@ -20,6 +22,9 @@ class HabitTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isLightMode = !themeProvider.isDarkMode;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 5),
       child: Slidable(
@@ -55,7 +60,7 @@ class HabitTile extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               color: isCompleted
-                  ? Colors.green
+                  ? (isLightMode ? Colors.green : Colors.teal)
                   : Theme.of(context).colorScheme.secondary,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -74,7 +79,7 @@ class HabitTile extends StatelessWidget {
 
               // * habit completion checkbox
               leading: Checkbox(
-                activeColor: Colors.green,
+                activeColor: isLightMode ? Colors.green : Colors.teal,
                 value: isCompleted,
                 onChanged: onChanged,
               ),

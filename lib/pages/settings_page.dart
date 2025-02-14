@@ -20,7 +20,7 @@ class SettingsPage extends StatelessWidget {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiary,
+              color: Theme.of(context).colorScheme.secondary,
               borderRadius: BorderRadius.circular(12),
             ),
             padding:
