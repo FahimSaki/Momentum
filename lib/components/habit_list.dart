@@ -1,3 +1,9 @@
+/*
+
+ S H O W   B O T H  C O M P L E T E D   A N D   I  N C O M P L E T E D   H A B I T S
+
+ */
+
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/habit_tile.dart';
 import 'package:habit_tracker/components/completed_habits.dart';

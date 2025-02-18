@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
-import 'package:habit_tracker/components/heat_map_component.dart'; // Import the new component
-import 'package:habit_tracker/components/habit_list_component.dart'; // Import the new component
+import 'package:habit_tracker/components/heat_map.dart';
+import 'package:habit_tracker/components/habit_list.dart';
 import 'package:habit_tracker/database/habit_database.dart';
 import 'package:provider/provider.dart';
 import 'package:habit_tracker/models/habit.dart';
@@ -19,9 +19,9 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Read existing habits from db
+    // * Read existing habits from db
     Provider.of<HabitDatabase>(context, listen: false).readHabits();
-    // Delete old completed habits
+    // * Delete old completed habits
     Provider.of<HabitDatabase>(context, listen: false)
         .deleteOldCompletedHabits();
   }
