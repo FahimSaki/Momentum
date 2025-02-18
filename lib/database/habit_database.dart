@@ -150,6 +150,7 @@ class HabitDatabase extends ChangeNotifier {
           .findAll();
 
       for (final habit in oldCompletedHabits) {
+        // Remove the habit but keep the completion data for the heatmap
         await isar.habits.delete(habit.id);
       }
     });

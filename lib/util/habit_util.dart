@@ -19,7 +19,7 @@ Map<DateTime, int> prepareMapDatasets(List<Habit> habits) {
 
   for (var habit in habits) {
     for (var date in habit.completedDays) {
-      // nomralize date to avoid time mismatch
+      // normalize date to avoid time mismatch
       final normalizedDate = DateTime(date.year, date.month, date.day);
       // if date is already in the map increment the count
       if (datasets.containsKey(normalizedDate)) {

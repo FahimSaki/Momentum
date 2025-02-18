@@ -255,7 +255,7 @@ class _HomePageState extends State<HomePage> {
                 cardColor: Theme.of(context).colorScheme.surface,
               ),
               child: ExpansionTile(
-                title: const Text('Completed Habits'),
+                title: const Text('Completed'),
                 initiallyExpanded: _showCompletedHabits,
                 onExpansionChanged: (expanded) {
                   setState(() {
