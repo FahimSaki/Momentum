@@ -22,6 +22,11 @@ class CompletedHabits extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Check if the completed habits list is empty
+    if (completedHabits.isEmpty) {
+      return Container(); // Return an empty container if the list is empty
+    }
+
     return Center(
       child: SizedBox(
         width: MediaQuery.of(context).size.width * 0.9,

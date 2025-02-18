@@ -42,21 +42,34 @@ class HabitListComponent extends StatelessWidget {
     return Column(
       children: [
         // * Uncompleted habits
-        ListView.builder(
-          itemCount: uncompletedHabits.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemBuilder: (context, index) {
-            final habit = uncompletedHabits[index];
-            return HabitTile(
-              isCompleted: false,
-              text: habit.name,
-              onChanged: (p0) => checkHabitOnOff(p0, habit),
-              editHabit: (context) => editHabitBox(context, habit),
-              deleteHabit: (context) => deleteHabitBox(context, habit),
-            );
-          },
-        ),
+        if (uncompletedHabits.isEmpty && completedHabits.isEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(top: 80, right: 16, left: 16),
+            child: Text(
+              'No habits found. Please add a new habit.',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ] else ...[
+          ListView.builder(
+            itemCount: uncompletedHabits.length,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, index) {
+              final habit = uncompletedHabits[index];
+              return HabitTile(
+                isCompleted: false,
+                text: habit.name,
+                onChanged: (p0) => checkHabitOnOff(p0, habit),
+                editHabit: (context) => editHabitBox(context, habit),
+                deleteHabit: (context) => deleteHabitBox(context, habit),
+              );
+            },
+          ),
+        ],
 
         // * Completed habits dropdown
         const SizedBox(height: 10),

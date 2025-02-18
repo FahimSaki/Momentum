@@ -34,7 +34,8 @@ class HabitTile extends StatelessWidget {
             // * edit option
             CustomSlidableAction(
               onPressed: editHabit,
-              backgroundColor: Colors.grey.shade800,
+              backgroundColor:
+                  isLightMode ? Colors.grey.shade600 : Colors.grey.shade800,
               borderRadius: BorderRadius.circular(8),
               child: const FaIcon(FontAwesomeIcons.penToSquare),
             ),
