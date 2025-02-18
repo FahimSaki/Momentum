@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
-import 'package:habit_tracker/components/habit_tile.dart';
-import 'package:habit_tracker/components/heat_map.dart';
+import 'package:habit_tracker/components/heat_map_component.dart'; // Import the new component
+import 'package:habit_tracker/components/habit_list_component.dart'; // Import the new component
 import 'package:habit_tracker/database/habit_database.dart';
-import 'package:habit_tracker/models/habit.dart';
-import 'package:habit_tracker/util/habit_util.dart';
 import 'package:provider/provider.dart';
+import 'package:habit_tracker/models/habit.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +14,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _showCompletedHabits = false;
+  final bool _showCompletedHabits = false;
 
   @override
   void initState() {
@@ -89,7 +88,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // * edit habit box
-  void editHabitBox(Habit habit) {
+  void editHabitBox(BuildContext context, Habit habit) {
     // set the controller text to the habit name
     textController.text = habit.name;
 
@@ -126,7 +125,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // * delete habit box
-  void deleteHabitBox(Habit habit) {
+  void deleteHabitBox(BuildContext context, Habit habit) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -176,108 +175,17 @@ class _HomePageState extends State<HomePage> {
       body: ListView(
         children: [
           // * H E A T M A P
-          _buildHeatMap(),
+          const HeatMapComponent(),
 
           // * H A B I T L I S T
-          _buildHabitList(),
+          HabitListComponent(
+            showCompletedHabits: _showCompletedHabits,
+            checkHabitOnOff: checkHabitOnOff,
+            editHabitBox: editHabitBox,
+            deleteHabitBox: deleteHabitBox,
+          ),
         ],
       ),
-    );
-  }
-
-  // * build heat map
-  Widget _buildHeatMap() {
-    // habit database
-    final habitDatabase = context.watch<HabitDatabase>();
-
-    // current habits
-    List<Habit> currentHabits = habitDatabase.currentHabits;
-
-    // return heat map UI
-    return FutureBuilder<DateTime?>(
-      future: habitDatabase.getFirstLaunchDate(),
-      builder: (context, snapshot) {
-        // * once the first launch date is fetched build the heat map
-        if (snapshot.hasData) {
-          return MyHeatMap(
-            startDate: snapshot.data!,
-            datasets: prepareMapDatasets(currentHabits),
-          );
-        }
-        // * handle case where empty data
-        else {
-          return Container();
-        }
-      },
-    );
-  }
-
-  // * build habit list
-  Widget _buildHabitList() {
-    final habitDatabase = context.watch<HabitDatabase>();
-    List<Habit> currentHabits = habitDatabase.currentHabits;
-
-    // * Separate completed and uncompleted habits
-    List<Habit> completedHabits = currentHabits
-        .where((habit) => isHabitCompletedToday(habit.completedDays))
-        .toList();
-    List<Habit> uncompletedHabits = currentHabits
-        .where((habit) => !isHabitCompletedToday(habit.completedDays))
-        .toList();
-
-    return Column(
-      children: [
-        // * Uncompleted habits
-        ListView.builder(
-          itemCount: uncompletedHabits.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemBuilder: (context, index) {
-            final habit = uncompletedHabits[index];
-            return HabitTile(
-              isCompleted: false,
-              text: habit.name,
-              onChanged: (p0) => checkHabitOnOff(p0, habit),
-              editHabit: (context) => editHabitBox(habit),
-              deleteHabit: (context) => deleteHabitBox(habit),
-            );
-          },
-        ),
-
-        // * Completed habits dropdown
-        const SizedBox(height: 10),
-        Center(
-          child: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.9,
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                dividerColor: Colors.transparent,
-                cardColor: Theme.of(context).colorScheme.surface,
-              ),
-              child: ExpansionTile(
-                title: const Text('Completed'),
-                initiallyExpanded: _showCompletedHabits,
-                onExpansionChanged: (expanded) {
-                  setState(() {
-                    _showCompletedHabits = expanded;
-                  });
-                },
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
-                children: completedHabits.map((habit) {
-                  return HabitTile(
-                    isCompleted: true,
-                    text: habit.name,
-                    onChanged: (p0) => checkHabitOnOff(p0, habit),
-                    editHabit: (context) => editHabitBox(habit),
-                    deleteHabit: (context) => deleteHabitBox(habit),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
