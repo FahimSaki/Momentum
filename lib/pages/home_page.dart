@@ -15,11 +15,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  bool _showCompletedHabits = false;
+
   @override
   void initState() {
-    // read existing habits from db
-    Provider.of<HabitDatabase>(context, listen: false).readHabits();
     super.initState();
+    // Read existing habits from db
+    Provider.of<HabitDatabase>(context, listen: false).readHabits();
+    // Delete old completed habits
+    Provider.of<HabitDatabase>(context, listen: false)
+        .deleteOldCompletedHabits();
   }
 
   // text controller
@@ -212,33 +217,52 @@ class _HomePageState extends State<HomePage> {
     final habitDatabase = context.watch<HabitDatabase>();
     List<Habit> currentHabits = habitDatabase.currentHabits;
 
-    // Show message if no habits are found
-    if (currentHabits.isEmpty) {
-      return const Center(
-        child: Text(
-          'No habits found.',
-          style: TextStyle(fontSize: 16, color: Colors.grey),
+    // Separate completed and uncompleted habits
+    List<Habit> completedHabits = currentHabits
+        .where((habit) => isHabitCompletedToday(habit.completedDays))
+        .toList();
+    List<Habit> uncompletedHabits = currentHabits
+        .where((habit) => !isHabitCompletedToday(habit.completedDays))
+        .toList();
+
+    return Column(
+      children: [
+        // Uncompleted habits
+        ListView.builder(
+          itemCount: uncompletedHabits.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final habit = uncompletedHabits[index];
+            return HabitTile(
+              isCompleted: false,
+              text: habit.name,
+              onChanged: (p0) => checkHabitOnOff(p0, habit),
+              editHabit: (context) => editHabitBox(habit),
+              deleteHabit: (context) => deleteHabitBox(habit),
+            );
+          },
         ),
-      );
-    }
-
-    // Build the list of habits
-    return ListView.builder(
-      itemCount: currentHabits.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        final habit = currentHabits[index];
-        bool isCompletedToday = isHabitCompletedToday(habit.completedDays);
-
-        return HabitTile(
-          isCompleted: isCompletedToday,
-          text: habit.name,
-          onChanged: (p0) => checkHabitOnOff(p0, habit),
-          editHabit: (p1) => editHabitBox(habit),
-          deleteHabit: (p2) => deleteHabitBox(habit),
-        );
-      },
+        // Completed habits dropdown
+        ExpansionTile(
+          title: const Text('Completed Habits'),
+          initiallyExpanded: _showCompletedHabits,
+          onExpansionChanged: (expanded) {
+            setState(() {
+              _showCompletedHabits = expanded;
+            });
+          },
+          children: completedHabits.map((habit) {
+            return HabitTile(
+              isCompleted: true,
+              text: habit.name,
+              onChanged: (p0) => checkHabitOnOff(p0, habit),
+              editHabit: (context) => editHabitBox(habit),
+              deleteHabit: (context) => deleteHabitBox(habit),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

@@ -137,4 +137,24 @@ class HabitDatabase extends ChangeNotifier {
     // re-read from db
     readHabits();
   }
+
+  // Delete completed habits older than one day
+  Future<void> deleteOldCompletedHabits() async {
+    final now = DateTime.now();
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+
+    await isar.writeTxn(() async {
+      final oldCompletedHabits = await isar.habits
+          .filter()
+          .completedDaysElementLessThan(yesterday)
+          .findAll();
+
+      for (final habit in oldCompletedHabits) {
+        await isar.habits.delete(habit.id);
+      }
+    });
+
+    // Re-read habits from the database
+    readHabits();
+  }
 }

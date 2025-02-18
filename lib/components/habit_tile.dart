@@ -73,7 +73,6 @@ class HabitTile extends StatelessWidget {
                   color: isCompleted
                       ? Colors.white
                       : Theme.of(context).colorScheme.inversePrimary,
-                  // decoration: isCompleted ? TextDecoration.lineThrough : null,
                 ),
               ),
 
