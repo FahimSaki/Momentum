@@ -204,7 +204,7 @@ class _HomePageState extends State<HomePage> {
             datasets: prepareMapDatasets(currentHabits),
           );
         }
-        // handle case where empty data
+        // * handle case where empty data
         else {
           return Container();
         }
@@ -217,7 +217,7 @@ class _HomePageState extends State<HomePage> {
     final habitDatabase = context.watch<HabitDatabase>();
     List<Habit> currentHabits = habitDatabase.currentHabits;
 
-    // Separate completed and uncompleted habits
+    // * Separate completed and uncompleted habits
     List<Habit> completedHabits = currentHabits
         .where((habit) => isHabitCompletedToday(habit.completedDays))
         .toList();
@@ -227,7 +227,7 @@ class _HomePageState extends State<HomePage> {
 
     return Column(
       children: [
-        // Uncompleted habits
+        // * Uncompleted habits
         ListView.builder(
           itemCount: uncompletedHabits.length,
           shrinkWrap: true,
@@ -243,24 +243,39 @@ class _HomePageState extends State<HomePage> {
             );
           },
         ),
-        // Completed habits dropdown
-        ExpansionTile(
-          title: const Text('Completed Habits'),
-          initiallyExpanded: _showCompletedHabits,
-          onExpansionChanged: (expanded) {
-            setState(() {
-              _showCompletedHabits = expanded;
-            });
-          },
-          children: completedHabits.map((habit) {
-            return HabitTile(
-              isCompleted: true,
-              text: habit.name,
-              onChanged: (p0) => checkHabitOnOff(p0, habit),
-              editHabit: (context) => editHabitBox(habit),
-              deleteHabit: (context) => deleteHabitBox(habit),
-            );
-          }).toList(),
+
+        // * Completed habits dropdown
+        const SizedBox(height: 10),
+        Center(
+          child: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                dividerColor: Colors.transparent,
+                cardColor: Theme.of(context).colorScheme.surface,
+              ),
+              child: ExpansionTile(
+                title: const Text('Completed Habits'),
+                initiallyExpanded: _showCompletedHabits,
+                onExpansionChanged: (expanded) {
+                  setState(() {
+                    _showCompletedHabits = expanded;
+                  });
+                },
+                backgroundColor: Theme.of(context).colorScheme.surface,
+                collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
+                children: completedHabits.map((habit) {
+                  return HabitTile(
+                    isCompleted: true,
+                    text: habit.name,
+                    onChanged: (p0) => checkHabitOnOff(p0, habit),
+                    editHabit: (context) => editHabitBox(habit),
+                    deleteHabit: (context) => deleteHabitBox(habit),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
         ),
       ],
     );
