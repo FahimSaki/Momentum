@@ -3,9 +3,18 @@ import 'package:habit_tracker/database/habit_database.dart';
 import 'package:habit_tracker/pages/home_page.dart';
 import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: ***REMOVED***
+    anonKey:
+        ***REMOVED***
+  );
+
   // initialize habit database
   await HabitDatabase.init();
   await HabitDatabase().saveFirstLaunchDate();
