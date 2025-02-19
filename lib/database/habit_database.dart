@@ -3,17 +3,14 @@ import 'package:habit_tracker/models/app_settings.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:logger/logger.dart';
 
 class HabitDatabase extends ChangeNotifier {
   static late Isar isar;
+  final supabase = Supabase.instance.client;
+  final Logger logger = Logger();
 
-  /*
-
-  S E T U P
-  
-  */
-
-  // I N I T I A L I Z E - D A T A B A S E
   static Future<void> init() async {
     final dir = await getApplicationDocumentsDirectory();
     isar = await Isar.open(
@@ -22,7 +19,6 @@ class HabitDatabase extends ChangeNotifier {
     );
   }
 
-  // Save first date of app startup (for heatmap)
   Future<void> saveFirstLaunchDate() async {
     final currentSettings = await isar.appSettings.where().findFirst();
     if (currentSettings == null) {
@@ -31,70 +27,59 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Get first date of app startup (for heatmap)
   Future<DateTime?> getFirstLaunchDate() async {
     final settings = await isar.appSettings.where().findFirst();
     return settings?.firstLaunchDate;
   }
 
-  /*
-
-  C R U D - O P E R A T I O N S
-
-  */
-
-  // List of habits
   final List<Habit> currentHabits = [];
 
-  // C R E A T E - add a new habit
   Future<void> addHabit(String habitName) async {
-    // creat a new habit
     final newHabit = Habit()..name = habitName;
-    // save to the db
     await isar.writeTxn(() => isar.habits.put(newHabit));
-    // re-read from the db
+    await supabase.from('habits').insert({
+      'id': newHabit.id,
+      'name': newHabit.name,
+      'completed_days':
+          newHabit.completedDays.map((e) => e.toIso8601String()).toList(),
+    });
     readHabits();
   }
 
-  // R E A D - read saved habits from database
   Future<void> readHabits() async {
-    // fetch all habits from db
     List<Habit> fetchedHabits = await isar.habits.where().findAll();
+    try {
+      final List supabaseHabits = await supabase.from('habits').select();
+      for (var habit in supabaseHabits) {
+        if (!fetchedHabits.any((h) => h.id == habit['id'])) {
+          fetchedHabits.add(Habit()
+            ..id = habit['id']
+            ..name = habit['name']
+            ..completedDays = (habit['completed_days'] as List)
+                .map((e) => DateTime.parse(e))
+                .toList());
+        }
+      }
+    } catch (e, stackTrace) {
+      logger.e('Error fetching habits from Supabase',
+          error: e, stackTrace: stackTrace);
+    }
 
-    // give to current habits
     currentHabits.clear();
     currentHabits.addAll(fetchedHabits);
-
-    // update UI
     notifyListeners();
   }
 
-  // U P D A T E - check habit on and off
-
   Future<void> updateHabitCompletion(int id, bool isCompleted) async {
-    // find the habit
     final habit = await isar.habits.get(id);
-    // update the status
     if (habit != null) {
       await isar.writeTxn(() async {
-        // if habit is completed -> add completion date
         if (isCompleted && !habit.completedDays.contains(DateTime.now())) {
-          // add today's date
           final today = DateTime.now();
-
-          // add the current date if it's not already in the list
           habit.completedDays.add(
-            DateTime(
-              today.year,
-              today.month,
-              today.day,
-            ),
+            DateTime(today.year, today.month, today.day),
           );
-        }
-
-        // * if habit is not completed -> remove completion date
-        else {
-          // remove the current date if it's marked as not completed
+        } else {
           habit.completedDays.removeWhere(
             (date) =>
                 date.year == DateTime.now().year &&
@@ -102,60 +87,54 @@ class HabitDatabase extends ChangeNotifier {
                 date.day == DateTime.now().day,
           );
         }
-        // save the updated habits
         await isar.habits.put(habit);
       });
+      await supabase.from('habits').update({
+        'completed_days':
+            habit.completedDays.map((e) => e.toIso8601String()).toList(),
+      }).eq('id', id);
     }
-    // re-read from db
     readHabits();
   }
 
-  // U P D A T E - edit habit name
   Future<void> updateHabitName(int id, String newName) async {
-    // find the habit
     final habit = await isar.habits.get(id);
-
-    // update the name
     if (habit != null) {
       await isar.writeTxn(() async {
         habit.name = newName;
-        // save the updated habit to db
         await isar.habits.put(habit);
       });
+      await supabase.from('habits').update({
+        'name': newName,
+      }).eq('id', id);
     }
-    // re-read from db
     readHabits();
   }
 
-  // D E L E T E - delete habit
   Future<void> deleteHabit(int id) async {
-    // delete the habit
     await isar.writeTxn(() async {
       await isar.habits.delete(id);
     });
-
-    // re-read from db
+    await supabase.from('habits').delete().eq('id', id);
     readHabits();
   }
 
-  // Delete completed habits older than one day
   Future<void> deleteOldCompletedHabits() async {
     final now = DateTime.now();
     final yesterday = DateTime(now.year, now.month, now.day - 1);
-
     await isar.writeTxn(() async {
       final oldCompletedHabits = await isar.habits
           .filter()
           .completedDaysElementLessThan(yesterday)
           .findAll();
-
       for (final habit in oldCompletedHabits) {
-        // Remove the habit but keep the completion data for the heatmap
         await isar.habits.delete(habit.id);
       }
     });
-
-    // Re-read habits from the database
+    await supabase
+        .from('habits')
+        .delete()
+        .lt('completed_days', yesterday.toIso8601String());
     readHabits();
   }
 }
