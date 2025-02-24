@@ -12,6 +12,8 @@ Momentum is a habit tracking app built with Flutter. It allows users to create, 
 
 ## Getting Started
 
+Will update later
+
 ### Prerequisites
 
 - [Flutter](https://flutter.dev/docs/get-started/install) installed
