@@ -38,16 +38,21 @@ class _HabitListComponentState extends State<HabitListComponent> {
     final habitDatabase = context.watch<HabitDatabase>();
     List<Habit> currentHabits = habitDatabase.currentHabits;
 
+    // Update the filtering logic
     List<Habit> uncompletedHabits = currentHabits
         .where((habit) =>
-            !isHabitCompletedToday(habit.completedDays) &&
-            shouldShowHabit(habit))
+                !isHabitCompletedToday(
+                    habit.completedDays) && // not completed today
+                !habit.isArchived // not archived
+            )
         .toList();
 
     List<Habit> completedHabits = currentHabits
         .where((habit) =>
-            isHabitCompletedToday(habit.completedDays) &&
-            !shouldShowHabit(habit))
+                isHabitCompletedToday(habit.completedDays) && // completed today
+                habit.lastCompletedDate?.day ==
+                    DateTime.now().day // completed today
+            )
         .toList();
 
     return Column(

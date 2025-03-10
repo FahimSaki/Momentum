@@ -22,9 +22,9 @@ class CompletedHabits extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Check if the completed habits list is empty
+    // Only show if there are completed habits for today
     if (completedHabits.isEmpty) {
-      return Container(); // Return an empty container if the list is empty
+      return const SizedBox.shrink();
     }
 
     return Center(
@@ -36,7 +36,7 @@ class CompletedHabits extends StatelessWidget {
             cardColor: Theme.of(context).colorScheme.surface,
           ),
           child: ExpansionTile(
-            title: const Text('Completed'),
+            title: Text('Completed (${completedHabits.length})'),
             initiallyExpanded: showCompletedHabits,
             onExpansionChanged: onExpansionChanged,
             backgroundColor: Theme.of(context).colorScheme.surface,

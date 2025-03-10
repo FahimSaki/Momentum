@@ -18,9 +18,6 @@ void main() async {
     ***REMOVED*** dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // No need to call saveFirstLaunchDate anymore
-  // as it's handled in getFirstLaunchDate
-
   runApp(
     MultiProvider(
       providers: [

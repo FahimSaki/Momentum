@@ -54,10 +54,8 @@ class HabitDatabase extends ChangeNotifier {
   // Read habits
   Future<void> readHabits() async {
     try {
-      final response = await supabase
-          .from('habits')
-          .select()
-          .eq('is_archived', false); // Only get non-archived habits
+      // Get ALL habits for heatmap, including archived ones
+      final response = await supabase.from('habits').select();
 
       final habits =
           (response as List).map((habit) => Habit.fromJson(habit)).toList();
@@ -75,10 +73,21 @@ class HabitDatabase extends ChangeNotifier {
     try {
       final habit = currentHabits.firstWhere((h) => h.id == id);
       final today = DateTime.now();
+      final todayStart = DateTime(today.year, today.month, today.day);
 
       if (isCompleted && !habit.completedDays.contains(today)) {
-        habit.completedDays.add(DateTime(today.year, today.month, today.day));
-        habit.lastCompletedDate = today;
+        // Set completion date to start of today
+        habit.completedDays.add(todayStart);
+        habit.lastCompletedDate = todayStart;
+
+        // Update in Supabase including archived status
+        await supabase.from('habits').update({
+          'completed_days':
+              habit.completedDays.map((e) => e.toIso8601String()).toList(),
+          'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
+          'is_archived': true,
+          'archived_at': todayStart.toIso8601String(),
+        }).eq('id', id);
       } else {
         habit.completedDays.removeWhere(
           (date) =>
@@ -87,11 +96,19 @@ class HabitDatabase extends ChangeNotifier {
               date.day == today.day,
         );
         habit.lastCompletedDate = null;
+
+        // Reset archived status when uncompleting
+        await supabase.from('habits').update({
+          'completed_days':
+              habit.completedDays.map((e) => e.toIso8601String()).toList(),
+          'last_completed_date': null,
+          'is_archived': false,
+          'archived_at': null,
+        }).eq('id', id);
       }
 
-      await supabase.from('habits').update(habit.toJson()).eq('id', id);
-
-      notifyListeners();
+      // Refresh habits list
+      await readHabits();
     } catch (e, stackTrace) {
       logger.e('Error updating habit completion',
           error: e, stackTrace: stackTrace);

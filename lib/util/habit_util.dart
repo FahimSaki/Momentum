@@ -5,12 +5,19 @@ import 'package:habit_tracker/models/habit.dart';
 
 bool isHabitCompletedToday(List<DateTime> completionDays) {
   final today = DateTime.now();
-  return completionDays.any(
-    (date) =>
-        date.day == today.day &&
-        date.month == today.month &&
-        date.year == today.year,
-  );
+  final todayStart = DateTime(today.year, today.month, today.day);
+
+  return completionDays.any((date) {
+    final completedDate = DateTime(date.year, date.month, date.day);
+    return completedDate.isAtSameMoment(todayStart);
+  });
+}
+
+// Helper extension
+extension DateTimeComparison on DateTime {
+  bool isAtSameMoment(DateTime other) {
+    return year == other.year && month == other.month && day == other.day;
+  }
 }
 
 bool shouldShowHabit(Habit habit) {
