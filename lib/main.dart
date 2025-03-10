@@ -12,23 +12,19 @@ void main() async {
   // Load environment variables
   await dotenv.load(fileName: ".env");
 
-  // * Initialize Supabase
+  // Initialize Supabase
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL']!,
     ***REMOVED*** dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  // initialize habit database
-  await HabitDatabase.init();
-  await HabitDatabase().saveFirstLaunchDate();
+  // No need to call saveFirstLaunchDate anymore
+  // as it's handled in getFirstLaunchDate
 
   runApp(
     MultiProvider(
       providers: [
-        // * database provider
         ChangeNotifierProvider(create: (context) => HabitDatabase()),
-
-        // * theme provider
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
       ],
       child: const MyApp(),

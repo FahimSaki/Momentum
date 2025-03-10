@@ -1,140 +1,155 @@
 import 'package:flutter/material.dart';
-import 'package:habit_tracker/models/app_settings.dart';
 import 'package:habit_tracker/models/habit.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 
 class HabitDatabase extends ChangeNotifier {
-  static late Isar isar;
   final supabase = Supabase.instance.client;
   final Logger logger = Logger();
+  final List<Habit> currentHabits = [];
+  DateTime? _firstLaunchDate;
 
+  // Initialize
   static Future<void> init() async {
-    final dir = await getApplicationDocumentsDirectory();
-    isar = await Isar.open(
-      [HabitSchema, AppSettingsSchema],
-      directory: dir.path,
-    );
+    // No initialization needed for Supabase
   }
 
-  Future<void> saveFirstLaunchDate() async {
-    final currentSettings = await isar.appSettings.where().findFirst();
-    if (currentSettings == null) {
-      final settings = AppSettings()..firstLaunchDate = DateTime.now();
-      await isar.writeTxn(() => isar.appSettings.put(settings));
+  // Get first launch date
+  Future<DateTime?> getFirstLaunchDate() async {
+    if (_firstLaunchDate != null) return _firstLaunchDate;
+
+    try {
+      final response = await supabase
+          .from('app_settings')
+          .select('first_launch_date')
+          .single();
+
+      _firstLaunchDate = DateTime.parse(response['first_launch_date']);
+    } catch (e) {
+      // If table is empty or no date exists, set it to today
+      _firstLaunchDate = DateTime.now();
+      await supabase.from('app_settings').insert({
+        'first_launch_date': _firstLaunchDate!.toIso8601String(),
+      });
+    }
+
+    return _firstLaunchDate;
+  }
+
+  // Add new habit
+  Future<void> addHabit(String habitName) async {
+    try {
+      await supabase.from('habits').insert({
+        'name': habitName,
+        'completed_days': [],
+        'is_archived': false,
+      });
+
+      await readHabits();
+    } catch (e, stackTrace) {
+      logger.e('Error adding habit', error: e, stackTrace: stackTrace);
     }
   }
 
-  Future<DateTime?> getFirstLaunchDate() async {
-    final settings = await isar.appSettings.where().findFirst();
-    return settings?.firstLaunchDate;
-  }
-
-  final List<Habit> currentHabits = [];
-
-  Future<void> addHabit(String habitName) async {
-    final newHabit = Habit()..name = habitName;
-    await isar.writeTxn(() => isar.habits.put(newHabit));
-    await supabase.from('habits').insert({
-      'id': newHabit.id,
-      'name': newHabit.name,
-      'completed_days':
-          newHabit.completedDays.map((e) => e.toIso8601String()).toList(),
-    });
-    readHabits();
-  }
-
+  // Read habits
   Future<void> readHabits() async {
-    List<Habit> fetchedHabits = await isar.habits.where().findAll();
     try {
-      final List supabaseHabits = await supabase.from('habits').select();
-      for (var habit in supabaseHabits) {
-        if (!fetchedHabits.any((h) => h.id == habit['id'])) {
-          fetchedHabits.add(Habit()
-            ..id = habit['id']
-            ..name = habit['name']
-            ..completedDays = (habit['completed_days'] as List)
-                .map((e) => DateTime.parse(e))
-                .toList());
-        }
-      }
+      final response = await supabase
+          .from('habits')
+          .select()
+          .eq('is_archived', false); // Only get non-archived habits
+
+      final habits =
+          (response as List).map((habit) => Habit.fromJson(habit)).toList();
+
+      currentHabits.clear();
+      currentHabits.addAll(habits);
+      notifyListeners();
     } catch (e, stackTrace) {
-      logger.e('Error fetching habits from Supabase',
+      logger.e('Error fetching habits', error: e, stackTrace: stackTrace);
+    }
+  }
+
+  // Update habit completion
+  Future<void> updateHabitCompletion(int id, bool isCompleted) async {
+    try {
+      final habit = currentHabits.firstWhere((h) => h.id == id);
+      final today = DateTime.now();
+
+      if (isCompleted && !habit.completedDays.contains(today)) {
+        habit.completedDays.add(DateTime(today.year, today.month, today.day));
+        habit.lastCompletedDate = today;
+      } else {
+        habit.completedDays.removeWhere(
+          (date) =>
+              date.year == today.year &&
+              date.month == today.month &&
+              date.day == today.day,
+        );
+        habit.lastCompletedDate = null;
+      }
+
+      await supabase.from('habits').update(habit.toJson()).eq('id', id);
+
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e('Error updating habit completion',
           error: e, stackTrace: stackTrace);
     }
-
-    currentHabits.clear();
-    currentHabits.addAll(fetchedHabits);
-    notifyListeners();
   }
 
-  Future<void> updateHabitCompletion(int id, bool isCompleted) async {
-    final habit = await isar.habits.get(id);
-    if (habit != null) {
-      await isar.writeTxn(() async {
-        if (isCompleted && !habit.completedDays.contains(DateTime.now())) {
-          final today = DateTime.now();
-          habit.completedDays.add(
-            DateTime(today.year, today.month, today.day),
-          );
-        } else {
-          habit.completedDays.removeWhere(
-            (date) =>
-                date.year == DateTime.now().year &&
-                date.month == DateTime.now().month &&
-                date.day == DateTime.now().day,
-          );
-        }
-        await isar.habits.put(habit);
-      });
-      await supabase.from('habits').update({
-        'completed_days':
-            habit.completedDays.map((e) => e.toIso8601String()).toList(),
-      }).eq('id', id);
-    }
-    readHabits();
-  }
-
+  // Update habit name
   Future<void> updateHabitName(int id, String newName) async {
-    final habit = await isar.habits.get(id);
-    if (habit != null) {
-      await isar.writeTxn(() async {
-        habit.name = newName;
-        await isar.habits.put(habit);
-      });
-      await supabase.from('habits').update({
-        'name': newName,
-      }).eq('id', id);
+    try {
+      await supabase.from('habits').update({'name': newName}).eq('id', id);
+
+      await readHabits();
+    } catch (e, stackTrace) {
+      logger.e('Error updating habit name', error: e, stackTrace: stackTrace);
     }
-    readHabits();
   }
 
+  // Delete habit
   Future<void> deleteHabit(int id) async {
-    await isar.writeTxn(() async {
-      await isar.habits.delete(id);
-    });
-    await supabase.from('habits').delete().eq('id', id);
-    readHabits();
+    try {
+      await supabase.from('habits').delete().eq('id', id);
+
+      await readHabits();
+    } catch (e, stackTrace) {
+      logger.e('Error deleting habit', error: e, stackTrace: stackTrace);
+    }
   }
 
-  Future<void> deleteOldCompletedHabits() async {
-    final now = DateTime.now();
-    final yesterday = DateTime(now.year, now.month, now.day - 1);
-    await isar.writeTxn(() async {
-      final oldCompletedHabits = await isar.habits
-          .filter()
-          .completedDaysElementLessThan(yesterday)
-          .findAll();
-      for (final habit in oldCompletedHabits) {
-        await isar.habits.delete(habit.id);
+  // Delete completed habits older than one day
+  Future<void> deleteCompletedHabits() async {
+    try {
+      final now = DateTime.now();
+      final yesterday = DateTime(now.year, now.month, now.day - 1);
+
+      // Get all habits that were completed yesterday or before
+      final response = await supabase
+          .from('habits')
+          .select()
+          .not('last_completed_date', 'is', null)
+          .lte('last_completed_date', yesterday.toIso8601String())
+          .eq('is_archived', false); // Only archive non-archived habits
+
+      final oldHabits =
+          (response as List).map((habit) => Habit.fromJson(habit)).toList();
+
+      // Archive these habits
+      for (final habit in oldHabits) {
+        await supabase.from('habits').update({
+          'is_archived': true,
+          'archived_at': now.toIso8601String(),
+        }).eq('id', habit.id);
       }
-    });
-    await supabase
-        .from('habits')
-        .delete()
-        .lt('completed_days', yesterday.toIso8601String());
-    readHabits();
+
+      // Refresh the habits list
+      await readHabits();
+    } catch (e, stackTrace) {
+      logger.e('Error archiving completed habits',
+          error: e, stackTrace: stackTrace);
+    }
   }
 }
