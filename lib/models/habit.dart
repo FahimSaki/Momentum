@@ -3,12 +3,16 @@ class Habit {
   String name;
   List<DateTime> completedDays;
   DateTime? lastCompletedDate;
+  bool isArchived;
+  DateTime? archivedAt;
 
   Habit({
     required this.id,
     required this.name,
     this.completedDays = const [],
     this.lastCompletedDate,
+    this.isArchived = false,
+    this.archivedAt,
   });
 
   factory Habit.fromJson(Map<String, dynamic> json) {
@@ -21,6 +25,10 @@ class Habit {
       lastCompletedDate: json['last_completed_date'] != null
           ? DateTime.parse(json['last_completed_date'])
           : null,
+      isArchived: json['is_archived'] ?? false,
+      archivedAt: json['archived_at'] != null
+          ? DateTime.parse(json['archived_at'])
+          : null,
     );
   }
 
@@ -30,6 +38,8 @@ class Habit {
       'name': name,
       'completed_days': completedDays.map((e) => e.toIso8601String()).toList(),
       'last_completed_date': lastCompletedDate?.toIso8601String(),
+      'is_archived': isArchived,
+      'archived_at': archivedAt?.toIso8601String(),
     };
   }
 }
