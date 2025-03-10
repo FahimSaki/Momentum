@@ -1,21 +1,35 @@
-import 'package:isar/isar.dart';
-
-// run cmd to genereate file : dart run build_runner build
-part 'habit.g.dart';
-
-@Collection()
 class Habit {
-  // habit id
-  Id id = Isar.autoIncrement;
+  final int id;
+  String name;
+  List<DateTime> completedDays;
+  DateTime? lastCompletedDate;
 
-  // habit name
+  Habit({
+    required this.id,
+    required this.name,
+    this.completedDays = const [],
+    this.lastCompletedDate,
+  });
 
-  late String name;
+  factory Habit.fromJson(Map<String, dynamic> json) {
+    return Habit(
+      id: json['id'],
+      name: json['name'],
+      completedDays: (json['completed_days'] as List)
+          .map((e) => DateTime.parse(e))
+          .toList(),
+      lastCompletedDate: json['last_completed_date'] != null
+          ? DateTime.parse(json['last_completed_date'])
+          : null,
+    );
+  }
 
-  // completed days
-  List<DateTime> completedDays = [
-    // DateTinme(year, month, day),
-    // DateTime(2024, 12, 25),
-    // DateTime(2024, 12, 26),
-  ];
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'completed_days': completedDays.map((e) => e.toIso8601String()).toList(),
+      'last_completed_date': lastCompletedDate?.toIso8601String(),
+    };
+  }
 }
