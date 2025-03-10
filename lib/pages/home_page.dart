@@ -22,8 +22,7 @@ class _HomePageState extends State<HomePage> {
     // Read existing habits from db
     Provider.of<HabitDatabase>(context, listen: false).readHabits();
     // Delete old completed habits
-    Provider.of<HabitDatabase>(context, listen: false)
-        .deleteOldCompletedHabits();
+    Provider.of<HabitDatabase>(context, listen: false).deleteCompletedHabits();
   }
 
   // text controller

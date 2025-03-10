@@ -13,6 +13,17 @@ bool isHabitCompletedToday(List<DateTime> completionDays) {
   );
 }
 
+bool shouldShowHabit(Habit habit) {
+  if (habit.lastCompletedDate == null) return true;
+
+  final today = DateTime.now();
+  final lastCompleted = habit.lastCompletedDate!;
+
+  return today.year != lastCompleted.year ||
+      today.month != lastCompleted.month ||
+      today.day != lastCompleted.day;
+}
+
 // * prepare datasets for heat map
 Map<DateTime, int> prepareMapDatasets(List<Habit> habits) {
   Map<DateTime, int> datasets = {};

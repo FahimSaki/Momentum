@@ -27,7 +27,6 @@ A modern habit tracking application built with Flutter that helps users build an
   - Offline capability
 
 - **Data Management**
-  - Local storage using Isar Database
   - Cloud synchronization with Supabase
   - Secure data handling with Row Level Security (RLS)
 
@@ -106,7 +105,6 @@ lib/
 ## 🛠️ Built With
 
 - [Flutter](https://flutter.dev/) - UI framework
-- [Isar Database](https://isar.dev/) - Local storage
 - [Supabase](https://supabase.io/) - Backend as a Service
 - [Provider](https://pub.dev/packages/provider) - State management
 - [Flutter Heatmap Calendar](https://pub.dev/packages/flutter_heatmap_calendar) - Heat map visualization
