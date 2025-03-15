@@ -80,7 +80,7 @@ class _HabitListComponentState extends State<HabitListComponent> {
                 child: _removedHabits[habit.id] == true
                     ? const SizedBox.shrink()
                     : AnimatedHabitTile(
-                        key: ValueKey(habit.id),
+                        key: ValueKey('uncompleted_${habit.id}'),
                         isCompleted: false,
                         text: habit.name,
                         onChanged: (value) {
@@ -109,7 +109,15 @@ class _HabitListComponentState extends State<HabitListComponent> {
         CompletedHabits(
           completedHabits: completedHabits,
           showCompletedHabits: widget.showCompletedHabits,
-          onChanged: (habit) => (p0) => widget.checkHabitOnOff(p0, habit),
+          onChanged: (habit) => (p0) {
+            // Immediately update the UI when unchecking a completed habit
+            if (p0 == false) {
+              setState(() {
+                _removedHabits.remove(habit.id);
+              });
+            }
+            widget.checkHabitOnOff(p0, habit);
+          },
           editHabit: widget.editHabitBox,
           deleteHabit: widget.deleteHabitBox,
           onExpansionChanged: (expanded) {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:habit_tracker/components/habit_tile.dart';
 import 'package:habit_tracker/models/habit.dart';
+import 'package:habit_tracker/components/animated_habit_tile.dart';
 
 class CompletedHabits extends StatelessWidget {
   final List<Habit> completedHabits;
@@ -42,10 +42,16 @@ class CompletedHabits extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.surface,
             collapsedBackgroundColor: Theme.of(context).colorScheme.surface,
             children: completedHabits.map((habit) {
-              return HabitTile(
+              return AnimatedHabitTile(
+                // Changed from HabitTile to AnimatedHabitTile
+                key: ValueKey(habit.id), // Add key for proper widget updating
                 isCompleted: true,
                 text: habit.name,
-                onChanged: onChanged(habit),
+                onChanged: (value) {
+                  if (value != null) {
+                    onChanged(habit)(value);
+                  }
+                },
                 editHabit: (context) => editHabit(context, habit),
                 deleteHabit: (context) => deleteHabit(context, habit),
               );
