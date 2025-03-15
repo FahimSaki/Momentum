@@ -75,40 +75,37 @@ class HabitDatabase extends ChangeNotifier {
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
 
-      if (isCompleted && !habit.completedDays.contains(today)) {
-        // Set completion date to start of today
+      // Update local state first for immediate UI feedback
+      if (isCompleted && !habit.completedDays.contains(todayStart)) {
         habit.completedDays.add(todayStart);
         habit.lastCompletedDate = todayStart;
-
-        // Update in Supabase including archived status
-        await supabase.from('habits').update({
-          'completed_days':
-              habit.completedDays.map((e) => e.toIso8601String()).toList(),
-          'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
-          'is_archived': true,
-          'archived_at': todayStart.toIso8601String(),
-        }).eq('id', id);
+        habit.isArchived = true;
       } else {
         habit.completedDays.removeWhere(
           (date) =>
-              date.year == today.year &&
-              date.month == today.month &&
-              date.day == today.day,
+              date.year == todayStart.year &&
+              date.month == todayStart.month &&
+              date.day == todayStart.day,
         );
         habit.lastCompletedDate = null;
-
-        // Reset archived status when uncompleting
-        await supabase.from('habits').update({
-          'completed_days':
-              habit.completedDays.map((e) => e.toIso8601String()).toList(),
-          'last_completed_date': null,
-          'is_archived': false,
-          'archived_at': null,
-        }).eq('id', id);
+        habit.isArchived = false;
       }
 
-      // Refresh habits list
-      await readHabits();
+      // Update UI immediately
+      final index = currentHabits.indexWhere((h) => h.id == id);
+      if (index != -1) {
+        currentHabits[index] = habit;
+        notifyListeners();
+      }
+
+      // Update database
+      await supabase.from('habits').update({
+        'completed_days':
+            habit.completedDays.map((e) => e.toIso8601String()).toList(),
+        'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
+        'is_archived': habit.isArchived,
+        'archived_at': habit.isArchived ? todayStart.toIso8601String() : null,
+      }).eq('id', id);
     } catch (e, stackTrace) {
       logger.e('Error updating habit completion',
           error: e, stackTrace: stackTrace);
