@@ -95,11 +95,11 @@ The project follows a clean architecture pattern:
 ```
 lib/
 ├── components/          # Reusable UI components
-├── database/           # Database related code
-├── models/            # Data models
-├── pages/             # App screens
-├── theme/            # Theme configuration
-└── util/             # Utility functions
+├── database/            # Database related code
+├── models/              # Data models
+├── pages/               # App screens
+├── theme/               # Theme configuration
+└── util/                # Utility functions
 ```
 
 ## 🛠️ Built With
@@ -119,31 +119,33 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-Here's a creative open-source license section you can add to your document to complement the existing content:
-
 ---
 
 ## 📄 License
 
-This project is licensed under the **Creative Momentum License v1.0** – a friendly fork of the MIT License with a spark of inspiration.
+This project is licensed under the **Apache License 2.0**.
 
-You're free to:
-- ✅ Use it in personal and commercial projects  
-- 🛠️ Modify it, remix it, and build amazing things with it  
-- 🌍 Share it with the world  
+You may:
 
-Just remember to:
-- ✨ Give credit to the original creator (Fahimuzzaman Saki)  
-- 🔐 Not hold the author liable for any consequences  
-- 🚫 Avoid using the project in any evil endeavors (no data harvesting, hate, or harm)
+- ✅ Use this software freely in personal and commercial projects  
+- 🛠️ Modify and distribute it under the terms of the license  
+- 🌍 Incorporate it into your applications  
 
-For full legal flavor, refer to the [MIT License](https://opensource.org/licenses/MIT) – this is just a remix with more vibes.
+Under the condition that you:
+
+- 🔐 Include a copy of the Apache License 2.0 in any distribution  
+- ✨ Provide proper attribution to the original author (Fahimuzzaman Saki)  
+- 🚫 Do not use the trademarks, logos, or project name without permission  
+
+> See the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0) file or visit [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) for more details.
+
+---
 
 ## 🙏 Acknowledgments
 
-- CS50 team for the incredible learning experience
-- Flutter team for the amazing framework
-- Supabase team for the powerful backend service
+- CS50 team for the incredible learning experience  
+- Flutter team for the amazing framework  
+- Supabase team for the powerful backend service  
 - Isar Database team for the efficient local storage solution
 
 ## 📞 Contact
