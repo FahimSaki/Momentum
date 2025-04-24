@@ -137,7 +137,7 @@ Under the condition that you:
 - ✨ Provide proper attribution to the original author (Fahimuzzaman Saki)  
 - 🚫 Do not use the trademarks, logos, or project name without permission  
 
-> See the [LICENSE](https://www.apache.org/licenses/LICENSE-2.0) file or visit [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) for more details.
+> See the [LICENSE](LICENSE) file or visit [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) for more details.
 
 ---
 
