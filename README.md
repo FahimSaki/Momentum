@@ -119,6 +119,26 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
+Here's a creative open-source license section you can add to your document to complement the existing content:
+
+---
+
+## 📄 License
+
+This project is licensed under the **Creative Momentum License v1.0** – a friendly fork of the MIT License with a spark of inspiration.
+
+You're free to:
+- ✅ Use it in personal and commercial projects  
+- 🛠️ Modify it, remix it, and build amazing things with it  
+- 🌍 Share it with the world  
+
+Just remember to:
+- ✨ Give credit to the original creator (Fahimuzzaman Saki)  
+- 🔐 Not hold the author liable for any consequences  
+- 🚫 Avoid using the project in any evil endeavors (no data harvesting, hate, or harm)
+
+For full legal flavor, refer to the [MIT License](https://opensource.org/licenses/MIT) – this is just a remix with more vibes.
+
 ## 🙏 Acknowledgments
 
 - CS50 team for the incredible learning experience
