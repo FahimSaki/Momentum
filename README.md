@@ -1,7 +1,11 @@
 # Momentum
 
 <p align="center">
-  <img src="assets/images/momentum_app_logo_dark.png" width="100" alt="Momentum Logo"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/images/momentum_app_logo_dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/images/momentum_app_logo_light.png">
+    <img src="assets/images/momentum_app_logo_dark.png" width="100" alt="Momentum Logo"/>
+  </picture>
 </p>
 
 A modern habit tracking application built with Flutter that helps users build and maintain positive habits. Momentum features a hybrid database approach, combining local storage with cloud synchronization, and a clean, intuitive interface.
