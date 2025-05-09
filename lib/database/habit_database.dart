@@ -2,12 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
+import 'package:habit_tracker/services/notification_service.dart';
 
 class HabitDatabase extends ChangeNotifier {
   final supabase = Supabase.instance.client;
   final Logger logger = Logger();
   final List<Habit> currentHabits = [];
   DateTime? _firstLaunchDate;
+  RealtimeChannel? _habitChannel;
+  DateTime? lastLocalInsertTime;
+
+  HabitDatabase() {
+    _setupRealtimeSubscription();
+  }
+
+  void _setupRealtimeSubscription() {
+    _habitChannel = supabase.channel('public:habits').onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'habits',
+          callback: (payload) async {
+            // When a new habit is created on any device
+            final habitName = payload.newRecord['name'] as String;
+            final createdAt = payload.newRecord['created_at'] as String;
+
+            // Only show notification if the change came from another instance
+            if (createdAt != lastLocalInsertTime?.toIso8601String()) {
+              await NotificationService()
+                  .showNewHabitNotification(habitName, true);
+            }
+            await readHabits(); // Refresh the habits list
+          },
+        )..subscribe();
+  }
+
+  @override
+  void dispose() {
+    _habitChannel?.unsubscribe();
+    super.dispose();
+  }
 
   // Initialize
   static Future<void> init() async {
@@ -39,11 +72,17 @@ class HabitDatabase extends ChangeNotifier {
   // Add new habit
   Future<void> addHabit(String habitName) async {
     try {
+      lastLocalInsertTime = DateTime.now();
+
       await supabase.from('habits').insert({
         'name': habitName,
         'completed_days': [],
         'is_archived': false,
+        'created_at': lastLocalInsertTime!.toIso8601String(),
       });
+
+      // Show local notification
+      await NotificationService().showNewHabitNotification(habitName, false);
 
       await readHabits();
     } catch (e, stackTrace) {
