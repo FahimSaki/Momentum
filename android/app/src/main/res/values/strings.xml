@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="appwidget_text">EXAMPLE</string>
+    <string name="appwidget_text">Habit Tracker</string>
     <string name="add_widget">Add widget</string>
-    <string name="app_widget_description">This is an app widget description</string>
+    <string name="app_widget_description">Shows your habit completion heatmap</string>
+    <string name="empty_widget_text">No habits tracked yet</string>
+    <string name="widget_title">Habit Tracker</string>
 </resources>

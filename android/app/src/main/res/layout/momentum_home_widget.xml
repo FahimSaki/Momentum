@@ -1,20 +1,8 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/text_id"
-    style="@style/Widget.Android.AppWidget.Container"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:theme="@style/Theme.Android.AppWidgetContainer">
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="8dp" android:background="@drawable/widget_background">
 
-    <TextView
-        android:id="@+id/appwidget_text"
-        style="@style/Widget.Android.AppWidget.InnerView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerHorizontal="true"
-        android:layout_centerVertical="true"
-        android:layout_margin="8dp"
-        android:contentDescription="@string/appwidget_text"
-        android:text="@string/appwidget_text"
-        android:textSize="24sp"
-        android:textStyle="bold|italic" />
-</RelativeLayout>
+    <TextView android:id="@+id/widget_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="8dp" android:text="@string/widget_title" android:textColor="#FFFFFF" android:textSize="14sp" />
+
+    <GridLayout android:id="@+id/widget_grid" android:layout_width="match_parent" android:layout_height="wrap_content" android:columnCount="7" android:rowCount="5" />
+
+</LinearLayout>

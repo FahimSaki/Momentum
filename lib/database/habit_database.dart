@@ -3,6 +3,7 @@ import 'package:habit_tracker/models/habit.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 import 'package:habit_tracker/services/notification_service.dart';
+import 'package:home_widget/home_widget.dart';
 
 class HabitDatabase extends ChangeNotifier {
   final supabase = Supabase.instance.client;
@@ -102,6 +103,9 @@ class HabitDatabase extends ChangeNotifier {
       currentHabits.clear();
       currentHabits.addAll(habits);
       notifyListeners();
+      
+      // Add this line to update the widget
+      await updateWidget();
     } catch (e, stackTrace) {
       logger.e('Error fetching habits', error: e, stackTrace: stackTrace);
     }
@@ -203,6 +207,41 @@ class HabitDatabase extends ChangeNotifier {
     } catch (e, stackTrace) {
       logger.e('Error archiving completed habits',
           error: e, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> updateWidget() async {
+    try {
+      final habits = currentHabits;
+      
+      // Create a simple dataset for the widget
+      final List<String> widgetData = [];
+      final now = DateTime.now();
+      
+      // For last 35 days
+      for (int i = 0; i < 35; i++) {
+        final date = now.subtract(Duration(days: 34 - i));
+        // Count how many habits were completed on this date
+        int completedCount = 0;
+        for (final habit in habits) {
+          if (habit.completedDays.any((d) => 
+              d.year == date.year && 
+              d.month == date.month && 
+              d.day == date.day)) {
+            completedCount++;
+          }
+        }
+        widgetData.add(completedCount.toString());
+      }
+      
+      // Send data to the widget
+      await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
+      await HomeWidget.updateWidget(
+        name: 'MomentumHomeWidget',
+        androidName: 'MomentumHomeWidget',
+      );
+    } catch (e, stackTrace) {
+      logger.e('Error updating widget', error: e, stackTrace: stackTrace);
     }
   }
 }
