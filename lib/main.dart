@@ -5,9 +5,13 @@ import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:habit_tracker/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize notifications
+  await NotificationService().init();
 
   // Load environment variables
   await dotenv.load(fileName: ".env");
