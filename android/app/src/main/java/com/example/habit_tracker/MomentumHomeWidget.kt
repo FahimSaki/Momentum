@@ -3,51 +3,54 @@ package com.example.habit_tracker
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetPlugin
 
-/**
- * Implementation of App Widget functionality.
- */
 class MomentumHomeWidget : AppWidgetProvider() {
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        // * There may be multiple widgets active, so update all of them
         for (appWidgetId in appWidgetIds) {
-            // home widget
             val widgetData = HomeWidgetPlugin.getData(context)
-            val views = RemoteViews(context.packageName, R.layout.momentum_home_widget).apply{
-                val textFromApp = widgetData.getString("text_from_momentum", null)
-                setTextViewText(R.id.text_id, textFromApp ?: "No Text..")
+            val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
+            
+            val heatmapData = widgetData.getString("heatmap_data", "")?.split(",") ?: listOf()
+            
+            if (heatmapData.isEmpty()) {
+                views.setTextViewText(R.id.widget_title, context.getString(R.string.empty_widget_text))
+            } else {
+                views.setTextViewText(R.id.widget_title, context.getString(R.string.widget_title))
+                
+                for (i in 0 until 35) {
+                    val intensity = heatmapData.getOrNull(i)?.toIntOrNull() ?: 0
+                    val cellId = View.generateViewId()
+                    
+                    views.addView(R.id.widget_grid, RemoteViews(context.packageName, R.layout.heatmap_cell))
+                    
+                    val colorRes = when (intensity) {
+                        0 -> R.color.heatmap_empty
+                        1 -> R.color.heatmap_level1
+                        2 -> R.color.heatmap_level2
+                        3 -> R.color.heatmap_level3
+                        4 -> R.color.heatmap_level4
+                        else -> R.color.heatmap_level5
+                    }
+                    views.setInt(cellId, "setBackgroundResource", colorRes)
+                }
             }
 
-            // * update the widget
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
 
     override fun onEnabled(context: Context) {
-        // Enter relevant functionality for when the first widget is created
+        // Widget first created
     }
 
     override fun onDisabled(context: Context) {
-        // Enter relevant functionality for when the last widget is disabled
+        // Last widget instance removed
     }
-}
-
-internal fun updateAppWidget(
-    context: Context,
-    appWidgetManager: AppWidgetManager,
-    appWidgetId: Int
-) {
-    val widgetText = context.getString(R.string.appwidget_text)
-    // Construct the RemoteViews object
-    val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
-    views.setTextViewText(R.id.appwidget_text, widgetText)
-
-    // Instruct the widget manager to update the widget
-    appWidgetManager.updateAppWidget(appWidgetId, views)
 }
