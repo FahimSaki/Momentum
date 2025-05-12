@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/models/habit.dart';
+import 'package:habit_tracker/services/realtime_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 import 'package:habit_tracker/services/notification_service.dart';
@@ -80,10 +81,8 @@ class HabitDatabase extends ChangeNotifier {
         'completed_days': [],
         'is_archived': false,
         'created_at': lastLocalInsertTime!.toIso8601String(),
+        'device_id': RealtimeService().deviceId, // Add device ID
       });
-
-      // Show local notification
-      await NotificationService().showNewHabitNotification(habitName, false);
 
       await readHabits();
     } catch (e, stackTrace) {
@@ -103,7 +102,7 @@ class HabitDatabase extends ChangeNotifier {
       currentHabits.clear();
       currentHabits.addAll(habits);
       notifyListeners();
-      
+
       // Add this line to update the widget
       await updateWidget();
     } catch (e, stackTrace) {
@@ -213,27 +212,27 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> updateWidget() async {
     try {
       final habits = currentHabits;
-      
+
       // Create a simple dataset for the widget
       final List<String> widgetData = [];
       final now = DateTime.now();
-      
+
       // For last 35 days
       for (int i = 0; i < 35; i++) {
         final date = now.subtract(Duration(days: 34 - i));
         // Count how many habits were completed on this date
         int completedCount = 0;
         for (final habit in habits) {
-          if (habit.completedDays.any((d) => 
-              d.year == date.year && 
-              d.month == date.month && 
+          if (habit.completedDays.any((d) =>
+              d.year == date.year &&
+              d.month == date.month &&
               d.day == date.day)) {
             completedCount++;
           }
         }
         widgetData.add(completedCount.toString());
       }
-      
+
       // Send data to the widget
       await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
       await HomeWidget.updateWidget(
