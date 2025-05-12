@@ -3,7 +3,6 @@ import 'package:habit_tracker/models/habit.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
-import 'package:habit_tracker/services/notification_service.dart';
 import 'package:home_widget/home_widget.dart';
 
 class HabitDatabase extends ChangeNotifier {
@@ -24,16 +23,15 @@ class HabitDatabase extends ChangeNotifier {
           schema: 'public',
           table: 'habits',
           callback: (payload) async {
-            // When a new habit is created on any device
             final habitName = payload.newRecord['name'] as String;
             final createdAt = payload.newRecord['created_at'] as String;
 
-            // Only show notification if the change came from another instance
             if (createdAt != lastLocalInsertTime?.toIso8601String()) {
-              await NotificationService()
-                  .showNewHabitNotification(habitName, true);
+              final realtimeService = RealtimeService();
+              await realtimeService
+                  .showNotification(habitName); // Use public method
             }
-            await readHabits(); // Refresh the habits list
+            await readHabits();
           },
         )..subscribe();
   }
