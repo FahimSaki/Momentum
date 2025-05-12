@@ -12,7 +12,7 @@ create table public.habits (
     is_archived boolean default false,
     archived_at timestamp with time zone,
     created_at timestamp with time zone default timezone('utc'::text, now()),
-    device_id text
+    device_id text not null  -- Make device_id required
 );
 
 -- Create app_settings table
@@ -92,3 +92,24 @@ create index habits_completed_date_idx on public.habits(last_completed_date);
 create index habits_archived_idx on public.habits(is_archived, archived_at);
 create index if not exists devices_device_id_idx on public.devices(device_id);
 create index if not exists habits_device_id_idx on public.habits(device_id);
+
+-- Create a function to update device last_seen
+create or replace function public.fn_update_device_last_seen()
+returns trigger as $$
+begin
+    insert into public.devices (device_id)
+    values (NEW.device_id)
+    on conflict (device_id) 
+    do update set last_seen = now();
+    return NEW;
+end;
+$$ language plpgsql security definer;
+
+-- Create trigger to update device last_seen on habit creation
+create trigger tr_update_device_last_seen
+    after insert on public.habits
+    for each row
+    execute function public.fn_update_device_last_seen();
+
+-- Add index for real-time queries
+create index if not exists habits_created_at_idx on public.habits(created_at desc);

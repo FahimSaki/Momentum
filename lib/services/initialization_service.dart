@@ -11,6 +11,9 @@ class InitializationService {
   static const notificationChannelId = 'habits_channel';
   static const notificationId = 888;
 
+  static final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
   static Future<void> initialize() async {
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -51,57 +54,36 @@ class InitializationService {
   static Future<void> _initializeBackgroundService() async {
     final service = FlutterBackgroundService();
 
-    // Create notification channel
     const channel = AndroidNotificationChannel(
       notificationChannelId,
       'Habit Tracker Service',
       description: 'Keeps track of your habits in background',
-      importance: Importance.low,
+      importance: Importance.min,
     );
 
-    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
     await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
     await service.configure(
-      iosConfiguration: IosConfiguration(
-        autoStart: true,
-        onForeground: _onBackgroundMessage,
-        onBackground: _onBackgroundMessage,
-      ),
       androidConfiguration: AndroidConfiguration(
         onStart: _onBackgroundMessage,
         autoStart: true,
         isForegroundMode: true,
         notificationChannelId: notificationChannelId,
         initialNotificationTitle: 'Momentum',
-        initialNotificationContent: 'Monitoring your tasks and habits',
+        initialNotificationContent: 'Running in background',
         foregroundServiceNotificationId: notificationId,
+      ),
+      iosConfiguration: IosConfiguration(
+        autoStart: true,
+        onForeground: _onBackgroundMessage,
+        onBackground: _onBackgroundMessage,
       ),
     );
 
     await service.startService();
-
-    // Replace default notification with custom icon
-    await flutterLocalNotificationsPlugin.show(
-      notificationId,
-      'Momentum',
-      'Tracking your habits and tasks in the background',
-      const NotificationDetails(
-        android: AndroidNotificationDetails('habits_channel', 'Habit Tracker',
-            icon: '@mipmap/ic_launcher',
-            ongoing: true,
-            importance: Importance.min,
-            priority: Priority.min,
-            showWhen: false,
-            playSound: false,
-            enableVibration: false,
-            silent: true,
-            visibility: NotificationVisibility.secret),
-      ),
-    );
   }
 
   @pragma('vm:entry-point')
@@ -109,64 +91,55 @@ class InitializationService {
     // Initialize Flutter bindings
     WidgetsFlutterBinding.ensureInitialized();
 
-    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-    // Initialize notifications in background
-    await _requestNotificationPermissions();
-
-    // Create notification channel for background
-    const channel = AndroidNotificationChannel(
-      notificationChannelId,
-      'Habit Tracker Service',
-      description: 'Keeps track of your habits in background',
-      importance: Importance.high, // Changed to high
-      enableVibration: true,
-      showBadge: true,
-      enableLights: true,
+    // Initialize Supabase in background
+    await dotenv.load(fileName: ".env");
+    await Supabase.initialize(
+      url: dotenv.env['SUPABASE_URL']!,
+      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+      realtimeClientOptions: const RealtimeClientOptions(
+        eventsPerSecond: 2,
+      ),
     );
 
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
+    // Set up realtime subscription
+    final supabase = Supabase.instance.client;
+    supabase.channel('habits_channel')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'habits',
+        callback: (payload) async {
+          final habitName = payload.newRecord['name'] as String;
 
-    service.on('habit_created').listen((event) async {
-      if (event != null) {
-        final habitName = event['name'] as String;
-
-        await flutterLocalNotificationsPlugin.show(
-          DateTime.now().millisecond, // Dynamic ID to prevent override
-          'New Habit Created',
-          'A new habit was created: $habitName',
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              notificationChannelId,
-              'Habit Tracker',
-              channelDescription: 'Notifications for new habits',
-              importance: Importance.high,
-              priority: Priority.high,
-              showWhen: true,
-              enableVibration: true,
-              enableLights: true,
-              icon: 'ic_launcher',
-              largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+          await flutterLocalNotificationsPlugin.show(
+            DateTime.now().millisecond,
+            'New Habit Created',
+            'A new habit was created: $habitName',
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                notificationChannelId,
+                'Habit Tracker',
+                channelDescription: 'Notifications for new habits',
+                importance: Importance.high,
+                priority: Priority.high,
+                showWhen: true,
+                enableVibration: true,
+                enableLights: true,
+                icon: '@mipmap/ic_launcher',
+              ),
             ),
-          ),
-        );
-      }
-    });
+          );
+        },
+      )
+      ..subscribe();
 
     return true;
   }
 
   static Future<void> _requestNotificationPermissions() async {
-    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-
-    // Android settings
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // iOS settings
     const iOSSettings = DarwinInitializationSettings(
       requestSoundPermission: true,
       requestBadgePermission: true,
