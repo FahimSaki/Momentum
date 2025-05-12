@@ -4,12 +4,15 @@ import 'package:habit_tracker/app.dart';
 import 'package:habit_tracker/database/habit_database.dart';
 import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:habit_tracker/services/initialization_service.dart';
+import 'package:habit_tracker/services/realtime_service.dart';
 
 void main() async {
-  // Add this line to ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
   await InitializationService.initialize();
+
+  final realtimeService = RealtimeService();
+  await realtimeService.init();
 
   final habitDatabase = HabitDatabase();
 
@@ -18,6 +21,8 @@ void main() async {
       providers: [
         ChangeNotifierProvider<HabitDatabase>.value(value: habitDatabase),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
+        Provider<RealtimeService>.value(
+            value: realtimeService), // Add this line
       ],
       child: const MyApp(),
     ),

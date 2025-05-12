@@ -67,28 +67,23 @@ class RealtimeService {
   }
 
   Future<void> _initializeNotifications() async {
-    // Create the notification channel for Android
     const androidChannel = AndroidNotificationChannel(
-      'habits_channel',
+      'habits_channel', // Same channel ID as background service
       'Habits',
       description: 'Notifications for new habits',
-      importance: Importance.high,
+      importance: Importance.high, // Change to high
+      playSound: true,
+      enableVibration: true,
     );
 
-    // Create the channel on the device
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(androidChannel);
 
-    // Initialize notifications
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initializationSettingsIOS = DarwinInitializationSettings();
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: initializationSettingsIOS,
-    );
+    const initSettings = InitializationSettings(android: androidSettings);
 
     await _notifications.initialize(
       initSettings,
@@ -96,97 +91,63 @@ class RealtimeService {
         _logger.d('Notification tapped: ${details.payload}');
       },
     );
-
-    if (Platform.isIOS) {
-      await _notifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
-    }
   }
 
   Future<void> showNotification(String habitName) async {
     try {
-      _logger.d('Showing notification for habit: $habitName');
-
-      String title;
-      String body;
-
-      // Customize notification based on habit name
-      if (habitName.toLowerCase().contains('fahim') ||
-          habitName.toLowerCase().contains('saki')) {
-        title = '📩 Fahim Saki gave you a new task !!';
-        body = '$habitName -  was added to your tasks';
-      } else if (habitName.toLowerCase().contains('sadia')) {
-        title = '📚 Fahim Saki gave you a new task !!';
-        body = 'Sadia was given these tasks: $habitName';
-      } else {
-        title = '✨ You were given a task !!';
-        body = 'Start tracking: $habitName';
-      }
+      _logger.d('Attempting to show notification for habit: $habitName');
 
       const androidDetails = AndroidNotificationDetails(
         'habits_channel',
         'Habits',
         channelDescription: 'Notifications for new habits',
-        importance: Importance.high,
+        importance: Importance.max,
         priority: Priority.high,
-        styleInformation: BigTextStyleInformation(''), // Enable expanded text
-        enableLights: true,
-        playSound: true,
         enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        category: AndroidNotificationCategory.message,
       );
 
       await _notifications.show(
         DateTime.now().millisecond,
-        title,
-        body,
+        'New Habit Added!',
+        'Someone added: $habitName',
         const NotificationDetails(android: androidDetails),
-        payload: habitName,
       );
 
-      _logger.d('Notification shown with title: $title');
+      _logger.d('Notification shown successfully');
     } catch (e, stack) {
       _logger.e('Error showing notification', error: e, stackTrace: stack);
     }
   }
 
   void _setupRealtimeSubscription() {
-    _logger.d('Setting up realtime subscription...');
+    _logger.d('Setting up realtime subscription with device ID: $deviceId');
 
-    _habitsChannel = _supabase.channel('habits_channel');
+    _habitsChannel = _supabase.channel('habits_channel')
+      ..onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'habits',
+        callback: (PostgresChangePayload payload) async {
+          _logger.d('Received habit change: ${payload.newRecord}');
 
-    _habitsChannel
-        .onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'habits',
-      callback: (payload) async {
-        _logger.d('Received habit change: ${payload.newRecord}');
+          final creatorDeviceId = payload.newRecord['device_id'] as String?;
+          final habitName = payload.newRecord['name'] as String;
 
-        final creatorDeviceId = payload.newRecord['device_id'] as String?;
-        final habitName = payload.newRecord['name'] as String;
-
-        _logger.d(
-          'Creator device ID: $creatorDeviceId, Current device ID: $deviceId',
-        );
-
-        if (creatorDeviceId != null && creatorDeviceId != deviceId) {
-          await showNotification(habitName);
-        }
-      },
-    )
-        .subscribe((status, [error]) {
-      if (error != null) {
-        _logger.e('Error subscribing to channel', error: error);
-      } else {
-        _logger.d('Successfully subscribed to channel: $status');
-      }
-    });
+          // Only show notification if created on a different device
+          if (creatorDeviceId != deviceId) {
+            _logger.d('Showing notification for habit from different device');
+            await showNotification(habitName);
+          } else {
+            _logger.d('Skipping notification for habit from same device');
+          }
+        },
+      )
+      ..subscribe((status, [error]) {
+        _logger.d('Subscription status: $status, Error: $error');
+      });
   }
 
   void dispose() {

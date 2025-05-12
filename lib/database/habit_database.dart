@@ -73,13 +73,16 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> addHabit(String habitName) async {
     try {
       lastLocalInsertTime = DateTime.now();
+      final deviceId = RealtimeService().deviceId;
+
+      logger.d('Adding habit with device ID: $deviceId');
 
       await supabase.from('habits').insert({
         'name': habitName,
         'completed_days': [],
         'is_archived': false,
         'created_at': lastLocalInsertTime!.toIso8601String(),
-        'device_id': RealtimeService().deviceId, // Add device ID
+        'device_id': deviceId,
       });
 
       await readHabits();
