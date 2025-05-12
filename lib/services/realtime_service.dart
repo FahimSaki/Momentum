@@ -17,40 +17,35 @@ class RealtimeService {
   final _logger = Logger();
 
   Future<void> init() async {
-    // Get device ID
-    final deviceInfo = DeviceInfoPlugin();
-    if (Platform.isAndroid) {
-      final androidInfo = await deviceInfo.androidInfo;
-      deviceId = androidInfo.id;
-    } else if (Platform.isIOS) {
-      final iosInfo = await deviceInfo.iosInfo;
-      deviceId = iosInfo.identifierForVendor ?? 'unknown';
+    try {
+      // Get device ID
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        deviceId = androidInfo.id;
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor ?? 'unknown';
+      }
+
+      // Initialize notifications
+      await _initializeNotifications();
+
+      // Register or update device using upsert
+      await _supabase.from('devices').upsert(
+        {
+          'device_id': deviceId,
+          'last_seen': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'device_id', // Specify the unique column
+      );
+
+      // Set up realtime subscription
+      _setupRealtimeSubscription();
+    } catch (e, stack) {
+      _logger.e('Error initializing RealtimeService',
+          error: e, stackTrace: stack);
     }
-
-    // Initialize notifications
-    await _initializeNotifications();
-
-    // Register device in Supabase
-    await _supabase.from('devices').upsert({
-      'device_id': deviceId,
-      'last_seen': DateTime.now().toIso8601String(),
-    });
-
-    // Create and configure the Realtime channel
-    _habitsChannel = _supabase.channel('habits_channel');
-
-    // Set up PostgresChanges listener
-    _habitsChannel.onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'habits',
-      callback: (payload) {
-        _handleNewHabit(payload.newRecord);
-      },
-    );
-
-    // Subscribe to the channel
-    _habitsChannel.subscribe();
   }
 
   Future<void> _initializeNotifications() async {
@@ -90,7 +85,7 @@ class RealtimeService {
       // Only show notification if habit was created on another device
       if (creatorDeviceId != deviceId) {
         final habitName = newRecord['name'];
-        await _showNotification(habitName);
+        await showNotification(habitName);
         _logger.d('Showing notification for new habit: $habitName');
       }
     } catch (e, stack) {
@@ -98,7 +93,7 @@ class RealtimeService {
     }
   }
 
-  Future<void> _showNotification(String habitName) async {
+  Future<void> showNotification(String habitName) async {
     const androidDetails = AndroidNotificationDetails(
       'habits_channel',
       'Habits',
@@ -107,15 +102,8 @@ class RealtimeService {
       priority: Priority.high,
     );
 
-    const iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
     const notificationDetails = NotificationDetails(
       android: androidDetails,
-      iOS: iosDetails,
     );
 
     await _notifications.show(
@@ -123,8 +111,25 @@ class RealtimeService {
       'New Habit Created',
       'A new habit "$habitName" was created',
       notificationDetails,
-      payload: habitName,
     );
+  }
+
+  void _setupRealtimeSubscription() {
+    // Create and configure the Realtime channel
+    _habitsChannel = _supabase.channel('habits_channel');
+
+    // Set up PostgresChanges listener
+    _habitsChannel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'habits',
+      callback: (payload) {
+        _handleNewHabit(payload.newRecord);
+      },
+    );
+
+    // Subscribe to the channel
+    _habitsChannel.subscribe();
   }
 
   void dispose() {
