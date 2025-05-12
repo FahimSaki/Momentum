@@ -6,6 +6,9 @@ import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:habit_tracker/services/initialization_service.dart';
 
 void main() async {
+  // Add this line to ensure Flutter bindings are initialized
+  WidgetsFlutterBinding.ensureInitialized();
+
   await InitializationService.initialize();
 
   final habitDatabase = HabitDatabase();
