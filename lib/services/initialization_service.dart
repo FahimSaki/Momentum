@@ -88,16 +88,18 @@ class InitializationService {
     await flutterLocalNotificationsPlugin.show(
       notificationId,
       'Momentum',
-      'Tracking your habits in the background',
+      'Tracking your habits and tasks in the background',
       const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'habits_channel',
-          'Habit Tracker',
-          icon: '@drawable/ic_launcher',
-          ongoing: true,
-          importance: Importance.low,
-          showWhen: true,
-        ),
+        android: AndroidNotificationDetails('habits_channel', 'Habit Tracker',
+            icon: '@mipmap/ic_launcher',
+            ongoing: true,
+            importance: Importance.min,
+            priority: Priority.min,
+            showWhen: false,
+            playSound: false,
+            enableVibration: false,
+            silent: true,
+            visibility: NotificationVisibility.secret),
       ),
     );
   }
