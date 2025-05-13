@@ -10,15 +10,18 @@
         </intent>
     </queries>
 
-    <!-- Internet permission -->
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <application android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:label="Momentum" android:usesCleartextTraffic="true">
 
+        <!-- Widget receiver -->
         <receiver android:name=".MomentumHomeWidget" android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -26,30 +29,35 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/momentum_home_widget_info" />
         </receiver>
 
+        <!-- Main Activity -->
         <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
 
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
 
-            <intent-filter>
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Add this service -->
+        <!-- WorkManager Background Worker -->
         <service android:name="dev.fluttercommunity.plus.workmanager.BackgroundWorker" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- Flutter Background Service -->
         <service android:name="id.flutter.flutter_background_service.BackgroundService" android:foregroundServiceType="dataSync" android:exported="true" tools:replace="android:exported"/>
 
+        <!-- Local Notifications Foreground Service -->
         <service android:name="com.dexterous.flutterlocalnotifications.ForegroundService" android:foregroundServiceType="dataSync" android:exported="false"/>
 
-        <service android:name="dev.flutter.flutter.FlutterBackgroundService" android:foregroundServiceType="dataSync" android:exported="false"/>
-
+        <!-- Notification Receivers -->
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" android:exported="false" />
-        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver" android:exported="true">
-            <intent-filter>
+
+        <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver" android:exported="true" android:enabled="true">
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED"/>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.PACKAGE_REPLACED"/>
+                <data android:scheme="package"/>
             </intent-filter>
         </receiver>
 

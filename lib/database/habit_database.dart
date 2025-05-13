@@ -13,11 +13,30 @@ class HabitDatabase extends ChangeNotifier {
   RealtimeChannel? _habitChannel;
   DateTime? lastLocalInsertTime;
 
+  // Add a reference to RealtimeService
+  RealtimeService? _realtimeService;
+
   HabitDatabase() {
+    // Don't set up subscription in constructor
+    // This will be called from init()
+  }
+
+  // Initialize the database and set up subscriptions
+  Future<void> initialize() async {
+    // Get RealtimeService instance
+    _realtimeService = RealtimeService();
+    await _realtimeService!.init();
+
+    // Set up realtime subscription
     _setupRealtimeSubscription();
+
+    // Load initial habits
+    await readHabits();
   }
 
   void _setupRealtimeSubscription() {
+    if (_realtimeService == null) return;
+
     _habitChannel = supabase.channel('public:habits').onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -25,11 +44,12 @@ class HabitDatabase extends ChangeNotifier {
           callback: (payload) async {
             final habitName = payload.newRecord['name'] as String;
             final createdAt = payload.newRecord['created_at'] as String;
+            final creatorDeviceId = payload.newRecord['device_id'] as String?;
 
-            if (createdAt != lastLocalInsertTime?.toIso8601String()) {
-              final realtimeService = RealtimeService();
-              await realtimeService
-                  .showNotification(habitName); // Use public method
+            // Only show notification if this insertion wasn't from this device
+            if (createdAt != lastLocalInsertTime?.toIso8601String() &&
+                creatorDeviceId != _realtimeService!.deviceId) {
+              await _realtimeService!.showNotification(habitName);
             }
             await readHabits();
           },
@@ -44,7 +64,7 @@ class HabitDatabase extends ChangeNotifier {
 
   // Initialize
   static Future<void> init() async {
-    // No initialization needed for Supabase
+    // No additional initialization needed for Supabase
   }
 
   // Get first launch date
@@ -73,7 +93,14 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> addHabit(String habitName) async {
     try {
       lastLocalInsertTime = DateTime.now();
-      final deviceId = RealtimeService().deviceId;
+
+      // Make sure RealtimeService is initialized
+      if (_realtimeService == null) {
+        _realtimeService = RealtimeService();
+        await _realtimeService!.init();
+      }
+
+      final deviceId = _realtimeService!.deviceId;
 
       logger.d('Adding habit with device ID: $deviceId');
 
@@ -104,7 +131,7 @@ class HabitDatabase extends ChangeNotifier {
       currentHabits.addAll(habits);
       notifyListeners();
 
-      // Add this line to update the widget
+      // Update the widget
       await updateWidget();
     } catch (e, stackTrace) {
       logger.e('Error fetching habits', error: e, stackTrace: stackTrace);

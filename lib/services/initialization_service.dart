@@ -6,6 +6,8 @@ import 'package:habit_tracker/services/realtime_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
 
 class InitializationService {
   static const notificationChannelId = 'habits_channel';
@@ -19,11 +21,11 @@ class InitializationService {
 
     await dotenv.load(fileName: ".env");
 
-    // Initialize background service first
-    await _initializeBackgroundService();
-
-    // Request notification permissions early
+    // Request notification permissions first
     await _requestNotificationPermissions();
+
+    // Initialize background service
+    await _initializeBackgroundService();
 
     // Initialize Supabase with persistent connections
     await Supabase.initialize(
@@ -88,69 +90,140 @@ class InitializationService {
 
   @pragma('vm:entry-point')
   static Future<bool> _onBackgroundMessage(ServiceInstance service) async {
-    // Initialize Flutter bindings
+    // This will be executed in background
     WidgetsFlutterBinding.ensureInitialized();
 
-    // Initialize Supabase in background
-    await dotenv.load(fileName: ".env");
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-      realtimeClientOptions: const RealtimeClientOptions(
-        eventsPerSecond: 2,
-      ),
-    );
+    try {
+      // Initialize dotenv
+      await dotenv.load(fileName: ".env");
 
-    // Set up realtime subscription
-    final supabase = Supabase.instance.client;
-    supabase.channel('habits_channel')
-      ..onPostgresChanges(
+      // Initialize Supabase in background
+      await Supabase.initialize(
+        url: dotenv.env['SUPABASE_URL']!,
+        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+        realtimeClientOptions: const RealtimeClientOptions(
+          eventsPerSecond: 2,
+        ),
+      );
+
+      // Get device ID
+      String deviceId;
+      final deviceInfo = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        deviceId = androidInfo.id;
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        deviceId = iosInfo.identifierForVendor ?? 'unknown';
+      } else {
+        deviceId = 'unknown';
+      }
+
+      // Initialize notifications plugin in background
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initializationSettings =
+          InitializationSettings(android: androidSettings);
+
+      await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+      // Create notification channel for background
+      const androidChannel = AndroidNotificationChannel(
+        notificationChannelId,
+        'Habits',
+        description: 'Notifications for new habits',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+      );
+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidChannel);
+
+      // Set up realtime subscription
+      final supabase = Supabase.instance.client;
+      final channel = supabase.channel('background_habits_channel');
+
+      channel.onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'habits',
         callback: (payload) async {
-          final habitName = payload.newRecord['name'] as String;
+          try {
+            final habitName = payload.newRecord['name'] as String;
+            final creatorDeviceId = payload.newRecord['device_id'] as String?;
 
-          await flutterLocalNotificationsPlugin.show(
-            DateTime.now().millisecond,
-            'New Habit Created',
-            'A new habit was created: $habitName',
-            const NotificationDetails(
-              android: AndroidNotificationDetails(
-                notificationChannelId,
-                'Habit Tracker',
-                channelDescription: 'Notifications for new habits',
-                importance: Importance.high,
-                priority: Priority.high,
-                showWhen: true,
-                enableVibration: true,
-                enableLights: true,
-                icon: '@mipmap/ic_launcher',
-              ),
-            ),
-          );
+            // Only show notification if created on a different device
+            if (creatorDeviceId != deviceId) {
+              await flutterLocalNotificationsPlugin.show(
+                DateTime.now().millisecond,
+                'New Habit Created',
+                'Someone added: $habitName',
+                const NotificationDetails(
+                  android: AndroidNotificationDetails(
+                    notificationChannelId,
+                    'Habits',
+                    channelDescription: 'Notifications for new habits',
+                    importance: Importance.max,
+                    priority: Priority.high,
+                    showWhen: true,
+                    enableVibration: true,
+                    enableLights: true,
+                    playSound: true,
+                    icon: '@mipmap/ic_launcher',
+                    category: AndroidNotificationCategory.message,
+                  ),
+                ),
+              );
+            }
+          } catch (e) {
+            print('Error showing notification: $e');
+          }
         },
-      )
-      ..subscribe();
+      );
 
-    return true;
+      await channel.subscribe();
+
+      // Keep the service alive
+      service.on('stop_service').listen((event) {
+        channel.unsubscribe();
+        service.stopSelf();
+      });
+
+      return true;
+    } catch (e) {
+      print('Error in background service: $e');
+      return false;
+    }
   }
 
   static Future<void> _requestNotificationPermissions() async {
+    // Initialize notification plugin first
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-
     const iOSSettings = DarwinInitializationSettings(
       requestSoundPermission: true,
       requestBadgePermission: true,
       requestAlertPermission: true,
     );
-
     const initializationSettings = InitializationSettings(
       android: androidSettings,
       iOS: iOSSettings,
     );
-
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    // Request permissions for Android 13+
+    if (Platform.isAndroid) {
+      final androidImplementation =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      await androidImplementation?.requestNotificationsPermission();
+
+      // Also request exact alarm permission if needed
+      await androidImplementation?.requestExactAlarmsPermission();
+    }
   }
 }

@@ -9,20 +9,22 @@ import 'package:habit_tracker/services/realtime_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize all services
   await InitializationService.initialize();
 
+  // Get the singleton instance of RealtimeService
   final realtimeService = RealtimeService();
-  await realtimeService.init();
 
+  // Initialize habit database
   final habitDatabase = HabitDatabase();
+  await habitDatabase.readHabits(); // Load existing habits
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider<HabitDatabase>.value(value: habitDatabase),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
-        Provider<RealtimeService>.value(
-            value: realtimeService), // Add this line
+        Provider<RealtimeService>.value(value: realtimeService),
       ],
       child: const MyApp(),
     ),
