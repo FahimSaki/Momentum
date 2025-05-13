@@ -18,6 +18,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
     <application android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:label="Momentum" android:usesCleartextTraffic="true">
 
