@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RealtimeService {
   static final RealtimeService _instance = RealtimeService._internal();
@@ -14,8 +15,11 @@ class RealtimeService {
   late RealtimeChannel _habitsChannel;
   final _notifications = FlutterLocalNotificationsPlugin();
   final _logger = Logger();
+  bool _isInitialized = false;
 
   Future<void> init() async {
+    if (_isInitialized) return;
+
     try {
       _logger.d('Initializing RealtimeService...');
 
@@ -27,9 +31,15 @@ class RealtimeService {
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         deviceId = iosInfo.identifierForVendor ?? 'unknown';
+      } else {
+        deviceId = 'unknown';
       }
 
-      // Request permissions first
+      // Store device ID in SharedPreferences for background service
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('device_id', deviceId);
+
+      // Request permissions
       await _requestNotificationPermissions();
 
       // Initialize notifications
@@ -41,12 +51,13 @@ class RealtimeService {
           'device_id': deviceId,
           'last_seen': DateTime.now().toIso8601String(),
         },
-        onConflict: 'device_id', // Specify the unique column
+        onConflict: 'device_id',
       );
 
-      // Set up realtime subscription
+      // Set up realtime subscription for foreground
       _setupRealtimeSubscription();
 
+      _isInitialized = true;
       _logger.d('RealtimeService initialized');
     } catch (e, stack) {
       _logger.e('Error in RealtimeService init', error: e, stackTrace: stack);
@@ -55,7 +66,6 @@ class RealtimeService {
 
   Future<void> _requestNotificationPermissions() async {
     if (Platform.isAndroid) {
-      // For Android 13 and above
       final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
           _notifications.resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
@@ -68,10 +78,10 @@ class RealtimeService {
 
   Future<void> _initializeNotifications() async {
     const androidChannel = AndroidNotificationChannel(
-      'habits_channel', // Same channel ID as background service
+      'habits_channel',
       'Habits',
       description: 'Notifications for new habits',
-      importance: Importance.high, // Change to high
+      importance: Importance.max,
       playSound: true,
       enableVibration: true,
     );
@@ -125,7 +135,7 @@ class RealtimeService {
   void _setupRealtimeSubscription() {
     _logger.d('Setting up realtime subscription with device ID: $deviceId');
 
-    _habitsChannel = _supabase.channel('habits_channel')
+    _habitsChannel = _supabase.channel('foreground_habits_channel')
       ..onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
@@ -152,5 +162,6 @@ class RealtimeService {
 
   void dispose() {
     _habitsChannel.unsubscribe();
+    _isInitialized = false;
   }
 }
