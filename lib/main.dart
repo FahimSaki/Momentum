@@ -7,12 +7,10 @@ import 'package:habit_tracker/services/initialization_service.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize all services
+  WidgetsFlutterBinding.ensureInitialized(); // Initialize all services
   await InitializationService.initialize();
 
-  // Get the singleton instance of RealtimeService
+  // Get the initialized RealtimeService instance
   final realtimeService = RealtimeService();
 
   // Initialize habit database
