@@ -69,7 +69,6 @@ class InitializationService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
-
     await service.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: _onBackgroundMessage,
@@ -79,6 +78,7 @@ class InitializationService {
         initialNotificationTitle: 'Momentum',
         initialNotificationContent: 'Running in background',
         foregroundServiceNotificationId: notificationId,
+        autoStartOnBoot: true,
       ),
       iosConfiguration: IosConfiguration(
         autoStart: true,
@@ -97,6 +97,30 @@ class InitializationService {
 
     try {
       _logger.i('Background service started/resumed');
+
+      // Periodic notification update for foreground service
+      Timer.periodic(const Duration(seconds: 1), (timer) async {
+        if (service is AndroidServiceInstance) {
+          if (await service.isForegroundService()) {
+            await flutterLocalNotificationsPlugin.show(
+              notificationId,
+              'Momentum',
+              'Running: ${DateTime.now()}',
+              const NotificationDetails(
+                android: AndroidNotificationDetails(
+                  notificationChannelId,
+                  'MY FOREGROUND SERVICE',
+                  channelDescription: 'Shows background service status',
+                  icon: '@mipmap/ic_launcher',
+                  ongoing: true,
+                  importance: Importance.low,
+                ),
+              ),
+            );
+          }
+        }
+      });
+
       // Initialize dotenv
       await dotenv.load(
           fileName: ".env"); // Get device ID from shared preferences
