@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:logger/logger.dart';
 import 'dart:io';
+import 'dart:async';
 
 class InitializationService {
   static const notificationChannelId = 'habits_channel';
@@ -95,6 +96,7 @@ class InitializationService {
     WidgetsFlutterBinding.ensureInitialized();
 
     try {
+      _logger.i('Background service started/resumed');
       // Initialize dotenv
       await dotenv.load(
           fileName: ".env"); // Get device ID from shared preferences
@@ -175,8 +177,16 @@ class InitializationService {
           }
         },
       );
-
-      channel.subscribe();
+      channel
+          .subscribe(); // Periodic health check to keep service alive and monitor status
+      Timer.periodic(const Duration(minutes: 15), (_) {
+        _logger.d('Background service health check running');
+        service.invoke('debug', {
+          'isRunning': true,
+          'deviceId': deviceId,
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      });
 
       // Keep the service alive
       service.on('stop_service').listen((event) {
