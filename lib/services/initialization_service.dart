@@ -6,13 +6,14 @@ import 'package:habit_tracker/services/realtime_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:device_info_plus/device_info_plus.dart';
+import 'package:logger/logger.dart';
 import 'dart:io';
 
 class InitializationService {
   static const notificationChannelId = 'habits_channel';
   static const notificationId = 888;
 
+  static final Logger _logger = Logger();
   static final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
@@ -95,29 +96,19 @@ class InitializationService {
 
     try {
       // Initialize dotenv
-      await dotenv.load(fileName: ".env");
+      await dotenv.load(
+          fileName: ".env"); // Get device ID from shared preferences
+      final prefs = await SharedPreferences.getInstance();
+      final deviceId = prefs.getString('device_id') ?? 'unknown';
 
-      // Initialize Supabase in background
+      // Initialize Supabase in background with persistent connection
       await Supabase.initialize(
         url: dotenv.env['SUPABASE_URL']!,
         ***REMOVED*** dotenv.env['SUPABASE_ANON_KEY']!,
         realtimeClientOptions: const RealtimeClientOptions(
-          eventsPerSecond: 2,
+          eventsPerSecond: 1,
         ),
       );
-
-      // Get device ID
-      String deviceId;
-      final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? 'unknown';
-      } else {
-        deviceId = 'unknown';
-      }
 
       // Initialize notifications plugin in background
       const androidSettings =
@@ -178,13 +169,14 @@ class InitializationService {
                 ),
               );
             }
-          } catch (e) {
-            print('Error showing notification: $e');
+          } catch (e, stack) {
+            _logger.e('Error showing notification',
+                error: e, stackTrace: stack);
           }
         },
       );
 
-      await channel.subscribe();
+      channel.subscribe();
 
       // Keep the service alive
       service.on('stop_service').listen((event) {
@@ -193,8 +185,8 @@ class InitializationService {
       });
 
       return true;
-    } catch (e) {
-      print('Error in background service: $e');
+    } catch (e, stack) {
+      _logger.e('Error in background service', error: e, stackTrace: stack);
       return false;
     }
   }
