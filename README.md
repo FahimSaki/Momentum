@@ -144,16 +144,3 @@ Under the condition that you:
 > See the [LICENSE](LICENSE) file or visit [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) for more details.
 
 ---
-
-## 🙏 Acknowledgments
-
-- CS50 team for the incredible learning experience  
-- Flutter team for the amazing framework  
-- Supabase team for the powerful backend service  
-- Isar Database team for the efficient local storage solution
-
-## 📞 Contact
-
-Fahimuzzaman Saki - [@FahimSaki](https://github.com/FahimSaki)
-
-Project Link: [https://github.com/FahimSaki/Momentum](https://github.com/FahimSaki/Momentum)
