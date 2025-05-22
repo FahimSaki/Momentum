@@ -19,7 +19,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.3'
+          flutter-version: '3.16.5'
           channel: 'stable'
 
       - name: Create .env file
@@ -52,7 +52,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.3'
+          flutter-version: '3.16.5'
           channel: 'stable'
 
       - name: Create .env file
