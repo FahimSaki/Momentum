@@ -75,7 +75,7 @@ jobs:
 
       - name: Create ZIP archive
         run: |
-          $buildPath = "build/windows/*/Release/*"
+          $buildPath = "build/windows/x64/runner/Release"
           $files = Get-ChildItem -Path $buildPath -Recurse
           Compress-Archive -Path $files -DestinationPath "${{ github.workspace }}/momentum-windows.zip" -Force
 
