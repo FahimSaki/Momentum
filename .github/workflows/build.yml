@@ -39,6 +39,13 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Upload APK to Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
   build-windows:
     runs-on: windows-latest
     steps:
@@ -63,6 +70,13 @@ jobs:
 
       - name: Build Windows
         run: flutter build windows --release
+
+      - name: Upload Windows Build to Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-build
+          path: build/windows/runner/Release
 
   build-web:
     runs-on: ubuntu-latest
@@ -89,6 +103,13 @@ jobs:
       - name: Build web
         run: flutter build web --release
 
+      - name: Upload Web Build to Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: build/web
+
   build-ios:
     runs-on: macos-latest
     steps:
@@ -110,3 +131,10 @@ jobs:
 
       - name: Build iOS
         run: flutter build ios --release --no-codesign
+
+      - name: Upload iOS Build to Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-build
+          path: build/ios/ipa
