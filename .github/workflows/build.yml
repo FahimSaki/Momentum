@@ -146,14 +146,17 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build iOS
-        run: flutter build ios --release --no-codesign
+      - name: Build IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Debug output
+        run: ls -R build/ios
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: build/ios/ipa
+          files: build/ios/ipa/Runner.ipa
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
