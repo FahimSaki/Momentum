@@ -3,9 +3,9 @@ name: Build and Release
 on:
   push:
     branches:
-      - '**'  # This will trigger on push to any branch
+      - '**' 
     tags:
-      - 'v*'  # This will trigger on tags starting with 'v'
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -32,19 +32,22 @@ jobs:
         run: |
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
-
       - name: Get dependencies
         run: flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Upload APK to Release (on tag push)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v3
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     runs-on: windows-latest
@@ -61,7 +64,6 @@ jobs:
         run: |
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" | Out-File -FilePath .env -Encoding UTF8
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" | Out-File -Append -FilePath .env -Encoding UTF8
-
       - name: Enable Windows build
         run: flutter config --enable-windows-desktop
 
@@ -71,12 +73,21 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
 
-      - name: Upload Windows Build to Release (on tag push)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v3
+      - name: Create ZIP archive
+        run: |
+          $buildPath = "build/windows/x64/runner/Release"
+          $files = Get-ChildItem -Path $buildPath -Recurse
+          Compress-Archive -Path $files -DestinationPath "${{ github.workspace }}/momentum-windows.zip" -Force
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: windows-build
-          path: build/windows/runner/Release
+          files: momentum-windows.zip
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-web:
     runs-on: ubuntu-latest
@@ -93,7 +104,6 @@ jobs:
         run: |
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
           echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
-
       - name: Enable web
         run: flutter config --enable-web
 
@@ -103,12 +113,19 @@ jobs:
       - name: Build web
         run: flutter build web --release
 
-      - name: Upload Web Build to Release (on tag push)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v3
+      - name: Create web archive
+        run: cd build/web && zip -r ../../momentum-web.zip .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: web-build
-          path: build/web
+          files: momentum-web.zip
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-ios:
     runs-on: macos-latest
@@ -132,9 +149,13 @@ jobs:
       - name: Build iOS
         run: flutter build ios --release --no-codesign
 
-      - name: Upload iOS Build to Release (on tag push)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v3
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: ios-build
-          path: build/ios/ipa
+          files: build/ios/ipa
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
