@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     branches:
-      - '**' 
+      - '**'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -146,19 +146,8 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build IPA
-        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+      - name: Build for iOS Simulator (No code signing)
+        run: flutter build ios --simulator
 
       - name: Debug output
         run: ls -R build/ios
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: build/ios/ipa/Runner.ipa
-          name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
