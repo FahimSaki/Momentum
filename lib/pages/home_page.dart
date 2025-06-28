@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
 import 'package:habit_tracker/components/heat_map.dart';
 import 'package:habit_tracker/components/habit_list.dart';
-import 'package:habit_tracker/database/habit_database.dart';
+import 'package:habit_tracker/database/task_database.dart';
 import 'package:provider/provider.dart';
-import 'package:habit_tracker/models/habit.dart';
+import 'package:habit_tracker/models/task.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,29 +14,27 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final bool _showCompletedHabits = false;
+  final bool _showCompletedTasks = false;
 
   @override
   void initState() {
     super.initState();
-    // Read existing habits from db
-    Provider.of<HabitDatabase>(context, listen: false).readHabits();
-    // Delete old completed habits
-    Provider.of<HabitDatabase>(context, listen: false).deleteCompletedHabits();
+    // Fetch tasks from API
+    Provider.of<TaskDatabase>(context, listen: false).fetchTasks();
   }
 
   // text controller
   final TextEditingController textController = TextEditingController();
 
-  // * create a new habit
-  void createNewHabit() {
+  // * create a new task
+  void createNewTask() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         content: TextField(
           controller: textController,
           decoration: const InputDecoration(
-            hintText: 'create a new habit',
+            hintText: 'Create a new task',
             hintStyle: TextStyle(
               color: Colors.grey,
             ),
@@ -45,29 +43,28 @@ class _HomePageState extends State<HomePage> {
         actions: [
           // save button
           MaterialButton(
-            onPressed: () {
-              // get the new habit name
-              String newHabitName = textController.text;
-
-              // save to db
-              context.read<HabitDatabase>().addHabit(newHabitName);
-
-              // pop box
+            onPressed: () async {
+              String newTaskTitle = textController.text;
+              if (newTaskTitle.isNotEmpty) {
+                final task = Task(
+                  id: '',
+                  title: newTaskTitle,
+                  status: 'pending',
+                  assignedTo: '',
+                  createdBy: '',
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                );
+                await context.read<TaskDatabase>().addTask(task);
+              }
               Navigator.pop(context);
-
-              // clear controller
               textController.clear();
             },
             child: const Text('Save'),
           ),
-
-          // cancel button
           MaterialButton(
             onPressed: () {
-              // pop box
               Navigator.pop(context);
-
-              // clear controller
               textController.clear();
             },
             child: const Text('Cancel'),
@@ -77,20 +74,19 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // * check habit on off
-  void checkHabitOnOff(bool? p0, Habit habit) {
-    // check if habit is completed today
+  // * check task on/off
+  void checkTaskOnOff(bool? p0, Task task) async {
     if (p0 != null) {
-      // add today to completed days
-      context.read<HabitDatabase>().updateHabitCompletion(habit.id, p0);
+      final newStatus = p0 ? 'completed' : 'pending';
+      await context
+          .read<TaskDatabase>()
+          .updateTask(task.id, {'status': newStatus});
     }
   }
 
-  // * edit habit box
-  void editHabitBox(BuildContext context, Habit habit) {
-    // set the controller text to the habit name
-    textController.text = habit.name;
-
+  // * edit task box
+  void editTaskBox(BuildContext context, Task task) {
+    textController.text = task.title;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -98,54 +94,47 @@ class _HomePageState extends State<HomePage> {
           controller: textController,
         ),
         actions: [
-          // save button
           MaterialButton(
-            onPressed: () {
-              // get the new habit name
-              String newHabitName = textController.text;
-
-              // save to db
-              context
-                  .read<HabitDatabase>()
-                  .updateHabitName(habit.id, newHabitName);
-
-              // pop box
+            onPressed: () async {
+              String newTaskTitle = textController.text;
+              if (newTaskTitle.isNotEmpty) {
+                await context
+                    .read<TaskDatabase>()
+                    .updateTask(task.id, {'title': newTaskTitle});
+              }
               Navigator.pop(context);
-
-              // clear controller
               textController.clear();
             },
             child: const Text('Save'),
           ),
-          // cancel button
+          MaterialButton(
+            onPressed: () {
+              Navigator.pop(context);
+              textController.clear();
+            },
+            child: const Text('Cancel'),
+          ),
         ],
       ),
     );
   }
 
-  // * delete habit box
-  void deleteHabitBox(BuildContext context, Habit habit) {
+  // * delete task box
+  void deleteTaskBox(BuildContext context, Task task) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Are you sure you want to delete this habit?'),
+        title: const Text('Are you sure you want to delete this task?'),
         actions: [
-          // delete button
           MaterialButton(
-            onPressed: () {
-              // delete habit
-              context.read<HabitDatabase>().deleteHabit(habit.id);
-
-              // pop box
+            onPressed: () async {
+              await context.read<TaskDatabase>().deleteTask(task.id);
               Navigator.pop(context);
             },
             child: const Text('Delete'),
           ),
-
-          // cancel button
           MaterialButton(
             onPressed: () {
-              // pop box
               Navigator.pop(context);
             },
             child: const Text('Cancel'),
@@ -167,7 +156,7 @@ class _HomePageState extends State<HomePage> {
       drawer: const MyDrawer(),
       floatingActionButton: FloatingActionButton(
         elevation: 0,
-        onPressed: createNewHabit,
+        onPressed: createNewTask,
         backgroundColor: Theme.of(context).colorScheme.tertiary,
         child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
       ),
@@ -176,12 +165,12 @@ class _HomePageState extends State<HomePage> {
           // * H E A T M A P
           const HeatMapComponent(),
 
-          // * H A B I T L I S T
-          HabitListComponent(
-            showCompletedHabits: _showCompletedHabits,
-            checkHabitOnOff: checkHabitOnOff,
-            editHabitBox: editHabitBox,
-            deleteHabitBox: deleteHabitBox,
+          // * T A S K  L I S T
+          TaskListComponent(
+            showCompletedTasks: _showCompletedTasks,
+            checkTaskOnOff: checkTaskOnOff,
+            editTaskBox: editTaskBox,
+            deleteTaskBox: deleteTaskBox,
           ),
         ],
       ),

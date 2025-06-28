@@ -1,3 +1,4 @@
+// This file is deprecated and replaced by animated_task_tile.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

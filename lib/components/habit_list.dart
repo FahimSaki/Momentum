@@ -1,67 +1,56 @@
 /*
 
- S H O W   B O T H  C O M P L E T E D   A N D   I  N C O M P L E T E D   H A B I T S
+ S H O W   B O T H  C O M P L E T E D   A N D   I  N C O M P L E T E D   T A S K S
 
  */
 
 import 'package:flutter/material.dart';
-import 'package:habit_tracker/components/animated_habit_tile.dart';
-import 'package:habit_tracker/components/completed_habits.dart';
-import 'package:habit_tracker/database/habit_database.dart';
-import 'package:habit_tracker/models/habit.dart';
-import 'package:habit_tracker/util/habit_util.dart';
+import 'package:habit_tracker/components/animated_task_tile.dart';
+import 'package:habit_tracker/components/completed_tasks.dart';
+import 'package:habit_tracker/database/task_database.dart';
+import 'package:habit_tracker/models/task.dart';
 import 'package:provider/provider.dart';
 
-class HabitListComponent extends StatefulWidget {
-  final bool showCompletedHabits;
-  final void Function(bool?, Habit) checkHabitOnOff;
-  final void Function(BuildContext, Habit) editHabitBox;
-  final void Function(BuildContext, Habit) deleteHabitBox;
+class TaskListComponent extends StatefulWidget {
+  final bool showCompletedTasks;
+  final void Function(bool?, Task) checkTaskOnOff;
+  final void Function(BuildContext, Task) editTaskBox;
+  final void Function(BuildContext, Task) deleteTaskBox;
 
-  const HabitListComponent({
+  const TaskListComponent({
     super.key,
-    required this.showCompletedHabits,
-    required this.checkHabitOnOff,
-    required this.editHabitBox,
-    required this.deleteHabitBox,
+    required this.showCompletedTasks,
+    required this.checkTaskOnOff,
+    required this.editTaskBox,
+    required this.deleteTaskBox,
   });
 
   @override
-  State<HabitListComponent> createState() => _HabitListComponentState();
+  State<TaskListComponent> createState() => _TaskListComponentState();
 }
 
-class _HabitListComponentState extends State<HabitListComponent> {
-  final Map<int, bool> _removedHabits = {};
+class _TaskListComponentState extends State<TaskListComponent> {
+  final Map<String, bool> _removedTasks = {};
 
   @override
   Widget build(BuildContext context) {
-    final habitDatabase = context.watch<HabitDatabase>();
-    List<Habit> currentHabits = habitDatabase.currentHabits;
+    final taskDatabase = context.watch<TaskDatabase>();
+    List<Task> currentTasks = taskDatabase.currentTasks;
 
-    // Update the filtering logic
-    List<Habit> uncompletedHabits = currentHabits
-        .where((habit) =>
-                !isHabitCompletedToday(
-                    habit.completedDays) && // not completed today
-                !habit.isArchived // not archived
-            )
-        .toList();
+    // Update the filtering logic for tasks
+    List<Task> uncompletedTasks =
+        currentTasks.where((task) => task.status != 'completed').toList();
 
-    List<Habit> completedHabits = currentHabits
-        .where((habit) =>
-                isHabitCompletedToday(habit.completedDays) && // completed today
-                habit.lastCompletedDate?.day ==
-                    DateTime.now().day // completed today
-            )
-        .toList();
+    List<Task> completedTasks =
+        currentTasks.where((task) => task.status == 'completed').toList();
 
     return Column(
       children: [
-        if (uncompletedHabits.isEmpty && completedHabits.isEmpty) ...[
+        if (uncompletedTasks.isEmpty && completedTasks.isEmpty) ...[
           const Padding(
             padding: EdgeInsets.only(top: 80, right: 16, left: 16),
             child: Text(
-              'No habits found. Please add a new habit.',
+              'No tasks found. Please add a new task.',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 16,
@@ -70,56 +59,56 @@ class _HabitListComponentState extends State<HabitListComponent> {
           ),
         ] else ...[
           ListView.builder(
-            itemCount: uncompletedHabits.length,
+            itemCount: uncompletedTasks.length,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemBuilder: (context, index) {
-              final habit = uncompletedHabits[index];
+              final task = uncompletedTasks[index];
               return AnimatedSize(
                 duration: const Duration(milliseconds: 300),
-                child: _removedHabits[habit.id] == true
+                child: _removedTasks[task.id] == true
                     ? const SizedBox.shrink()
-                    : AnimatedHabitTile(
-                        key: ValueKey('uncompleted_${habit.id}'),
+                    : AnimatedTaskTile(
+                        key: ValueKey('uncompleted_${task.id}'),
                         isCompleted: false,
-                        text: habit.name,
+                        text: task.title,
                         onChanged: (value) {
                           if (value == true) {
                             setState(() {
-                              _removedHabits[habit.id] = true;
+                              _removedTasks[task.id] = true;
                             });
                             Future.delayed(const Duration(milliseconds: 300),
                                 () {
-                              widget.checkHabitOnOff(value, habit);
+                              widget.checkTaskOnOff(value, task);
                             });
                           } else {
-                            widget.checkHabitOnOff(value, habit);
+                            widget.checkTaskOnOff(value, task);
                           }
                         },
-                        editHabit: (context) =>
-                            widget.editHabitBox(context, habit),
-                        deleteHabit: (context) =>
-                            widget.deleteHabitBox(context, habit),
+                        editTask: (context) =>
+                            widget.editTaskBox(context, task),
+                        deleteTask: (context) =>
+                            widget.deleteTaskBox(context, task),
                       ),
               );
             },
           ),
         ],
         const SizedBox(height: 10),
-        CompletedHabits(
-          completedHabits: completedHabits,
-          showCompletedHabits: widget.showCompletedHabits,
-          onChanged: (habit) => (p0) {
-            // Immediately update the UI when unchecking a completed habit
+        CompletedTasks(
+          completedTasks: completedTasks,
+          showCompletedTasks: widget.showCompletedTasks,
+          onChanged: (task) => (p0) {
+            // Immediately update the UI when unchecking a completed task
             if (p0 == false) {
               setState(() {
-                _removedHabits.remove(habit.id);
+                _removedTasks.remove(task.id);
               });
             }
-            widget.checkHabitOnOff(p0, habit);
+            widget.checkTaskOnOff(p0, task);
           },
-          editHabit: widget.editHabitBox,
-          deleteHabit: widget.deleteHabitBox,
+          editTask: widget.editTaskBox,
+          deleteTask: widget.deleteTaskBox,
           onExpansionChanged: (expanded) {
             setState(() {});
           },

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
-import 'package:habit_tracker/database/habit_database.dart';
-import 'package:habit_tracker/models/habit.dart';
-import 'package:habit_tracker/util/habit_util.dart';
+import 'package:habit_tracker/database/task_database.dart';
+import 'package:habit_tracker/models/task.dart';
+import 'package:habit_tracker/util/task_util.dart';
 import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -11,17 +11,14 @@ class HeatMapComponent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // habit database
-    final habitDatabase = context.watch<HabitDatabase>();
+    final taskDatabase = context.watch<TaskDatabase>();
+    List<Task> currentTasks = taskDatabase.currentTasks;
 
-    // current habits
-    List<Habit> currentHabits = habitDatabase.currentHabits;
-
-    // return heat map UI
     return FutureBuilder<DateTime?>(
-      future: habitDatabase.getFirstLaunchDate(),
+      future: Future.value(currentTasks.isNotEmpty
+          ? currentTasks.first.createdAt
+          : DateTime.now()),
       builder: (context, snapshot) {
-        // * once the first launch date is fetched build the heat map
         if (snapshot.hasData) {
           final themeProvider = Provider.of<ThemeProvider>(context);
           final isLightMode = !themeProvider.isDarkMode;
@@ -29,7 +26,7 @@ class HeatMapComponent extends StatelessWidget {
           return HeatMap(
             startDate: snapshot.data!,
             endDate: DateTime.now(),
-            datasets: prepareMapDatasets(currentHabits),
+            datasets: prepareMapDatasets(currentTasks),
             colorMode: ColorMode.color,
             defaultColor: Theme.of(context).colorScheme.secondary,
             textColor: Colors.white,
@@ -53,9 +50,7 @@ class HeatMapComponent extends StatelessWidget {
                     5: Colors.teal.shade600,
                   },
           );
-        }
-        // * handle case where empty data
-        else {
+        } else {
           return Container();
         }
       },
