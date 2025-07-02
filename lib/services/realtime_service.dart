@@ -1,18 +1,17 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class RealtimeService {
   static final RealtimeService _instance = RealtimeService._internal();
   factory RealtimeService() => _instance;
   RealtimeService._internal();
 
-  final _supabase = Supabase.instance.client;
   late String deviceId;
-  late RealtimeChannel _habitsChannel;
   final _notifications = FlutterLocalNotificationsPlugin();
   final _logger = Logger();
   bool _isInitialized = false;
@@ -45,22 +44,35 @@ class RealtimeService {
       // Initialize notifications
       await _initializeNotifications();
 
-      // Register or update device using upsert
-      await _supabase.from('devices').upsert(
-        {
-          'device_id': deviceId,
-          'last_seen': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'device_id',
-      );
-
-      // Set up realtime subscription for foreground
-      _setupRealtimeSubscription();
+      // Register or update device using backend REST API
+      await registerDeviceWithBackend();
 
       _isInitialized = true;
       _logger.d('RealtimeService initialized');
     } catch (e, stack) {
       _logger.e('Error in RealtimeService init', error: e, stackTrace: stack);
+    }
+  }
+
+  Future<void> registerDeviceWithBackend() async {
+    try {
+      // Replace with your backend URL
+      const backendUrl = 'http://localhost:5000/devices/register';
+      final response = await http.post(
+        Uri.parse(backendUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'device_id': deviceId,
+          'last_seen': DateTime.now().toIso8601String(),
+        }),
+      );
+      if (response.statusCode == 200) {
+        _logger.d('Device registered with backend');
+      } else {
+        _logger.e('Failed to register device: \\${response.body}');
+      }
+    } catch (e, stack) {
+      _logger.e('Error registering device', error: e, stackTrace: stack);
     }
   }
 
@@ -98,7 +110,7 @@ class RealtimeService {
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (details) {
-        _logger.d('Notification tapped: ${details.payload}');
+        _logger.d('Notification tapped: \\${details.payload}');
       },
     );
   }
@@ -132,36 +144,7 @@ class RealtimeService {
     }
   }
 
-  void _setupRealtimeSubscription() {
-    _logger.d('Setting up realtime subscription with device ID: $deviceId');
-
-    _habitsChannel = _supabase.channel('foreground_habits_channel')
-      ..onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'habits',
-        callback: (PostgresChangePayload payload) async {
-          _logger.d('Received habit change: ${payload.newRecord}');
-
-          final creatorDeviceId = payload.newRecord['device_id'] as String?;
-          final habitName = payload.newRecord['name'] as String;
-
-          // Only show notification if created on a different device
-          if (creatorDeviceId != deviceId) {
-            _logger.d('Showing notification for habit from different device');
-            await showNotification(habitName);
-          } else {
-            _logger.d('Skipping notification for habit from same device');
-          }
-        },
-      )
-      ..subscribe((status, [error]) {
-        _logger.d('Subscription status: $status, Error: $error');
-      });
-  }
-
   void dispose() {
-    _habitsChannel.unsubscribe();
     _isInitialized = false;
   }
 }

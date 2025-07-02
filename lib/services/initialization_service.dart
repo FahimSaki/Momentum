@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:habit_tracker/database/habit_database.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,30 +27,9 @@ class InitializationService {
     // Initialize background service
     await _initializeBackgroundService();
 
-    // Initialize Supabase with persistent connections
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL']!,
-      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-      realtimeClientOptions: const RealtimeClientOptions(
-        eventsPerSecond: 2,
-      ),
-      storageOptions: const StorageClientOptions(),
-      authOptions: const FlutterAuthClientOptions(
-        authFlowType: AuthFlowType.implicit,
-        autoRefreshToken: true,
-      ),
-    );
-
-    // Store last active timestamp
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_active', DateTime.now().toIso8601String());
-
     // Initialize RealtimeService
     final realtimeService = RealtimeService();
     await realtimeService.init();
-
-    // Initialize HabitDatabase
-    await HabitDatabase.init();
   }
 
   static Future<void> _initializeBackgroundService() async {
@@ -127,15 +104,6 @@ class InitializationService {
       final prefs = await SharedPreferences.getInstance();
       final deviceId = prefs.getString('device_id') ?? 'unknown';
 
-      // Initialize Supabase in background with persistent connection
-      await Supabase.initialize(
-        url: dotenv.env['SUPABASE_URL']!,
-        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
-        realtimeClientOptions: const RealtimeClientOptions(
-          eventsPerSecond: 1,
-        ),
-      );
-
       // Initialize notifications plugin in background
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -159,50 +127,7 @@ class InitializationService {
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(androidChannel);
 
-      // Set up realtime subscription
-      final supabase = Supabase.instance.client;
-      final channel = supabase.channel('background_habits_channel');
-
-      channel.onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'habits',
-        callback: (payload) async {
-          try {
-            final habitName = payload.newRecord['name'] as String;
-            final creatorDeviceId = payload.newRecord['device_id'] as String?;
-
-            // Only show notification if created on a different device
-            if (creatorDeviceId != deviceId) {
-              await flutterLocalNotificationsPlugin.show(
-                DateTime.now().millisecond,
-                'New Habit Created',
-                'Someone added: $habitName',
-                const NotificationDetails(
-                  android: AndroidNotificationDetails(
-                    notificationChannelId,
-                    'Habits',
-                    channelDescription: 'Notifications for new habits',
-                    importance: Importance.max,
-                    priority: Priority.high,
-                    showWhen: true,
-                    enableVibration: true,
-                    enableLights: true,
-                    playSound: true,
-                    icon: '@mipmap/ic_launcher',
-                    category: AndroidNotificationCategory.message,
-                  ),
-                ),
-              );
-            }
-          } catch (e, stack) {
-            _logger.e('Error showing notification',
-                error: e, stackTrace: stack);
-          }
-        },
-      );
-      channel
-          .subscribe(); // Periodic health check to keep service alive and monitor status
+      // No realtime subscription, polling will be handled in HabitDatabase
       Timer.periodic(const Duration(minutes: 15), (_) {
         _logger.d('Background service health check running');
         service.invoke('debug', {
@@ -214,7 +139,6 @@ class InitializationService {
 
       // Keep the service alive
       service.on('stop_service').listen((event) {
-        channel.unsubscribe();
         service.stopSelf();
       });
 

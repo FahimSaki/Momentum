@@ -1,91 +1,78 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:logger/logger.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
 
 class HabitDatabase extends ChangeNotifier {
-  final supabase = Supabase.instance.client;
   final Logger logger = Logger();
   final List<Habit> currentHabits = [];
   DateTime? _firstLaunchDate;
-  RealtimeChannel? _habitChannel;
   DateTime? lastLocalInsertTime;
-
-  // Add a reference to RealtimeService
   RealtimeService? _realtimeService;
+  Timer? _pollingTimer;
+  String? jwtToken;
+  String? userId;
 
   HabitDatabase() {
-    // Don't set up subscription in constructor
-    // This will be called from init()
+    // No realtime subscription
   }
 
-  // Initialize the database and set up subscriptions
-  Future<void> initialize() async {
-    // Get RealtimeService instance
+  // Initialize the database and set up polling
+  Future<void> initialize({required String jwt, required String userId}) async {
+    this.jwtToken = jwt;
+    this.userId = userId;
     _realtimeService = RealtimeService();
     await _realtimeService!.init();
-
-    // Set up realtime subscription
-    _setupRealtimeSubscription();
-
-    // Load initial habits
     await readHabits();
+    _startPolling();
   }
 
-  void _setupRealtimeSubscription() {
-    if (_realtimeService == null) return;
-
-    _habitChannel = supabase.channel('public:habits').onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'habits',
-          callback: (payload) async {
-            final habitName = payload.newRecord['name'] as String;
-            final createdAt = payload.newRecord['created_at'] as String;
-            final creatorDeviceId = payload.newRecord['device_id'] as String?;
-
-            // Only show notification if this insertion wasn't from this device
-            if (createdAt != lastLocalInsertTime?.toIso8601String() &&
-                creatorDeviceId != _realtimeService!.deviceId) {
-              await _realtimeService!.showNotification(habitName);
-            }
-            await readHabits();
-          },
-        )..subscribe();
+  void _startPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
+      await readHabits();
+    });
   }
 
   @override
   void dispose() {
-    _habitChannel?.unsubscribe();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
-  // Initialize
-  static Future<void> init() async {
-    // No additional initialization needed for Supabase
-  }
-
-  // Get first launch date
+  // Get first launch date from backend
   Future<DateTime?> getFirstLaunchDate() async {
     if (_firstLaunchDate != null) return _firstLaunchDate;
-
     try {
-      final response = await supabase
-          .from('app_settings')
-          .select('first_launch_date')
-          .single();
-
-      _firstLaunchDate = DateTime.parse(response['first_launch_date']);
+      final response = await http.get(
+        Uri.parse(
+            'http://10.0.2.2:5000/app_settings/first_launch_date?userId=$userId'),
+        headers: {'Authorization': 'Bearer $jwtToken'},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _firstLaunchDate = DateTime.parse(data['first_launch_date']);
+      } else {
+        _firstLaunchDate = DateTime.now();
+        await http.post(
+          Uri.parse('http://10.0.2.2:5000/app_settings/first_launch_date'),
+          headers: {
+            'Authorization': 'Bearer $jwtToken',
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'first_launch_date': _firstLaunchDate!.toIso8601String(),
+            'userId': userId
+          }),
+        );
+      }
     } catch (e) {
-      // If table is empty or no date exists, set it to today
       _firstLaunchDate = DateTime.now();
-      await supabase.from('app_settings').insert({
-        'first_launch_date': _firstLaunchDate!.toIso8601String(),
-      });
     }
-
     return _firstLaunchDate;
   }
 
@@ -93,26 +80,25 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> addHabit(String habitName) async {
     try {
       lastLocalInsertTime = DateTime.now();
-
-      // Make sure RealtimeService is initialized
-      if (_realtimeService == null) {
-        _realtimeService = RealtimeService();
-        await _realtimeService!.init();
-      }
-
-      final deviceId = _realtimeService!.deviceId;
-
+      final deviceId = _realtimeService?.deviceId ?? 'unknown';
       logger.d('Adding habit with device ID: $deviceId');
-
-      await supabase.from('habits').insert({
-        'name': habitName,
-        'completed_days': [],
-        'is_archived': false,
-        'created_at': lastLocalInsertTime!.toIso8601String(),
-        'device_id': deviceId,
-      });
-
-      await readHabits();
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/habits'),
+        headers: {
+          'Authorization': 'Bearer $jwtToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'name': habitName,
+          'device_id': deviceId,
+          'userId': userId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        await readHabits();
+      } else {
+        logger.e('Error adding habit: ${response.body}');
+      }
     } catch (e, stackTrace) {
       logger.e('Error adding habit', error: e, stackTrace: stackTrace);
     }
@@ -121,18 +107,20 @@ class HabitDatabase extends ChangeNotifier {
   // Read habits
   Future<void> readHabits() async {
     try {
-      // Get ALL habits for heatmap, including archived ones
-      final response = await supabase.from('habits').select();
-
-      final habits =
-          (response as List).map((habit) => Habit.fromJson(habit)).toList();
-
-      currentHabits.clear();
-      currentHabits.addAll(habits);
-      notifyListeners();
-
-      // Update the widget
-      await updateWidget();
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/habits/assigned?userId=$userId'),
+        headers: {'Authorization': 'Bearer $jwtToken'},
+      );
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        final habits = data.map((habit) => Habit.fromJson(habit)).toList();
+        currentHabits.clear();
+        currentHabits.addAll(habits);
+        notifyListeners();
+        await updateWidget();
+      } else {
+        logger.e('Error fetching habits: ${response.body}');
+      }
     } catch (e, stackTrace) {
       logger.e('Error fetching habits', error: e, stackTrace: stackTrace);
     }
@@ -144,8 +132,6 @@ class HabitDatabase extends ChangeNotifier {
       final habit = currentHabits.firstWhere((h) => h.id == id);
       final today = DateTime.now();
       final todayStart = DateTime(today.year, today.month, today.day);
-
-      // Update local state first for immediate UI feedback
       if (isCompleted && !habit.completedDays.contains(todayStart)) {
         habit.completedDays.add(todayStart);
         habit.lastCompletedDate = todayStart;
@@ -160,22 +146,25 @@ class HabitDatabase extends ChangeNotifier {
         habit.lastCompletedDate = null;
         habit.isArchived = false;
       }
-
-      // Update UI immediately
-      final index = currentHabits.indexWhere((h) => h.id == id);
-      if (index != -1) {
-        currentHabits[index] = habit;
+      final response = await http.put(
+        Uri.parse('http://10.0.2.2:5000/habits/$id'),
+        headers: {
+          'Authorization': 'Bearer $jwtToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'completed_days':
+              habit.completedDays.map((e) => e.toIso8601String()).toList(),
+          'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
+          'is_archived': habit.isArchived,
+          'archived_at': habit.isArchived ? todayStart.toIso8601String() : null,
+        }),
+      );
+      if (response.statusCode == 200) {
         notifyListeners();
+      } else {
+        logger.e('Error updating habit completion: ${response.body}');
       }
-
-      // Update database
-      await supabase.from('habits').update({
-        'completed_days':
-            habit.completedDays.map((e) => e.toIso8601String()).toList(),
-        'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
-        'is_archived': habit.isArchived,
-        'archived_at': habit.isArchived ? todayStart.toIso8601String() : null,
-      }).eq('id', id);
     } catch (e, stackTrace) {
       logger.e('Error updating habit completion',
           error: e, stackTrace: stackTrace);
@@ -185,9 +174,19 @@ class HabitDatabase extends ChangeNotifier {
   // Update habit name
   Future<void> updateHabitName(int id, String newName) async {
     try {
-      await supabase.from('habits').update({'name': newName}).eq('id', id);
-
-      await readHabits();
+      final response = await http.put(
+        Uri.parse('http://10.0.2.2:5000/habits/$id'),
+        headers: {
+          'Authorization': 'Bearer $jwtToken',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({'name': newName}),
+      );
+      if (response.statusCode == 200) {
+        await readHabits();
+      } else {
+        logger.e('Error updating habit name: ${response.body}');
+      }
     } catch (e, stackTrace) {
       logger.e('Error updating habit name', error: e, stackTrace: stackTrace);
     }
@@ -196,9 +195,15 @@ class HabitDatabase extends ChangeNotifier {
   // Delete habit
   Future<void> deleteHabit(int id) async {
     try {
-      await supabase.from('habits').delete().eq('id', id);
-
-      await readHabits();
+      final response = await http.delete(
+        Uri.parse('http://10.0.2.2:5000/habits/$id'),
+        headers: {'Authorization': 'Bearer $jwtToken'},
+      );
+      if (response.statusCode == 200) {
+        await readHabits();
+      } else {
+        logger.e('Error deleting habit: ${response.body}');
+      }
     } catch (e, stackTrace) {
       logger.e('Error deleting habit', error: e, stackTrace: stackTrace);
     }
@@ -209,30 +214,18 @@ class HabitDatabase extends ChangeNotifier {
     try {
       final now = DateTime.now();
       final yesterday = DateTime(now.year, now.month, now.day - 1);
-
-      // Get all habits that were completed yesterday or before
-      final response = await supabase
-          .from('habits')
-          .select()
-          .not('last_completed_date', 'is', null)
-          .lte('last_completed_date', yesterday.toIso8601String())
-          .eq('is_archived', false); // Only archive non-archived habits
-
-      final oldHabits =
-          (response as List).map((habit) => Habit.fromJson(habit)).toList();
-
-      // Archive these habits
-      for (final habit in oldHabits) {
-        await supabase.from('habits').update({
-          'is_archived': true,
-          'archived_at': now.toIso8601String(),
-        }).eq('id', habit.id);
+      final response = await http.delete(
+        Uri.parse(
+            'http://10.0.2.2:5000/habits/completed?before=${yesterday.toIso8601String()}&userId=$userId'),
+        headers: {'Authorization': 'Bearer $jwtToken'},
+      );
+      if (response.statusCode == 200) {
+        await readHabits();
+      } else {
+        logger.e('Error deleting completed habits: ${response.body}');
       }
-
-      // Refresh the habits list
-      await readHabits();
     } catch (e, stackTrace) {
-      logger.e('Error archiving completed habits',
+      logger.e('Error deleting completed habits',
           error: e, stackTrace: stackTrace);
     }
   }
@@ -240,15 +233,10 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> updateWidget() async {
     try {
       final habits = currentHabits;
-
-      // Create a simple dataset for the widget
       final List<String> widgetData = [];
       final now = DateTime.now();
-
-      // For last 35 days
       for (int i = 0; i < 35; i++) {
         final date = now.subtract(Duration(days: 34 - i));
-        // Count how many habits were completed on this date
         int completedCount = 0;
         for (final habit in habits) {
           if (habit.completedDays.any((d) =>
@@ -260,8 +248,6 @@ class HabitDatabase extends ChangeNotifier {
         }
         widgetData.add(completedCount.toString());
       }
-
-      // Send data to the widget
       await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
       await HomeWidget.updateWidget(
         name: 'MomentumHomeWidget',
