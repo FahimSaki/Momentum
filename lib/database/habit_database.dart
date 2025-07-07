@@ -127,7 +127,7 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   // Update habit completion
-  Future<void> updateHabitCompletion(int id, bool isCompleted) async {
+  Future<void> updateHabitCompletion(String id, bool isCompleted) async {
     try {
       final habit = currentHabits.firstWhere((h) => h.id == id);
       final today = DateTime.now();
@@ -172,7 +172,7 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   // Update habit name
-  Future<void> updateHabitName(int id, String newName) async {
+  Future<void> updateHabitName(String id, String newName) async {
     try {
       final response = await http.put(
         Uri.parse('http://10.0.2.2:5000/habits/$id'),
@@ -193,7 +193,7 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   // Delete habit
-  Future<void> deleteHabit(int id) async {
+  Future<void> deleteHabit(String id) async {
     try {
       final response = await http.delete(
         Uri.parse('http://10.0.2.2:5000/habits/$id'),

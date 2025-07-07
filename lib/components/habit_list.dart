@@ -31,7 +31,7 @@ class HabitListComponent extends StatefulWidget {
 }
 
 class _HabitListComponentState extends State<HabitListComponent> {
-  final Map<int, bool> _removedHabits = {};
+  final Map<String, bool> _removedHabits = {};
 
   @override
   Widget build(BuildContext context) {

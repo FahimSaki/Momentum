@@ -71,6 +71,13 @@ class _LoginPageState extends State<LoginPage> {
                 onPressed: isLoading ? null : login,
                 child: isLoading ? CircularProgressIndicator() : Text('Login'),
               ),
+              SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/register');
+                },
+                child: Text("Don't have an account? Register"),
+              ),
             ],
           ),
         ),

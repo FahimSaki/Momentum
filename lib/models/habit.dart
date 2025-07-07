@@ -1,5 +1,5 @@
 class Habit {
-  final int id;
+  final String id;
   String name;
   List<DateTime> completedDays;
   DateTime? lastCompletedDate;
@@ -17,24 +17,26 @@ class Habit {
 
   factory Habit.fromJson(Map<String, dynamic> json) {
     return Habit(
-      id: json['id'],
+      id: json['_id'] ?? json['id'],
       name: json['name'],
-      completedDays: (json['completed_days'] as List)
-          .map((e) => DateTime.parse(e))
+      completedDays: (json['completedDays'] ?? json['completed_days'] ?? [])
+          .map<DateTime>((e) => DateTime.parse(e))
           .toList(),
-      lastCompletedDate: json['last_completed_date'] != null
-          ? DateTime.parse(json['last_completed_date'])
-          : null,
-      isArchived: json['is_archived'] ?? false,
-      archivedAt: json['archived_at'] != null
-          ? DateTime.parse(json['archived_at'])
+      lastCompletedDate:
+          (json['lastCompletedDate'] ?? json['last_completed_date']) != null
+              ? DateTime.parse(
+                  json['lastCompletedDate'] ?? json['last_completed_date'])
+              : null,
+      isArchived: json['isArchived'] ?? json['is_archived'] ?? false,
+      archivedAt: (json['archivedAt'] ?? json['archived_at']) != null
+          ? DateTime.parse(json['archivedAt'] ?? json['archived_at'])
           : null,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'name': name,
       'completed_days': completedDays.map((e) => e.toIso8601String()).toList(),
       'last_completed_date': lastCompletedDate?.toIso8601String(),
