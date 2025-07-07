@@ -32,7 +32,7 @@ class InitializationService {
     // Initialize Supabase with persistent connections
     await Supabase.initialize(
       url: dotenv.env['SUPABASE_URL']!,
-      ***REMOVED*** dotenv.env['SUPABASE_ANON_KEY']!,
+      anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
       realtimeClientOptions: const RealtimeClientOptions(
         eventsPerSecond: 2,
       ),
@@ -130,7 +130,7 @@ class InitializationService {
       // Initialize Supabase in background with persistent connection
       await Supabase.initialize(
         url: dotenv.env['SUPABASE_URL']!,
-        ***REMOVED*** dotenv.env['SUPABASE_ANON_KEY']!,
+        anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
         realtimeClientOptions: const RealtimeClientOptions(
           eventsPerSecond: 1,
         ),
