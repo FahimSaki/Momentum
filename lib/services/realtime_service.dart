@@ -57,7 +57,7 @@ class RealtimeService {
   Future<void> registerDeviceWithBackend() async {
     try {
       // Replace with your backend URL
-      const backendUrl = 'http://localhost:5000/devices/register';
+      const backendUrl = 'http://10.0.2.2:5000/devices/register';
       final response = await http.post(
         Uri.parse(backendUrl),
         headers: {'Content-Type': 'application/json'},

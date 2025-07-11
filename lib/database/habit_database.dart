@@ -17,8 +17,11 @@ class HabitDatabase extends ChangeNotifier {
   String? jwtToken;
   String? userId;
 
+  Timer? _midnightTimer;
+
   HabitDatabase() {
     // No realtime subscription
+    _scheduleMidnightCleanup();
   }
 
   // Initialize the database and set up polling
@@ -29,6 +32,7 @@ class HabitDatabase extends ChangeNotifier {
     await _realtimeService!.init();
     await readHabits();
     _startPolling();
+    _scheduleMidnightCleanup();
   }
 
   void _startPolling() {
@@ -41,7 +45,41 @@ class HabitDatabase extends ChangeNotifier {
   @override
   void dispose() {
     _pollingTimer?.cancel();
+    _midnightTimer?.cancel();
     super.dispose();
+  }
+
+  // Schedule a timer to trigger at midnight and repeat every 24 hours
+  void _scheduleMidnightCleanup() {
+    _midnightTimer?.cancel();
+    final now = DateTime.now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    final duration = nextMidnight.difference(now);
+    _midnightTimer = Timer(duration, () async {
+      await removeYesterdayCompletions();
+      _scheduleMidnightCleanup(); // reschedule for next midnight
+    });
+  }
+
+  // Call backend to remove yesterday's completions for all habits
+  Future<void> removeYesterdayCompletions() async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/habits/remove-yesterday-completions'),
+        headers: {
+          'Authorization': 'Bearer $jwtToken',
+          'Content-Type': 'application/json',
+        },
+      );
+      if (response.statusCode == 200) {
+        await readHabits();
+      } else {
+        logger.e('Error removing yesterday completions: [${response.body}');
+      }
+    } catch (e, stackTrace) {
+      logger.e('Error removing yesterday completions',
+          error: e, stackTrace: stackTrace);
+    }
   }
 
   // Get first launch date from backend
@@ -130,40 +168,72 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> updateHabitCompletion(String id, bool isCompleted) async {
     try {
       final habit = currentHabits.firstWhere((h) => h.id == id);
-      final today = DateTime.now();
-      final todayStart = DateTime(today.year, today.month, today.day);
-      if (isCompleted && !habit.completedDays.contains(todayStart)) {
-        habit.completedDays.add(todayStart);
-        habit.lastCompletedDate = todayStart;
-        habit.isArchived = true;
+      final now = DateTime.now().toUtc();
+      final today = DateTime.utc(now.year, now.month, now.day);
+
+      bool changed = false;
+      if (isCompleted) {
+        // Only add today (UTC) if not already present
+        if (!habit.completedDays.any((d) =>
+            d.toUtc().year == today.year &&
+            d.toUtc().month == today.month &&
+            d.toUtc().day == today.day)) {
+          habit.completedDays.add(today);
+          habit.lastCompletedDate = today;
+          habit.isArchived = true;
+          habit.archivedAt = today;
+          changed = true;
+        }
       } else {
-        habit.completedDays.removeWhere(
-          (date) =>
-              date.year == todayStart.year &&
-              date.month == todayStart.month &&
-              date.day == todayStart.day,
-        );
-        habit.lastCompletedDate = null;
-        habit.isArchived = false;
+        // Only remove today (UTC), not all completions
+        final before = habit.completedDays.length;
+        habit.completedDays.removeWhere((d) =>
+            d.toUtc().year == today.year &&
+            d.toUtc().month == today.month &&
+            d.toUtc().day == today.day);
+        if (before != habit.completedDays.length) {
+          // If today was removed, update archive fields only if no more today
+          final hasToday = habit.completedDays.any((d) =>
+              d.toUtc().year == today.year &&
+              d.toUtc().month == today.month &&
+              d.toUtc().day == today.day);
+          if (!hasToday) {
+            habit.isArchived = false;
+            habit.archivedAt = null;
+            // Optionally update lastCompletedDate to most recent, or null
+            if (habit.completedDays.isNotEmpty) {
+              habit.lastCompletedDate =
+                  habit.completedDays.reduce((a, b) => a.isAfter(b) ? a : b);
+            } else {
+              habit.lastCompletedDate = null;
+            }
+          }
+          changed = true;
+        }
       }
-      final response = await http.put(
-        Uri.parse('http://10.0.2.2:5000/habits/$id'),
-        headers: {
-          'Authorization': 'Bearer $jwtToken',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'completed_days':
-              habit.completedDays.map((e) => e.toIso8601String()).toList(),
-          'last_completed_date': habit.lastCompletedDate?.toIso8601String(),
-          'is_archived': habit.isArchived,
-          'archived_at': habit.isArchived ? todayStart.toIso8601String() : null,
-        }),
-      );
-      if (response.statusCode == 200) {
-        notifyListeners();
+
+      if (changed) {
+        final response = await http.put(
+          Uri.parse('http://10.0.2.2:5000/habits/$id'),
+          headers: {
+            'Authorization': 'Bearer $jwtToken',
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'completedDays':
+                habit.completedDays.map((e) => e.toIso8601String()).toList(),
+            'lastCompletedDate': habit.lastCompletedDate?.toIso8601String(),
+            'isArchived': habit.isArchived,
+            'archivedAt': habit.archivedAt?.toIso8601String(),
+          }),
+        );
+        if (response.statusCode == 200) {
+          notifyListeners();
+        } else {
+          logger.e('Error updating habit completion: ${response.body}');
+        }
       } else {
-        logger.e('Error updating habit completion: ${response.body}');
+        notifyListeners(); // No change, just update UI
       }
     } catch (e, stackTrace) {
       logger.e('Error updating habit completion',
