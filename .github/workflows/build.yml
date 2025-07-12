@@ -31,19 +31,22 @@ jobs:
 
       - name: Start backend and wait for readiness
         run: |
-          nohup npm start > backend.log 2>&1 &
+          npm start > backend.log 2>&1 &
           echo "Waiting for backend to start..."
           for attempt in {1..20}; do
-            if nc -z localhost 3000; then
+            if nc -z localhost 5000; then
               echo "✅ Backend is up!"
-              exit 0
+              break
             fi
             echo "⏳ Attempt $attempt: not ready yet, retrying in 3s..."
             sleep 3
           done
-          echo "❌ Backend did not start in time"
-          cat backend.log
-          exit 1
+
+          if ! nc -z localhost 5000; then
+            echo "❌ Backend did not start in time"
+            cat backend.log
+            exit 1
+          fi
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
 
