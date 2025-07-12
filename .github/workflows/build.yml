@@ -13,6 +13,34 @@ permissions:
   packages: write
 
 jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: npm install
+      - name: Start backend server
+        run: nohup npm start &
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      - name: Wait for backend to be ready
+        run: |
+          for i in {1..20}; do
+            if nc -z localhost 3000; then
+              echo "Backend is up!"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Backend did not start in time" && exit 1
+
   build-android:
     runs-on: ubuntu-latest
     steps:

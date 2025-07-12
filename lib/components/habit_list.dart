@@ -61,7 +61,7 @@ class _HabitListComponentState extends State<HabitListComponent> {
           const Padding(
             padding: EdgeInsets.only(top: 80, right: 16, left: 16),
             child: Text(
-              'No habits found. Please add a new habit.',
+              'No tasks found. Please add a new task.',
               style: TextStyle(
                 color: Colors.grey,
                 fontSize: 16,
