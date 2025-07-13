@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
+import 'package:habit_tracker/constants/api_base_url.dart';
 import 'package:logger/logger.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
@@ -20,11 +21,9 @@ class HabitDatabase extends ChangeNotifier {
   Timer? _midnightTimer;
 
   HabitDatabase() {
-    // No realtime subscription
     _scheduleMidnightCleanup();
   }
 
-  // Initialize the database and set up polling
   Future<void> initialize({required String jwt, required String userId}) async {
     this.jwtToken = jwt;
     this.userId = userId;
@@ -49,7 +48,6 @@ class HabitDatabase extends ChangeNotifier {
     super.dispose();
   }
 
-  // Schedule a timer to trigger at midnight and repeat every 24 hours
   void _scheduleMidnightCleanup() {
     _midnightTimer?.cancel();
     final now = DateTime.now();
@@ -57,15 +55,14 @@ class HabitDatabase extends ChangeNotifier {
     final duration = nextMidnight.difference(now);
     _midnightTimer = Timer(duration, () async {
       await removeYesterdayCompletions();
-      _scheduleMidnightCleanup(); // reschedule for next midnight
+      _scheduleMidnightCleanup();
     });
   }
 
-  // Call backend to remove yesterday's completions for all habits
   Future<void> removeYesterdayCompletions() async {
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/habits/remove-yesterday-completions'),
+        Uri.parse('$apiBaseUrl/habits/remove-yesterday-completions'),
         headers: {
           'Authorization': 'Bearer $jwtToken',
           'Content-Type': 'application/json',
@@ -74,7 +71,7 @@ class HabitDatabase extends ChangeNotifier {
       if (response.statusCode == 200) {
         await readHabits();
       } else {
-        logger.e('Error removing yesterday completions: [${response.body}');
+        logger.e('Error removing yesterday completions: ${response.body}');
       }
     } catch (e, stackTrace) {
       logger.e('Error removing yesterday completions',
@@ -82,13 +79,11 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Get first launch date from backend
   Future<DateTime?> getFirstLaunchDate() async {
     if (_firstLaunchDate != null) return _firstLaunchDate;
     try {
       final response = await http.get(
-        Uri.parse(
-            'http://10.0.2.2:5000/app_settings/first_launch_date?userId=$userId'),
+        Uri.parse('$apiBaseUrl/app_settings/first_launch_date?userId=$userId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
       if (response.statusCode == 200) {
@@ -97,7 +92,7 @@ class HabitDatabase extends ChangeNotifier {
       } else {
         _firstLaunchDate = DateTime.now();
         await http.post(
-          Uri.parse('http://10.0.2.2:5000/app_settings/first_launch_date'),
+          Uri.parse('$apiBaseUrl/app_settings/first_launch_date'),
           headers: {
             'Authorization': 'Bearer $jwtToken',
             'Content-Type': 'application/json',
@@ -114,14 +109,13 @@ class HabitDatabase extends ChangeNotifier {
     return _firstLaunchDate;
   }
 
-  // Add new habit
   Future<void> addHabit(String habitName) async {
     try {
       lastLocalInsertTime = DateTime.now();
       final deviceId = _realtimeService?.deviceId ?? 'unknown';
       logger.d('Adding habit with device ID: $deviceId');
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/habits'),
+        Uri.parse('$apiBaseUrl/habits'),
         headers: {
           'Authorization': 'Bearer $jwtToken',
           'Content-Type': 'application/json',
@@ -142,11 +136,10 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Read habits
   Future<void> readHabits() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:5000/habits/assigned?userId=$userId'),
+        Uri.parse('$apiBaseUrl/habits/assigned?userId=$userId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
       if (response.statusCode == 200) {
@@ -164,7 +157,6 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Update habit completion
   Future<void> updateHabitCompletion(String id, bool isCompleted) async {
     try {
       final habit = currentHabits.firstWhere((h) => h.id == id);
@@ -173,7 +165,6 @@ class HabitDatabase extends ChangeNotifier {
 
       bool changed = false;
       if (isCompleted) {
-        // Only add today (UTC) if not already present
         if (!habit.completedDays.any((d) =>
             d.toUtc().year == today.year &&
             d.toUtc().month == today.month &&
@@ -185,14 +176,12 @@ class HabitDatabase extends ChangeNotifier {
           changed = true;
         }
       } else {
-        // Only remove today (UTC), not all completions
         final before = habit.completedDays.length;
         habit.completedDays.removeWhere((d) =>
             d.toUtc().year == today.year &&
             d.toUtc().month == today.month &&
             d.toUtc().day == today.day);
         if (before != habit.completedDays.length) {
-          // If today was removed, update archive fields only if no more today
           final hasToday = habit.completedDays.any((d) =>
               d.toUtc().year == today.year &&
               d.toUtc().month == today.month &&
@@ -200,7 +189,6 @@ class HabitDatabase extends ChangeNotifier {
           if (!hasToday) {
             habit.isArchived = false;
             habit.archivedAt = null;
-            // Optionally update lastCompletedDate to most recent, or null
             if (habit.completedDays.isNotEmpty) {
               habit.lastCompletedDate =
                   habit.completedDays.reduce((a, b) => a.isAfter(b) ? a : b);
@@ -214,7 +202,7 @@ class HabitDatabase extends ChangeNotifier {
 
       if (changed) {
         final response = await http.put(
-          Uri.parse('http://10.0.2.2:5000/habits/$id'),
+          Uri.parse('$apiBaseUrl/habits/$id'),
           headers: {
             'Authorization': 'Bearer $jwtToken',
             'Content-Type': 'application/json',
@@ -233,7 +221,7 @@ class HabitDatabase extends ChangeNotifier {
           logger.e('Error updating habit completion: ${response.body}');
         }
       } else {
-        notifyListeners(); // No change, just update UI
+        notifyListeners();
       }
     } catch (e, stackTrace) {
       logger.e('Error updating habit completion',
@@ -241,11 +229,10 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Update habit name
   Future<void> updateHabitName(String id, String newName) async {
     try {
       final response = await http.put(
-        Uri.parse('http://10.0.2.2:5000/habits/$id'),
+        Uri.parse('$apiBaseUrl/habits/$id'),
         headers: {
           'Authorization': 'Bearer $jwtToken',
           'Content-Type': 'application/json',
@@ -262,11 +249,10 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Delete habit
   Future<void> deleteHabit(String id) async {
     try {
       final response = await http.delete(
-        Uri.parse('http://10.0.2.2:5000/habits/$id'),
+        Uri.parse('$apiBaseUrl/habits/$id'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
       if (response.statusCode == 200) {
@@ -279,14 +265,13 @@ class HabitDatabase extends ChangeNotifier {
     }
   }
 
-  // Delete completed habits older than one day
   Future<void> deleteCompletedHabits() async {
     try {
       final now = DateTime.now();
       final yesterday = DateTime(now.year, now.month, now.day - 1);
       final response = await http.delete(
         Uri.parse(
-            'http://10.0.2.2:5000/habits/completed?before=${yesterday.toIso8601String()}&userId=$userId'),
+            '$apiBaseUrl/habits/completed?before=${yesterday.toIso8601String()}&userId=$userId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
       if (response.statusCode == 200) {

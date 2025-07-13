@@ -1,8 +1,9 @@
 import 'dart:convert';
+import 'package:habit_tracker/constants/api_base_url.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
-  static const String backendUrl = 'http://10.0.2.2:5000'; // Change if needed
+  static const String backendUrl = apiBaseUrl;
 
   // Login with email and password
   static Future<Map<String, dynamic>> login(

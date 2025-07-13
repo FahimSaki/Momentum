@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:habit_tracker/constants/api_base_url.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
@@ -57,7 +58,7 @@ class RealtimeService {
   Future<void> registerDeviceWithBackend() async {
     try {
       // Replace with your backend URL
-      const backendUrl = 'http://10.0.2.2:5000/devices/register';
+      final backendUrl = '$apiBaseUrl/devices/register';
       final response = await http.post(
         Uri.parse(backendUrl),
         headers: {'Content-Type': 'application/json'},
