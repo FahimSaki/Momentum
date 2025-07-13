@@ -20,8 +20,16 @@ jobs:
 
       - name: Ping Render backend
         run: |
-          echo "Checking backend health..."
-          curl -f https://momentum-to2e.onrender.com/health || exit 1
+          for i in {1..10}; do
+            echo "⏳ Checking backend (attempt $i)..."
+            if curl -sSf https://momentum-to2e.onrender.com/health > /dev/null; then
+              echo "✅ Backend is up!"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "❌ Backend not ready after 50s"
+          exit 1
 
       - uses: actions/setup-java@v3
         with:
