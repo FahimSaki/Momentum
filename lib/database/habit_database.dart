@@ -25,7 +25,7 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   Future<void> initialize({required String jwt, required String userId}) async {
-    this.jwtToken = jwt;
+    jwtToken = jwt;
     this.userId = userId;
     _realtimeService = RealtimeService();
     await _realtimeService!.init();
@@ -112,8 +112,7 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> addHabit(String habitName) async {
     try {
       lastLocalInsertTime = DateTime.now();
-      final deviceId = _realtimeService?.deviceId ?? 'unknown';
-      logger.d('Adding habit with device ID: $deviceId');
+      logger.d('Adding habit...');
       final response = await http.post(
         Uri.parse('$apiBaseUrl/habits'),
         headers: {
@@ -122,7 +121,6 @@ class HabitDatabase extends ChangeNotifier {
         },
         body: json.encode({
           'name': habitName,
-          'device_id': deviceId,
           'userId': userId,
         }),
       );

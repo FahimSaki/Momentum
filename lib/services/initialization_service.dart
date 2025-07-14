@@ -69,50 +69,44 @@ class InitializationService {
 
   @pragma('vm:entry-point')
   static Future<bool> _onBackgroundMessage(ServiceInstance service) async {
-    // This will be executed in background
     WidgetsFlutterBinding.ensureInitialized();
+    Timer? periodicTimer;
 
     try {
       _logger.i('Background service started/resumed');
 
-      // Periodic notification update for foreground service
-      Timer.periodic(const Duration(seconds: 1), (timer) async {
-        if (service is AndroidServiceInstance) {
-          if (await service.isForegroundService()) {
-            await flutterLocalNotificationsPlugin.show(
-              notificationId,
-              'Momentum',
-              'Running: ${DateTime.now()}',
-              const NotificationDetails(
-                android: AndroidNotificationDetails(
-                  notificationChannelId,
-                  'MY FOREGROUND SERVICE',
-                  channelDescription: 'Shows background service status',
-                  icon: '@mipmap/ic_launcher',
-                  ongoing: true,
-                  importance: Importance.low,
-                ),
+      periodicTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+        if (service is AndroidServiceInstance &&
+            await service.isForegroundService()) {
+          await flutterLocalNotificationsPlugin.show(
+            notificationId,
+            'Momentum',
+            'Running: ${DateTime.now()}',
+            const NotificationDetails(
+              android: AndroidNotificationDetails(
+                notificationChannelId,
+                'MY FOREGROUND SERVICE',
+                channelDescription: 'Shows background service status',
+                icon: '@mipmap/ic_launcher',
+                ongoing: true,
+                importance: Importance.low,
               ),
-            );
-          }
+            ),
+          );
         }
       });
 
-      // Initialize dotenv
-      await dotenv.load(
-          fileName: ".env"); // Get device ID from shared preferences
+      await dotenv.load(fileName: ".env");
+
       final prefs = await SharedPreferences.getInstance();
       final deviceId = prefs.getString('device_id') ?? 'unknown';
 
-      // Initialize notifications plugin in background
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
       const initializationSettings =
           InitializationSettings(android: androidSettings);
-
       await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-      // Create notification channel for background
       const androidChannel = AndroidNotificationChannel(
         notificationChannelId,
         'Habits',
@@ -121,13 +115,11 @@ class InitializationService {
         playSound: true,
         enableVibration: true,
       );
-
       await flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(androidChannel);
 
-      // No realtime subscription, polling will be handled in HabitDatabase
       Timer.periodic(const Duration(minutes: 15), (_) {
         _logger.d('Background service health check running');
         service.invoke('debug', {
@@ -137,13 +129,14 @@ class InitializationService {
         });
       });
 
-      // Keep the service alive
       service.on('stop_service').listen((event) {
+        periodicTimer?.cancel();
         service.stopSelf();
       });
 
       return true;
     } catch (e, stack) {
+      periodicTimer?.cancel();
       _logger.e('Error in background service', error: e, stackTrace: stack);
       return false;
     }

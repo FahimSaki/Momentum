@@ -19,9 +19,9 @@ class MyApp extends StatelessWidget {
           theme: themeProvider.themeData,
           initialRoute: '/login',
           routes: {
-            '/login': (context) => LoginPage(),
-            '/home': (context) => HomePage(),
-            '/register': (context) => RegisterPage(),
+            '/login': (context) => const LoginPage(),
+            '/home': (context) => const HomePage(),
+            '/register': (context) => const RegisterPage(),
           },
         );
       },

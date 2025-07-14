@@ -1,18 +1,12 @@
 import 'dart:io';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:habit_tracker/constants/api_base_url.dart';
 import 'package:logger/logger.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class RealtimeService {
   static final RealtimeService _instance = RealtimeService._internal();
   factory RealtimeService() => _instance;
   RealtimeService._internal();
 
-  late String deviceId;
   final _notifications = FlutterLocalNotificationsPlugin();
   final _logger = Logger();
   bool _isInitialized = false;
@@ -23,57 +17,16 @@ class RealtimeService {
     try {
       _logger.d('Initializing RealtimeService...');
 
-      // Get device ID
-      final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? 'unknown';
-      } else {
-        deviceId = 'unknown';
-      }
-
-      // Store device ID in SharedPreferences for background service
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('device_id', deviceId);
-
-      // Request permissions
+      // Request notification permissions
       await _requestNotificationPermissions();
 
-      // Initialize notifications
+      // Initialize local notifications
       await _initializeNotifications();
-
-      // Register or update device using backend REST API
-      await registerDeviceWithBackend();
 
       _isInitialized = true;
       _logger.d('RealtimeService initialized');
     } catch (e, stack) {
       _logger.e('Error in RealtimeService init', error: e, stackTrace: stack);
-    }
-  }
-
-  Future<void> registerDeviceWithBackend() async {
-    try {
-      // Replace with your backend URL
-      final backendUrl = '$apiBaseUrl/devices/register';
-      final response = await http.post(
-        Uri.parse(backendUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'device_id': deviceId,
-          'last_seen': DateTime.now().toIso8601String(),
-        }),
-      );
-      if (response.statusCode == 200) {
-        _logger.d('Device registered with backend');
-      } else {
-        _logger.e('Failed to register device: \\${response.body}');
-      }
-    } catch (e, stack) {
-      _logger.e('Error registering device', error: e, stackTrace: stack);
     }
   }
 
@@ -111,7 +64,7 @@ class RealtimeService {
     await _notifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (details) {
-        _logger.d('Notification tapped: \\${details.payload}');
+        _logger.d('Notification tapped: ${details.payload}');
       },
     );
   }

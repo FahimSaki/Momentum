@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:habit_tracker/services/auth_service.dart';
 
 class RegisterPage extends StatefulWidget {
+  const RegisterPage({super.key});
+
   @override
   State<RegisterPage> createState() => _RegisterPageState();
 }

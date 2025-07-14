@@ -33,14 +33,13 @@ import Habit from '../models/Habit.js';
 // Create a new habit
 export const createHabit = async (req, res) => {
     try {
-        const { name, userId, device_id } = req.body;
+        const { name, userId } = req.body;
         if (!name || !userId) {
             return res.status(400).json({ message: 'Name and userId are required' });
         }
         const habit = new Habit({
             name,
-            assignedTo: userId,
-            // Optionally store device_id or other fields if needed
+            assignedTo: userId
         });
         await habit.save();
         res.status(200).json(habit);
@@ -48,6 +47,7 @@ export const createHabit = async (req, res) => {
         res.status(500).json({ message: 'Error creating habit', error: err.message });
     }
 };
+
 
 // Get all habits assigned to a user
 export const getAssignedHabits = async (req, res) => {
@@ -62,6 +62,7 @@ export const getAssignedHabits = async (req, res) => {
         res.status(500).json({ message: 'Error fetching habits', error: err.message });
     }
 };
+
 
 // Remove old completion days from all habits for a user
 export const removeOldCompletionDays = async (req, res) => {
