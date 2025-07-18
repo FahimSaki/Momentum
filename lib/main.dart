@@ -1,5 +1,3 @@
-// * S U P A B A S E * //
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:habit_tracker/app.dart';
