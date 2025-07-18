@@ -10,7 +10,23 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'https://momentum.vercel.app',
+            'http://localhost:10000',
+            undefined, // for mobile apps (no origin header)
+        ];
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 
 // Connect to MongoDB (cleaned up deprecated options)
 mongoose.connect(process.env.MONGODB_URI)
