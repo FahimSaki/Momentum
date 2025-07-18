@@ -44,7 +44,8 @@ class CompletedHabits extends StatelessWidget {
             children: completedHabits.map((habit) {
               return AnimatedHabitTile(
                 // Changed from HabitTile to AnimatedHabitTile
-                key: ValueKey(habit.id), // Add key for proper widget updating
+                key: ValueKey<String>(
+                    habit.id), // Add key for proper widget updating
                 isCompleted: true,
                 text: habit.name,
                 onChanged: (value) {

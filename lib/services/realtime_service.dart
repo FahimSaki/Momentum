@@ -1,18 +1,12 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class RealtimeService {
   static final RealtimeService _instance = RealtimeService._internal();
   factory RealtimeService() => _instance;
   RealtimeService._internal();
 
-  final _supabase = Supabase.instance.client;
-  late String deviceId;
-  late RealtimeChannel _habitsChannel;
   final _notifications = FlutterLocalNotificationsPlugin();
   final _logger = Logger();
   bool _isInitialized = false;
@@ -23,39 +17,11 @@ class RealtimeService {
     try {
       _logger.d('Initializing RealtimeService...');
 
-      // Get device ID
-      final deviceInfo = DeviceInfoPlugin();
-      if (Platform.isAndroid) {
-        final androidInfo = await deviceInfo.androidInfo;
-        deviceId = androidInfo.id;
-      } else if (Platform.isIOS) {
-        final iosInfo = await deviceInfo.iosInfo;
-        deviceId = iosInfo.identifierForVendor ?? 'unknown';
-      } else {
-        deviceId = 'unknown';
-      }
-
-      // Store device ID in SharedPreferences for background service
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('device_id', deviceId);
-
-      // Request permissions
+      // Request notification permissions
       await _requestNotificationPermissions();
 
-      // Initialize notifications
+      // Initialize local notifications
       await _initializeNotifications();
-
-      // Register or update device using upsert
-      await _supabase.from('devices').upsert(
-        {
-          'device_id': deviceId,
-          'last_seen': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'device_id',
-      );
-
-      // Set up realtime subscription for foreground
-      _setupRealtimeSubscription();
 
       _isInitialized = true;
       _logger.d('RealtimeService initialized');
@@ -132,36 +98,7 @@ class RealtimeService {
     }
   }
 
-  void _setupRealtimeSubscription() {
-    _logger.d('Setting up realtime subscription with device ID: $deviceId');
-
-    _habitsChannel = _supabase.channel('foreground_habits_channel')
-      ..onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: 'habits',
-        callback: (PostgresChangePayload payload) async {
-          _logger.d('Received habit change: ${payload.newRecord}');
-
-          final creatorDeviceId = payload.newRecord['device_id'] as String?;
-          final habitName = payload.newRecord['name'] as String;
-
-          // Only show notification if created on a different device
-          if (creatorDeviceId != deviceId) {
-            _logger.d('Showing notification for habit from different device');
-            await showNotification(habitName);
-          } else {
-            _logger.d('Skipping notification for habit from same device');
-          }
-        },
-      )
-      ..subscribe((status, [error]) {
-        _logger.d('Subscription status: $status, Error: $error');
-      });
-  }
-
   void dispose() {
-    _habitsChannel.unsubscribe();
     _isInitialized = false;
   }
 }

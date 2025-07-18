@@ -36,7 +36,7 @@ class _HomePageState extends State<HomePage> {
         content: TextField(
           controller: textController,
           decoration: const InputDecoration(
-            hintText: 'create a new habit',
+            hintText: 'create a new task',
             hintStyle: TextStyle(
               color: Colors.grey,
             ),
@@ -128,7 +128,7 @@ class _HomePageState extends State<HomePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Are you sure you want to delete this habit?'),
+        title: const Text('Are you sure you want to delete this task?'),
         actions: [
           // delete button
           MaterialButton(
