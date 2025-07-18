@@ -7,6 +7,7 @@ import 'package:habit_tracker/services/initialization_service.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
 
 void main() async {
+  ///
   WidgetsFlutterBinding.ensureInitialized();
   await InitializationService.initialize();
 
