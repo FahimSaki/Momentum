@@ -1,3 +1,5 @@
+// * S U P A B A S E * //
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:habit_tracker/app.dart';
@@ -7,7 +9,7 @@ import 'package:habit_tracker/services/initialization_service.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // Initialize all services
+  WidgetsFlutterBinding.ensureInitialized();
   await InitializationService.initialize();
 
   // Get the initialized RealtimeService instance
