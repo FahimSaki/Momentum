@@ -13,7 +13,7 @@ app.use(express.json());
 app.use(cors({
     origin: function (origin, callback) {
         const allowedOrigins = [
-            'https://momentum.vercel.app',
+            'https://momentum-beryl-nine.vercel.app',
             'http://localhost:10000',
             undefined, // for mobile apps (no origin header)
         ];
