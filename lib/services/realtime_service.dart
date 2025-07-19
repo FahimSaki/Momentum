@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:logger/logger.dart';
 
@@ -17,11 +17,11 @@ class RealtimeService {
     try {
       _logger.d('Initializing RealtimeService...');
 
-      // Request notification permissions
-      await _requestNotificationPermissions();
-
-      // Initialize local notifications
-      await _initializeNotifications();
+      // Only run on mobile platforms
+      if (!kIsWeb) {
+        await _requestNotificationPermissions();
+        await _initializeNotifications();
+      }
 
       _isInitialized = true;
       _logger.d('RealtimeService initialized');
@@ -31,15 +31,14 @@ class RealtimeService {
   }
 
   Future<void> _requestNotificationPermissions() async {
-    if (Platform.isAndroid) {
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          _notifications.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
-      final bool? granted =
-          await androidImplementation?.requestNotificationsPermission();
-      _logger.d('Android notification permission granted: $granted');
-    }
+    final granted =
+        await androidImplementation?.requestNotificationsPermission();
+
+    _logger.d('Android notification permission granted: $granted');
   }
 
   Future<void> _initializeNotifications() async {
@@ -71,6 +70,11 @@ class RealtimeService {
 
   Future<void> showNotification(String habitName) async {
     try {
+      if (kIsWeb) {
+        _logger.w('Notifications not supported on web');
+        return;
+      }
+
       _logger.d('Attempting to show notification for habit: $habitName');
 
       const androidDetails = AndroidNotificationDetails(

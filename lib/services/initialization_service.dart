@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:habit_tracker/services/realtime_service.dart';
@@ -5,7 +6,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:logger/logger.dart';
-import 'dart:io';
 import 'dart:async';
 
 class InitializationService {
@@ -18,21 +18,24 @@ class InitializationService {
 
   static Future<void> initialize() async {
     WidgetsFlutterBinding.ensureInitialized();
-
     await dotenv.load(fileName: ".env");
 
-    // Request notification permissions first
-    await _requestNotificationPermissions();
+    if (!kIsWeb) {
+      // Request notification permissions first
+      await _requestNotificationPermissions();
 
-    // Initialize background service
-    await _initializeBackgroundService();
+      // Initialize background service
+      await _initializeBackgroundService();
+    }
 
-    // Initialize RealtimeService
+    // Initialize RealtimeService (already kIsWeb safe)
     final realtimeService = RealtimeService();
     await realtimeService.init();
   }
 
   static Future<void> _initializeBackgroundService() async {
+    if (kIsWeb) return;
+
     final service = FlutterBackgroundService();
 
     const channel = AndroidNotificationChannel(
@@ -46,6 +49,7 @@ class InitializationService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
+
     await service.configure(
       androidConfiguration: AndroidConfiguration(
         onStart: _onBackgroundMessage,
@@ -143,7 +147,8 @@ class InitializationService {
   }
 
   static Future<void> _requestNotificationPermissions() async {
-    // Initialize notification plugin first
+    if (kIsWeb) return;
+
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iOSSettings = DarwinInitializationSettings(
@@ -157,16 +162,11 @@ class InitializationService {
     );
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-    // Request permissions for Android 13+
-    if (Platform.isAndroid) {
-      final androidImplementation =
-          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+    final androidImplementation =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
-      await androidImplementation?.requestNotificationsPermission();
-
-      // Also request exact alarm permission if needed
-      await androidImplementation?.requestExactAlarmsPermission();
-    }
+    await androidImplementation?.requestNotificationsPermission();
+    await androidImplementation?.requestExactAlarmsPermission();
   }
 }

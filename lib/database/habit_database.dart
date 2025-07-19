@@ -5,6 +5,7 @@ import 'package:habit_tracker/constants/api_base_url.dart';
 import 'package:logger/logger.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:async';
 
@@ -21,20 +22,34 @@ class HabitDatabase extends ChangeNotifier {
   Timer? _midnightTimer;
 
   HabitDatabase() {
-    _scheduleMidnightCleanup();
+    if (!kIsWeb) {
+      _scheduleMidnightCleanup();
+    }
   }
 
   Future<void> initialize({required String jwt, required String userId}) async {
     jwtToken = jwt;
     this.userId = userId;
     _realtimeService = RealtimeService();
-    await _realtimeService!.init();
+
+    if (!kIsWeb) {
+      await _realtimeService!.init();
+    }
+
     await readHabits();
     _startPolling();
-    _scheduleMidnightCleanup();
+
+    if (!kIsWeb) {
+      _scheduleMidnightCleanup();
+    }
   }
 
   void _startPolling() {
+    if (kIsWeb) {
+      logger.w('Polling disabled on web to reduce CPU load');
+      return;
+    }
+
     _pollingTimer?.cancel();
     _pollingTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
       await readHabits();
@@ -49,6 +64,11 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   void _scheduleMidnightCleanup() {
+    if (kIsWeb) {
+      logger.w('Midnight cleanup skipped on web');
+      return;
+    }
+
     _midnightTimer?.cancel();
     final now = DateTime.now();
     final nextMidnight = DateTime(now.year, now.month, now.day + 1);
@@ -284,6 +304,11 @@ class HabitDatabase extends ChangeNotifier {
   }
 
   Future<void> updateWidget() async {
+    if (kIsWeb) {
+      logger.w('Skipping widget update on web');
+      return; // Skip on web
+    }
+
     try {
       final habits = currentHabits;
       final List<String> widgetData = [];

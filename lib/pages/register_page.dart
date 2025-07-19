@@ -16,15 +16,25 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void register() async {
     setState(() {
-      isLoading = true;
       error = null;
     });
+
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        error = "Email and password cannot be empty.";
+      });
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
     try {
-      await AuthService.register(
-        emailController.text,
-        passwordController.text,
-      );
-      // On success, go back to login
+      await AuthService.register(email, password);
       Navigator.pop(context);
     } catch (e) {
       setState(() {
@@ -34,6 +44,7 @@ class _RegisterPageState extends State<RegisterPage> {
       setState(() {
         isLoading = false;
       });
+      passwordController.clear();
     }
   }
 

@@ -29,6 +29,14 @@ class _LoginPageState extends State<LoginPage> {
       final jwt = result['token'];
       final userId = result['userId'];
 
+      if (jwt == null || userId == null) {
+        setState(() {
+          error = "Invalid login response from server.";
+          isLoading = false;
+        });
+        return;
+      }
+
       // Initialize HabitDatabase with JWT and userId
       final habitDatabase = Provider.of<HabitDatabase>(context, listen: false);
       await habitDatabase.initialize(jwt: jwt, userId: userId);

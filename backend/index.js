@@ -15,9 +15,14 @@ app.use(cors({
         const allowedOrigins = [
             'https://momentum-beryl-nine.vercel.app',
             'http://localhost:10000',
-            undefined, // for mobile apps (no origin header)
+            undefined,
         ];
-        if (allowedOrigins.includes(origin)) {
+
+        // Allow all Vercel preview URLs:
+        if (
+            allowedOrigins.includes(origin) ||
+            (origin && origin.endsWith('.vercel.app'))
+        ) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -26,6 +31,7 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 
 
 // Connect to MongoDB (cleaned up deprecated options)
