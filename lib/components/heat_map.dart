@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:habit_tracker/database/habit_database.dart';
-import 'package:habit_tracker/models/habit.dart';
 import 'package:habit_tracker/util/habit_util.dart';
 import 'package:habit_tracker/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
@@ -22,12 +21,13 @@ class HeatMapComponent extends StatelessWidget {
         final themeProvider = Provider.of<ThemeProvider>(context);
         final isLightMode = !themeProvider.isDarkMode;
 
-        // Get BD time (UTC+6)
         final nowBD = DateTime.now().toUtc().add(const Duration(hours: 6));
         final today = DateTime(nowBD.year, nowBD.month, nowBD.day);
 
+        const int daysToShow = 30;
+
         final firstLaunchDate = snapshot.data!;
-        final earliestAllowed = today.subtract(const Duration(days: 29));
+        final earliestAllowed = today.subtract(Duration(days: daysToShow - 1));
         final startDate = firstLaunchDate.isBefore(earliestAllowed)
             ? earliestAllowed
             : firstLaunchDate;
