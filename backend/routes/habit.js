@@ -7,7 +7,8 @@ import {
     updateHabit,
     deleteHabit,
     archiveCompletedHabits,
-    deleteOldArchivedHabits
+    deleteOldArchivedHabits,
+    getHabitHistory
 } from '../controllers/habitController.js';
 
 const router = express.Router();
