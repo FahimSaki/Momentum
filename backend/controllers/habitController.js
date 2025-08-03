@@ -142,3 +142,16 @@ export const deleteHabit = async (req, res) => {
         res.status(500).json({ message: 'Error deleting habit', error: err.message });
     }
 };
+
+// ✅ Get habit history for heatmap (add this to your backend)
+export const getHabitHistory = async (req, res) => {
+    try {
+        const { userId } = req.query;
+        if (!userId) return res.status(400).json({ message: 'userId is required' });
+
+        const history = await HabitHistory.find({ userId });
+        res.status(200).json(history);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching habit history', error: err.message });
+    }
+};

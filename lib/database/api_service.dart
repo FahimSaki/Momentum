@@ -37,6 +37,38 @@ class HabitApiService {
     }
   }
 
+  Future<List<DateTime>> fetchHistoricalCompletions() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/habit-history?userId=$userId'),
+        headers: {'Authorization': 'Bearer $jwtToken'},
+      );
+
+      if (response.statusCode == 200) {
+        final List data = json.decode(response.body);
+        final List<DateTime> allCompletions = [];
+
+        for (final historyItem in data) {
+          final List<dynamic> completedDays =
+              historyItem['completedDays'] ?? [];
+          for (final day in completedDays) {
+            allCompletions.add(DateTime.parse(day));
+          }
+        }
+
+        return allCompletions;
+      } else {
+        _logger
+            .w('Error fetching habit history (non-critical): ${response.body}');
+        return []; // Return empty list if history endpoint fails
+      }
+    } catch (e, stackTrace) {
+      _logger.w('Error fetching habit history (non-critical)',
+          error: e, stackTrace: stackTrace);
+      return []; // Return empty list on error
+    }
+  }
+
   Future<void> createHabit(String habitName) async {
     try {
       final response = await http.post(

@@ -16,6 +16,8 @@ class HabitDatabase extends ChangeNotifier {
   final List<Habit> activeHabits = [];
   final List<Habit> completedHabits = [];
 
+  final List<DateTime> _historicalCompletions = [];
+
   DateTime? _firstLaunchDate;
   DateTime? lastLocalInsertTime;
   RealtimeService? _realtimeService;
@@ -53,11 +55,26 @@ class HabitDatabase extends ChangeNotifier {
       _initializeTimerService();
     }
 
+    await _loadHistoricalCompletions();
     await readHabits();
     _startPolling();
 
     if (!kIsWeb) {
       _scheduleMidnightCleanup();
+    }
+  }
+
+  Future<void> _loadHistoricalCompletions() async {
+    try {
+      final historicalData =
+          await _apiService?.fetchHistoricalCompletions() ?? [];
+      _historicalCompletions.clear();
+      _historicalCompletions.addAll(historicalData);
+      logger
+          .i('Loaded ${_historicalCompletions.length} historical completions');
+    } catch (e, stackTrace) {
+      logger.w('Could not load historical completions (non-critical)',
+          error: e, stackTrace: stackTrace);
     }
   }
 
@@ -83,6 +100,8 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> removeYesterdayCompletions() async {
     try {
       await _apiService?.removeYesterdayCompletions();
+      // ✅ Refresh historical data after cleanup
+      await _loadHistoricalCompletions();
       await readHabits();
     } catch (e, stackTrace) {
       logger.e('Error removing yesterday completions',
@@ -166,6 +185,8 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> deleteHabit(String id) async {
     try {
       await _apiService?.deleteHabit(id);
+      // ✅ Refresh historical data after manual deletion
+      await _loadHistoricalCompletions();
       await readHabits();
     } catch (e, stackTrace) {
       logger.e('Error deleting habit', error: e, stackTrace: stackTrace);
@@ -175,6 +196,8 @@ class HabitDatabase extends ChangeNotifier {
   Future<void> deleteCompletedHabits() async {
     try {
       await _apiService?.deleteCompletedHabits();
+      // ✅ Refresh historical data after bulk deletion
+      await _loadHistoricalCompletions();
       await readHabits();
     } catch (e, stackTrace) {
       logger.e('Error deleting completed habits',
@@ -184,6 +207,8 @@ class HabitDatabase extends ChangeNotifier {
 
   Future<void> updateWidget() async {
     if (kIsWeb) return;
-    await _widgetService.updateWidget(currentHabits);
+    // ✅ Use historical data + current habits for complete heatmap
+    await _widgetService.updateWidgetWithHistoricalData(
+        _historicalCompletions, currentHabits);
   }
 }

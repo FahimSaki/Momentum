@@ -20,8 +20,11 @@ router.delete('/:id', deleteHabit);
 router.post('/remove-old-completions', removeOldCompletionDays);
 router.post('/remove-yesterday-completions', removeYesterdayCompletions);
 
-// ✅ New archive logic routes
+
 router.post('/archive-completed', archiveCompletedHabits);
 router.delete('/delete-archived', deleteOldArchivedHabits);
+
+
+router.get('/habit-history', getHabitHistory);
 
 export default router;
