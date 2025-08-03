@@ -1,5 +1,6 @@
 import Habit from '../models/Habit.js';
 import HabitHistory from '../models/HabitHistory.js';
+import getHabitHistory from '../controllers/habitController.js';
 
 // ✅ Create a new habit
 export const createHabit = async (req, res) => {
