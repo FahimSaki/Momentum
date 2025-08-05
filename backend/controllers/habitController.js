@@ -5,12 +5,28 @@ import HabitHistory from '../models/HabitHistory.js';
 const saveHabitToHistory = async (habit) => {
     if (habit.completedDays?.length > 0) {
         try {
-            await HabitHistory.create({
+            // Check if this habit's history already exists to avoid duplicates
+            const existingHistory = await HabitHistory.findOne({
                 userId: habit.assignedTo,
-                completedDays: habit.completedDays,
                 habitName: habit.name
             });
-            console.log(`Saved habit "${habit.name}" to history with ${habit.completedDays.length} completion days`);
+
+            if (existingHistory) {
+                // Merge completion days and remove duplicates
+                const allDays = [...existingHistory.completedDays, ...habit.completedDays];
+                const uniqueDays = [...new Set(allDays.map(d => d.toISOString()))].map(d => new Date(d));
+                existingHistory.completedDays = uniqueDays;
+                await existingHistory.save();
+                console.log(`Updated existing history for "${habit.name}" with ${habit.completedDays.length} new completion days`);
+            } else {
+                // Create new history record
+                await HabitHistory.create({
+                    userId: habit.assignedTo,
+                    completedDays: habit.completedDays,
+                    habitName: habit.name
+                });
+                console.log(`Saved habit "${habit.name}" to history with ${habit.completedDays.length} completion days`);
+            }
         } catch (error) {
             console.error(`Error saving habit "${habit.name}" to history:`, error);
         }
@@ -155,31 +171,54 @@ export const removeOldCompletionDays = async (req, res) => {
         const habits = await Habit.find({ assignedTo: userId });
 
         for (const habit of habits) {
+            // Save to history BEFORE removing completion days
+            await saveHabitToHistory(habit);
+
             habit.completedDays = habit.completedDays.filter(date => new Date(date) >= beforeDate);
             await habit.save();
         }
 
-        res.status(200).json({ message: 'Old completion days removed' });
+        res.status(200).json({ message: 'Old completion days removed and preserved in history' });
     } catch (err) {
         res.status(500).json({ message: 'Error removing old completion days', error: err.message });
     }
 };
 
-// ✅ Remove only yesterday's completions (UTC)
+// 🔧 FIXED: Remove only yesterday's completions but SAVE TO HISTORY FIRST
 export const removeYesterdayCompletions = async (req, res) => {
     try {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0); // Midnight UTC
 
         const habits = await Habit.find({});
+        let savedCount = 0;
 
         for (const habit of habits) {
+            // 🔧 CRITICAL FIX: Save to history BEFORE removing completion days
+            const yesterdayCompletions = habit.completedDays.filter(date => new Date(date) < today);
+
+            if (yesterdayCompletions.length > 0) {
+                // Create a temporary habit object with only yesterday's completions
+                const habitWithYesterdayData = {
+                    ...habit.toObject(),
+                    completedDays: yesterdayCompletions
+                };
+
+                await saveHabitToHistory(habitWithYesterdayData);
+                savedCount++;
+            }
+
+            // Now remove yesterday's completions
             habit.completedDays = habit.completedDays.filter(date => new Date(date) >= today);
             await habit.save();
         }
 
-        res.status(200).json({ message: 'Yesterday completions removed' });
+        console.log(`Saved ${savedCount} habits to history before removing yesterday's completions`);
+        res.status(200).json({
+            message: `Yesterday completions removed and ${savedCount} habits preserved in history`
+        });
     } catch (err) {
+        console.error('Error in removeYesterdayCompletions:', err);
         res.status(500).json({ message: 'Error removing yesterday completions', error: err.message });
     }
 };
