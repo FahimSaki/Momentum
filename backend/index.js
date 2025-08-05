@@ -4,12 +4,14 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import habitRoutes from './routes/habit.js';
+import { authenticateToken } from './middleware/middle_auth.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 app.use(express.json());
+
 // CORS setup: allow production, preview, and local dev frontends
 app.use(cors({
     origin: function (origin, callback) {
@@ -35,8 +37,6 @@ app.use(cors({
     credentials: true,
 }));
 
-
-
 // Connect to MongoDB (cleaned up deprecated options)
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('✅ MongoDB connected'))
@@ -44,7 +44,7 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Routes
 app.use('/auth', authRoutes);
-app.use('/habits', habitRoutes);
+app.use('/habits', authenticateToken, habitRoutes); // ← ADD authenticateToken HERE
 
 // Health check (optional, helpful for monitoring)
 app.get('/health', (req, res) => {

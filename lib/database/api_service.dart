@@ -39,8 +39,9 @@ class HabitApiService {
 
   Future<List<DateTime>> fetchHistoricalCompletions() async {
     try {
+      // Change from 'habit-history' to 'habits/history' to match your route structure
       final response = await http.get(
-        Uri.parse('$apiBaseUrl/habit-history?userId=$userId'),
+        Uri.parse('$apiBaseUrl/habits/history?userId=$userId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
 
@@ -48,18 +49,29 @@ class HabitApiService {
         final List data = json.decode(response.body);
         final List<DateTime> allCompletions = [];
 
+        _logger.i('Fetched ${data.length} habit history records');
+
         for (final historyItem in data) {
           final List<dynamic> completedDays =
               historyItem['completedDays'] ?? [];
+          _logger.d(
+              'Processing history item: ${historyItem['habitName']} with ${completedDays.length} completions');
+
           for (final day in completedDays) {
-            allCompletions.add(DateTime.parse(day));
+            try {
+              allCompletions.add(DateTime.parse(day));
+            } catch (e) {
+              _logger.w('Failed to parse date: $day', error: e);
+            }
           }
         }
 
+        _logger
+            .i('Total historical completions loaded: ${allCompletions.length}');
         return allCompletions;
       } else {
-        _logger
-            .w('Error fetching habit history (non-critical): ${response.body}');
+        _logger.w(
+            'Error fetching habit history (non-critical): ${response.statusCode} - ${response.body}');
         return []; // Return empty list if history endpoint fails
       }
     } catch (e, stackTrace) {
@@ -140,13 +152,23 @@ class HabitApiService {
     try {
       final now = DateTime.now();
       final yesterday = DateTime(now.year, now.month, now.day - 1);
+
+      _logger.i(
+          'Deleting completed habits before: ${yesterday.toIso8601String()}');
+
       final response = await http.delete(
         Uri.parse(
             '$apiBaseUrl/habits/completed?before=${yesterday.toIso8601String()}&userId=$userId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
-      if (response.statusCode != 200) {
-        _logger.e('Error deleting completed habits: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        _logger
+            .i('Delete completed habits response: ${responseData['message']}');
+      } else {
+        _logger.e(
+            'Error deleting completed habits: ${response.statusCode} - ${response.body}');
         throw Exception('Failed to delete completed habits');
       }
     } catch (e, stackTrace) {

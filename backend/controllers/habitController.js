@@ -1,6 +1,22 @@
 import Habit from '../models/Habit.js';
 import HabitHistory from '../models/HabitHistory.js';
 
+// Helper function to save habit to history before deletion
+const saveHabitToHistory = async (habit) => {
+    if (habit.completedDays?.length > 0) {
+        try {
+            await HabitHistory.create({
+                userId: habit.assignedTo,
+                completedDays: habit.completedDays,
+                habitName: habit.name
+            });
+            console.log(`Saved habit "${habit.name}" to history with ${habit.completedDays.length} completion days`);
+        } catch (error) {
+            console.error(`Error saving habit "${habit.name}" to history:`, error);
+        }
+    }
+};
+
 // ✅ Create a new habit
 export const createHabit = async (req, res) => {
     try {
@@ -59,6 +75,48 @@ export const archiveCompletedHabits = async (req, res) => {
     }
 };
 
+// ✅ Delete completed habits (what your Flutter app actually calls)
+export const deleteCompletedHabits = async (req, res) => {
+    try {
+        const { userId, before } = req.query;
+        if (!userId) return res.status(400).json({ message: 'userId is required' });
+
+        // Parse the before date or use yesterday as default
+        let beforeDate;
+        if (before) {
+            beforeDate = new Date(before);
+        } else {
+            beforeDate = new Date();
+            beforeDate.setUTCDate(beforeDate.getUTCDate() - 1);
+            beforeDate.setUTCHours(0, 0, 0, 0);
+        }
+
+        console.log(`Deleting completed habits for user ${userId} before ${beforeDate.toISOString()}`);
+
+        // Find habits to delete
+        const habitsToDelete = await Habit.find({
+            assignedTo: userId,
+            isArchived: true,
+            archivedAt: { $lt: beforeDate }
+        });
+
+        console.log(`Found ${habitsToDelete.length} habits to delete and preserve`);
+
+        // Save each habit to history before deletion
+        for (const habit of habitsToDelete) {
+            await saveHabitToHistory(habit);
+            await habit.deleteOne();
+        }
+
+        res.status(200).json({
+            message: `${habitsToDelete.length} completed habits deleted and preserved in history`
+        });
+    } catch (err) {
+        console.error('Error in deleteCompletedHabits:', err);
+        res.status(500).json({ message: 'Error deleting completed habits', error: err.message });
+    }
+};
+
 // ✅ Delete old archived habits and preserve heatmap data (UTC)
 export const deleteOldArchivedHabits = async (req, res) => {
     try {
@@ -71,15 +129,10 @@ export const deleteOldArchivedHabits = async (req, res) => {
             archivedAt: { $lt: cutoff }
         });
 
-        for (const habit of habitsToDelete) {
-            if (habit.completedDays?.length > 0) {
-                await HabitHistory.create({
-                    userId: habit.assignedTo,
-                    completedDays: habit.completedDays,
-                    habitName: habit.name
-                });
-            }
+        console.log(`Found ${habitsToDelete.length} old archived habits to delete`);
 
+        for (const habit of habitsToDelete) {
+            await saveHabitToHistory(habit);
             await habit.deleteOne();
         }
 
@@ -112,7 +165,7 @@ export const removeOldCompletionDays = async (req, res) => {
     }
 };
 
-// ✅ Remove only yesterday’s completions (UTC)
+// ✅ Remove only yesterday's completions (UTC)
 export const removeYesterdayCompletions = async (req, res) => {
     try {
         const today = new Date();
@@ -131,25 +184,31 @@ export const removeYesterdayCompletions = async (req, res) => {
     }
 };
 
-// ✅ Manual deletion by habit ID
+// ✅ Manual deletion by habit ID - FIXED to preserve history
 export const deleteHabit = async (req, res) => {
     try {
         const { id } = req.params;
-        const habit = await Habit.findByIdAndDelete(id);
+        const habit = await Habit.findById(id);
         if (!habit) return res.status(404).json({ message: 'Habit not found' });
-        res.status(200).json({ message: 'Habit deleted successfully' });
+
+        // Save to history before manual deletion
+        await saveHabitToHistory(habit);
+
+        await habit.deleteOne();
+        res.status(200).json({ message: 'Habit deleted successfully and preserved in history' });
     } catch (err) {
         res.status(500).json({ message: 'Error deleting habit', error: err.message });
     }
 };
 
-// ✅ Get habit history for heatmap (add this to your backend)
+// ✅ Get habit history for heatmap
 export const getHabitHistory = async (req, res) => {
     try {
         const { userId } = req.query;
         if (!userId) return res.status(400).json({ message: 'userId is required' });
 
         const history = await HabitHistory.find({ userId });
+        console.log(`Retrieved ${history.length} habit history records for user ${userId}`);
         res.status(200).json(history);
     } catch (err) {
         res.status(500).json({ message: 'Error fetching habit history', error: err.message });
