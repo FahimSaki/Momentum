@@ -73,43 +73,47 @@ export const updateHabit = async (req, res) => {
     }
 };
 
-// ✅ Archive habits completed before yesterday (UTC)
+// 🔧 UPDATED: Archive habits completed before today (date-based, not time-based)
 export const archiveCompletedHabits = async (req, res) => {
     try {
-        const cutoff = new Date();
-        cutoff.setUTCDate(cutoff.getUTCDate() - 1);
-        cutoff.setUTCHours(0, 0, 0, 0);
+        // Get today's date at 00:00:00 UTC (start of today)
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
 
+        // Archive habits that were completed before today (yesterday or earlier)
         const result = await Habit.updateMany(
-            { isArchived: false, lastCompletedDate: { $lt: cutoff } },
+            { isArchived: false, lastCompletedDate: { $lt: today } },
             { $set: { isArchived: true, archivedAt: new Date() } }
         );
 
-        res.status(200).json({ message: `${result.modifiedCount} habits archived` });
+        res.status(200).json({
+            message: `${result.modifiedCount} habits archived (completed before ${today.toDateString()})`
+        });
     } catch (err) {
         res.status(500).json({ message: 'Error archiving habits', error: err.message });
     }
 };
 
-// ✅ Delete completed habits (what your Flutter app actually calls)
+// 🔧 UPDATED: Delete completed habits (date-based logic)
 export const deleteCompletedHabits = async (req, res) => {
     try {
         const { userId, before } = req.query;
         if (!userId) return res.status(400).json({ message: 'userId is required' });
 
-        // Parse the before date or use yesterday as default
+        // Parse the before date or use today as default
         let beforeDate;
         if (before) {
             beforeDate = new Date(before);
+            beforeDate.setUTCHours(0, 0, 0, 0); // Set to start of the specified day
         } else {
+            // Default: delete habits archived before today (i.e., yesterday and earlier)
             beforeDate = new Date();
-            beforeDate.setUTCDate(beforeDate.getUTCDate() - 1);
             beforeDate.setUTCHours(0, 0, 0, 0);
         }
 
-        console.log(`Deleting completed habits for user ${userId} before ${beforeDate.toISOString()}`);
+        console.log(`Deleting completed habits for user ${userId} archived before ${beforeDate.toDateString()}`);
 
-        // Find habits to delete
+        // Find habits to delete (archived before the specified date)
         const habitsToDelete = await Habit.find({
             assignedTo: userId,
             isArchived: true,
@@ -133,19 +137,20 @@ export const deleteCompletedHabits = async (req, res) => {
     }
 };
 
-// ✅ Delete old archived habits and preserve heatmap data (UTC)
+// 🔧 UPDATED: Delete old archived habits (date-based)
 export const deleteOldArchivedHabits = async (req, res) => {
     try {
-        const cutoff = new Date();
-        cutoff.setUTCDate(cutoff.getUTCDate() - 1);
-        cutoff.setUTCHours(0, 0, 0, 0);
+        // Get today's date at 00:00:00 UTC (start of today)
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
 
+        // Find habits that were archived before today
         const habitsToDelete = await Habit.find({
             isArchived: true,
-            archivedAt: { $lt: cutoff }
+            archivedAt: { $lt: today }
         });
 
-        console.log(`Found ${habitsToDelete.length} old archived habits to delete`);
+        console.log(`Found ${habitsToDelete.length} old archived habits to delete (archived before ${today.toDateString()})`);
 
         for (const habit of habitsToDelete) {
             await saveHabitToHistory(habit);
@@ -160,66 +165,86 @@ export const deleteOldArchivedHabits = async (req, res) => {
     }
 };
 
-// ✅ Remove old completion days (based on UTC date)
+// 🔧 UPDATED: Remove old completion days (date-based)
 export const removeOldCompletionDays = async (req, res) => {
     try {
         const { userId, before } = req.body;
-        if (!userId || !before) return res.status(400).json({ message: 'userId and before date are required' });
 
-        const beforeDate = new Date(before); // Assume this is an ISO date in UTC
+        // If no specific date provided, use today as cutoff
+        let beforeDate;
+        if (before) {
+            beforeDate = new Date(before);
+            beforeDate.setUTCHours(0, 0, 0, 0);
+        } else {
+            beforeDate = new Date();
+            beforeDate.setUTCHours(0, 0, 0, 0);
+        }
 
-        const habits = await Habit.find({ assignedTo: userId });
+        const query = userId ? { assignedTo: userId } : {};
+        const habits = await Habit.find(query);
 
         for (const habit of habits) {
             // Save to history BEFORE removing completion days
-            await saveHabitToHistory(habit);
+            const oldCompletions = habit.completedDays.filter(date => new Date(date) < beforeDate);
 
+            if (oldCompletions.length > 0) {
+                const habitWithOldData = {
+                    ...habit.toObject(),
+                    completedDays: oldCompletions
+                };
+                await saveHabitToHistory(habitWithOldData);
+            }
+
+            // Remove old completion days (keep only today and future)
             habit.completedDays = habit.completedDays.filter(date => new Date(date) >= beforeDate);
             await habit.save();
         }
 
-        res.status(200).json({ message: 'Old completion days removed and preserved in history' });
+        res.status(200).json({
+            message: `Old completion days removed and preserved in history (before ${beforeDate.toDateString()})`
+        });
     } catch (err) {
         res.status(500).json({ message: 'Error removing old completion days', error: err.message });
     }
 };
 
-// 🔧 FIXED: Remove only yesterday's completions but SAVE TO HISTORY FIRST
+// 🔧 UPDATED: Remove only yesterday's completions but SAVE TO HISTORY FIRST (date-based)
 export const removeYesterdayCompletions = async (req, res) => {
     try {
+        // Get today's date at 00:00:00 UTC (start of today)
         const today = new Date();
-        today.setUTCHours(0, 0, 0, 0); // Midnight UTC
+        today.setUTCHours(0, 0, 0, 0);
 
         const habits = await Habit.find({});
         let savedCount = 0;
 
         for (const habit of habits) {
-            // 🔧 CRITICAL FIX: Save to history BEFORE removing completion days
-            const yesterdayCompletions = habit.completedDays.filter(date => new Date(date) < today);
+            // Get completions from before today (yesterday and earlier)
+            const oldCompletions = habit.completedDays.filter(date => new Date(date) < today);
 
-            if (yesterdayCompletions.length > 0) {
-                // Create a temporary habit object with only yesterday's completions
-                const habitWithYesterdayData = {
+            if (oldCompletions.length > 0) {
+                // Create a temporary habit object with only old completions
+                const habitWithOldData = {
                     ...habit.toObject(),
-                    completedDays: yesterdayCompletions
+                    completedDays: oldCompletions
                 };
 
-                await saveHabitToHistory(habitWithYesterdayData);
+                await saveHabitToHistory(habitWithOldData);
                 savedCount++;
             }
 
-            // Now remove yesterday's completions
+            // Now remove old completions (keep only today's completions)
             habit.completedDays = habit.completedDays.filter(date => new Date(date) >= today);
             await habit.save();
         }
 
-        console.log(`Saved ${savedCount} habits to history before removing yesterday's completions`);
+        console.log(`Saved ${savedCount} habits to history before removing old completions`);
         res.status(200).json({
-            message: `Yesterday completions removed and ${savedCount} habits preserved in history`
+            message: `Old completions removed and ${savedCount} habits preserved in history (before ${today.toDateString()})`
         });
     } catch (err) {
         console.error('Error in removeYesterdayCompletions:', err);
-        res.status(500).json({ message: 'Error removing yesterday completions', error: err.message });
+        res.status(500).json({ message: 'Error removing old completions', error: err.message });
     }
 };
 

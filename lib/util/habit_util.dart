@@ -34,12 +34,27 @@ bool shouldShowHabit(Habit habit) {
   return today != completed;
 }
 
-// Prepare datasets for heat map with BD local time adjustment
-Map<DateTime, int> prepareMapDatasets(List<Habit> habits) {
+// 🔧 FIXED: Now accepts both current habits AND historical completions
+Map<DateTime, int> prepareMapDatasets(List<Habit> habits,
+    [List<DateTime>? historicalCompletions]) {
   final Map<DateTime, int> heatMapData = {};
 
+  // Process current habits (same as before)
   for (final habit in habits) {
     for (final utcDate in habit.completedDays) {
+      final localDate =
+          DateTime(utcDate.year, utcDate.month, utcDate.day).toLocal();
+      final localMidnight =
+          DateTime(localDate.year, localDate.month, localDate.day);
+
+      heatMapData.update(localMidnight, (count) => count + 1,
+          ifAbsent: () => 1);
+    }
+  }
+
+  // 🔧 NEW: Process historical completions from deleted habits
+  if (historicalCompletions != null) {
+    for (final utcDate in historicalCompletions) {
       final localDate =
           DateTime(utcDate.year, utcDate.month, utcDate.day).toLocal();
       final localMidnight =

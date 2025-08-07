@@ -5,6 +5,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import habitRoutes from './routes/habit.js';
 import { authenticateToken } from './middleware/middle_auth.js';
+import { startCleanupScheduler } from './services/cleanup_scheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -39,12 +40,17 @@ app.use(cors({
 
 // Connect to MongoDB (cleaned up deprecated options)
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('✅ MongoDB connected'))
+    .then(() => {
+        console.log('✅ MongoDB connected');
+
+        // 🔧 NEW: Start the cleanup scheduler after DB connection
+        startCleanupScheduler();
+    })
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Routes
 app.use('/auth', authRoutes);
-app.use('/habits', authenticateToken, habitRoutes); // ← ADD authenticateToken HERE
+app.use('/habits', authenticateToken, habitRoutes);
 
 // Health check (optional, helpful for monitoring)
 app.get('/health', (req, res) => {
@@ -58,4 +64,7 @@ app.get('/', (req, res) => {
 
 // Start server
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log('📅 Automatic habit cleanup scheduler is active');
+});

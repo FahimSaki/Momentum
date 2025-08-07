@@ -23,7 +23,8 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     final db = Provider.of<HabitDatabase>(context, listen: false);
     db.readHabits();
-    db.deleteCompletedHabits();
+    // 🔧 REMOVED: Don't call deleteCompletedHabits immediately!
+    // The backend scheduler will handle cleanup automatically
   }
 
   void createNewHabit() {

@@ -13,6 +13,9 @@ class HeatMapComponent extends StatelessWidget {
     final habitDatabase = context.watch<HabitDatabase>();
     final currentHabits = habitDatabase.currentHabits;
 
+    // 🔧 NEW: Get historical completions from the database
+    final historicalCompletions = habitDatabase.historicalCompletions;
+
     return FutureBuilder<DateTime?>(
       future: habitDatabase.getFirstLaunchDate(),
       builder: (context, snapshot) {
@@ -36,7 +39,8 @@ class HeatMapComponent extends StatelessWidget {
         return HeatMap(
           startDate: startDate,
           endDate: endDate,
-          datasets: prepareMapDatasets(currentHabits),
+          // 🔧 FIXED: Pass both current habits AND historical completions
+          datasets: prepareMapDatasets(currentHabits, historicalCompletions),
           colorMode: ColorMode.color,
           defaultColor: Theme.of(context).colorScheme.secondary,
           textColor: Colors.white,

@@ -29,6 +29,10 @@ class HabitDatabase extends ChangeNotifier {
   final WidgetService _widgetService = WidgetService();
   TimerService? _timerService;
 
+  // 🔧 NEW: Getter to expose historical data to UI components
+  List<DateTime> get historicalCompletions =>
+      List.unmodifiable(_historicalCompletions);
+
   HabitDatabase() {
     if (!kIsWeb) {
       _initializeTimerService();
@@ -72,6 +76,9 @@ class HabitDatabase extends ChangeNotifier {
       _historicalCompletions.addAll(historicalData);
       logger
           .i('Loaded ${_historicalCompletions.length} historical completions');
+
+      // 🔧 NEW: Notify listeners when historical data changes
+      notifyListeners();
     } catch (e, stackTrace) {
       logger.w('Could not load historical completions (non-critical)',
           error: e, stackTrace: stackTrace);

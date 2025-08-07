@@ -12,6 +12,7 @@ import {
     deleteHabit,
     getHabitHistory
 } from '../controllers/habitController.js';
+import { runManualCleanup } from '../services/cleanup_scheduler.js';
 
 const router = express.Router();
 
@@ -31,6 +32,18 @@ router.post('/remove-old-completions', removeOldCompletionDays);
 router.post('/remove-yesterday-completions', removeYesterdayCompletions);
 
 // History for heatmap
-router.get('/history', getHabitHistory); // Note: This should be /habits/history in your app
+router.get('/history', getHabitHistory);
+
+// 🔧 NEW: Manual cleanup route for testing/debugging
+router.post('/manual-cleanup', async (req, res) => {
+    try {
+        console.log('🔧 Manual cleanup triggered by API call');
+        await runManualCleanup();
+        res.status(200).json({ message: 'Manual cleanup completed successfully' });
+    } catch (error) {
+        console.error('❌ Manual cleanup failed:', error);
+        res.status(500).json({ message: 'Manual cleanup failed', error: error.message });
+    }
+});
 
 export default router;
