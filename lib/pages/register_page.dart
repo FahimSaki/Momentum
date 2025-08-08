@@ -84,7 +84,7 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       }
     } catch (e) {
-      print("❌ Registration error: $e");
+      print("❌ Registration error caught in UI: $e");
 
       if (mounted) {
         setState(() {
@@ -97,13 +97,19 @@ class _RegisterPageState extends State<RegisterPage> {
           }
 
           // Handle specific error types
-          if (errorMessage.toLowerCase().contains('email already exists') ||
-              errorMessage.toLowerCase().contains('already registered')) {
+          String lowerError = errorMessage.toLowerCase();
+          if (lowerError.contains('email already exists') ||
+              lowerError.contains('already registered') ||
+              lowerError.contains('duplicate')) {
             error = "An account with this email already exists.";
-          } else if (errorMessage.toLowerCase().contains('network')) {
+          } else if (lowerError.contains('network') ||
+              lowerError.contains('connection')) {
             error = "Network error. Please check your connection.";
-          } else if (errorMessage.toLowerCase().contains('timeout')) {
+          } else if (lowerError.contains('timeout')) {
             error = "Request timed out. Please try again.";
+          } else if (lowerError.contains('json') ||
+              lowerError.contains('parsing')) {
+            error = "Server response error. Please try again.";
           } else {
             error = errorMessage;
           }

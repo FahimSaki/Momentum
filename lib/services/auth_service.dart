@@ -8,29 +8,18 @@ class AuthService {
   // Login with email and password
   static Future<Map<String, dynamic>> login(
       String email, String password) async {
-    print("📤 Sending login request to: $backendUrl/auth/login");
-
     final response = await http.post(
       Uri.parse('$backendUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
     );
 
-    print("📥 Login response status: ${response.statusCode}");
-    print("📄 Login response body: ${response.body}");
-
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      // Handle both '_id' and 'id' formats
-      final userId = data['user']['_id'] ?? data['user']['id'];
-
-      if (userId == null) {
-        throw Exception('User ID not found in response');
-      }
-
+      // data should contain { token: ..., user: { _id: ..., ... } }
       return {
         'token': data['token'],
-        'userId': userId,
+        'userId': data['user']['_id'], // Your backend uses _id
         'user': data['user'],
       };
     } else {
@@ -41,38 +30,31 @@ class AuthService {
   // Register with email and password
   static Future<Map<String, dynamic>> register(
       String email, String password) async {
-    print("📤 Sending registration request to: $backendUrl/auth/register");
-
     final response = await http.post(
       Uri.parse('$backendUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
     );
 
-    print("📥 Registration response status: ${response.statusCode}");
-    print("📄 Registration response body: ${response.body}");
-
-    // Accept both 200 (OK) and 201 (Created) as successful registration
-    if (response.statusCode == 200 || response.statusCode == 201) {
+    // Your backend returns 201 Created for successful registration
+    if (response.statusCode == 201) {
       final data = json.decode(response.body);
 
-      // Handle both '_id' and 'id' formats for user ID
-      final userId = data['user']['_id'] ?? data['user']['id'];
-
-      if (userId == null) {
-        throw Exception('User ID not found in registration response');
-      }
-
-      print("✅ Registration successful! User ID: $userId");
-
+      // Your backend returns the user object with _id field
       return {
+        'success': true,
         'token': data['token'],
-        'userId': userId,
+        'userId': data['user']['_id'], // Changed from 'id' to '_id'
         'user': data['user'],
       };
     } else {
-      print("❌ Registration failed with status: ${response.statusCode}");
-      throw Exception('Registration failed: ${response.body}');
+      // Parse error message from your backend
+      try {
+        final errorData = json.decode(response.body);
+        throw Exception(errorData['message'] ?? 'Registration failed');
+      } catch (e) {
+        throw Exception('Registration failed: ${response.body}');
+      }
     }
   }
 }
