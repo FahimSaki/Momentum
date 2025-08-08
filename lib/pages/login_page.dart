@@ -63,30 +63,80 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const Text(
+                'Momentum',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 32),
               TextField(
                 controller: emailController,
-                decoration: InputDecoration(labelText: 'Email'),
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: UnderlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                enabled: !isLoading,
               ),
+              const SizedBox(height: 16),
               TextField(
                 controller: passwordController,
-                decoration: InputDecoration(labelText: 'Password'),
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: UnderlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
+                  helperText: 'Must be at least 6 characters',
+                ),
                 obscureText: true,
+                enabled: !isLoading,
               ),
               if (error != null) ...[
-                SizedBox(height: 8),
-                Text(error!, style: TextStyle(color: Colors.red)),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          error!,
+                          style: TextStyle(color: Colors.red.shade700),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-              SizedBox(height: 16),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: isLoading ? null : login,
-                child: isLoading ? CircularProgressIndicator() : Text('Login'),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Login', style: TextStyle(fontSize: 16)),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/register');
-                },
-                child: Text("Don't have an account? Register"),
+                onPressed: isLoading
+                    ? null
+                    : () {
+                        Navigator.pushReplacementNamed(context, '/register');
+                      },
+                child: const Text("Don't have an account? Register"),
               ),
             ],
           ),

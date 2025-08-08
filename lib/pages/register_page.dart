@@ -159,7 +159,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 controller: emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email',
-                  border: OutlineInputBorder(),
+                  border: UnderlineInputBorder(),
                   prefixIcon: Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
@@ -170,7 +170,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 controller: passwordController,
                 decoration: const InputDecoration(
                   labelText: 'Password',
-                  border: OutlineInputBorder(),
+                  border: UnderlineInputBorder(),
                   prefixIcon: Icon(Icons.lock),
                   helperText: 'Must be at least 6 characters',
                 ),
@@ -201,24 +201,20 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ],
               const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : register,
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+              ElevatedButton(
+                onPressed: isLoading ? null : register,
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Register', style: TextStyle(fontSize: 16)),
                 ),
+                child: isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Register', style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 16),
               TextButton(
