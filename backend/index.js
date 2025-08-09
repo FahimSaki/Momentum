@@ -5,7 +5,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import habitRoutes from './routes/habit.js';
 import { authenticateToken } from './middleware/middle_auth.js';
-import { startCleanupScheduler } from './services/cleanup_scheduler.js';
+import { startCleanupScheduler, runManualCleanup } from './services/cleanup_scheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -48,7 +48,49 @@ mongoose.connect(process.env.MONGODB_URI)
     })
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Routes
+// 🔧 PUBLIC ROUTES (no authentication required) - MOVED HERE
+// Public wake-up endpoint
+app.get('/wake-up', (req, res) => {
+    const now = new Date();
+    console.log('⏰ Wake-up ping received at:', now.toISOString());
+    res.status(200).json({
+        message: 'Server is awake',
+        timestamp: now.toISOString(),
+        uptime: process.uptime()
+    });
+});
+
+// Public cleanup endpoint  
+app.post('/manual-cleanup', async (req, res) => {
+    try {
+        const startTime = new Date();
+        console.log('🔧 Manual cleanup triggered by external cron service at:', startTime.toISOString());
+
+        await runManualCleanup(); // 🔧 Now properly imported
+
+        const endTime = new Date();
+        const duration = endTime - startTime;
+
+        const response = {
+            message: 'Manual cleanup completed successfully',
+            timestamp: endTime.toISOString(),
+            duration: `${duration}ms`,
+            triggered_by: 'external_cron'
+        };
+
+        console.log('✅ Manual cleanup response:', response);
+        res.status(200).json(response);
+    } catch (error) {
+        console.error('❌ Manual cleanup failed:', error);
+        res.status(500).json({
+            message: 'Manual cleanup failed',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// AUTHENTICATED ROUTES
 app.use('/auth', authRoutes);
 app.use('/habits', authenticateToken, habitRoutes);
 
