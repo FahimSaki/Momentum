@@ -30,6 +30,7 @@ const saveHabitToHistory = async (habit) => {
             }
         } catch (error) {
             console.error(`Error saving habit "${habit.name}" to history:`, error);
+            // Don't throw - continue with other habits
         }
     }
 };
@@ -37,11 +38,9 @@ const saveHabitToHistory = async (habit) => {
 // Function to archive completed habits (step 1)
 const archiveCompletedHabits = async () => {
     try {
-        // Get today's date at 00:00:00 UTC (start of today)
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Archive habits that were completed before today (yesterday or earlier)
         const result = await Habit.updateMany(
             { isArchived: false, lastCompletedDate: { $lt: today } },
             { $set: { isArchived: true, archivedAt: new Date() } }
@@ -51,18 +50,16 @@ const archiveCompletedHabits = async () => {
         return result.modifiedCount;
     } catch (error) {
         console.error('❌ Error archiving completed habits:', error);
-        throw error;
+        return 0; // Return 0 instead of throwing
     }
 };
 
 // Function to delete old archived habits and preserve data (step 2)
 const deleteOldArchivedHabits = async () => {
     try {
-        // Get today's date at 00:00:00 UTC (start of today)
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Delete habits that were archived before today (yesterday or earlier)
         const habitsToDelete = await Habit.find({
             isArchived: true,
             archivedAt: { $lt: today }
@@ -72,23 +69,27 @@ const deleteOldArchivedHabits = async () => {
 
         let preservedCount = 0;
         for (const habit of habitsToDelete) {
-            await saveHabitToHistory(habit);
-            await habit.deleteOne();
-            preservedCount++;
+            try {
+                await saveHabitToHistory(habit);
+                await habit.deleteOne();
+                preservedCount++;
+            } catch (habitError) {
+                console.error(`Error processing habit "${habit.name}":`, habitError);
+                // Continue with next habit instead of crashing
+            }
         }
 
         console.log(`✅ Deleted ${preservedCount} habits and preserved their history`);
         return preservedCount;
     } catch (error) {
         console.error('❌ Error deleting old archived habits:', error);
-        throw error;
+        return 0; // Return 0 instead of throwing
     }
 };
 
 // Function to clean up old completion days from active habits
 const removeOldCompletionDays = async () => {
     try {
-        // Get today's date at 00:00:00 UTC (start of today)
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
@@ -96,27 +97,30 @@ const removeOldCompletionDays = async () => {
         let cleanedCount = 0;
 
         for (const habit of habits) {
-            // Save to history BEFORE removing completion days
-            // Get completions from before today (yesterday and earlier)
-            const oldCompletions = habit.completedDays.filter(date => new Date(date) < today);
+            try {
+                // Save to history BEFORE removing completion days
+                const oldCompletions = habit.completedDays.filter(date => new Date(date) < today);
 
-            if (oldCompletions.length > 0) {
-                // Create a temporary habit object with only old completions
-                const habitWithOldData = {
-                    ...habit.toObject(),
-                    completedDays: oldCompletions
-                };
+                if (oldCompletions.length > 0) {
+                    const habitWithOldData = {
+                        ...habit.toObject(),
+                        completedDays: oldCompletions
+                    };
 
-                await saveHabitToHistory(habitWithOldData);
-            }
+                    await saveHabitToHistory(habitWithOldData);
+                }
 
-            // Now remove old completions (keep only today's completions)
-            const beforeLength = habit.completedDays.length;
-            habit.completedDays = habit.completedDays.filter(date => new Date(date) >= today);
+                // Now remove old completions (keep only today's completions)
+                const beforeLength = habit.completedDays.length;
+                habit.completedDays = habit.completedDays.filter(date => new Date(date) >= today);
 
-            if (beforeLength !== habit.completedDays.length) {
-                await habit.save();
-                cleanedCount++;
+                if (beforeLength !== habit.completedDays.length) {
+                    await habit.save();
+                    cleanedCount++;
+                }
+            } catch (habitError) {
+                console.error(`Error cleaning habit "${habit.name}":`, habitError);
+                // Continue with next habit
             }
         }
 
@@ -124,11 +128,11 @@ const removeOldCompletionDays = async () => {
         return cleanedCount;
     } catch (error) {
         console.error('❌ Error removing old completion days:', error);
-        throw error;
+        return 0;
     }
 };
 
-// Main cleanup function that runs daily
+// Main cleanup function that runs daily - WRAPPED IN TRY-CATCH
 const runDailyCleanup = async () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -139,11 +143,11 @@ const runDailyCleanup = async () => {
     console.log(`📅 Yesterday: ${yesterday.toDateString()}`);
 
     try {
-        // Step 1: Archive habits completed before today (yesterday and earlier)
+        // Step 1: Archive habits completed before today
         console.log('📦 Step 1: Archiving habits completed before today...');
         const archivedCount = await archiveCompletedHabits();
 
-        // Step 2: Delete habits archived before today (yesterday and earlier) and preserve their data
+        // Step 2: Delete habits archived before today and preserve their data
         console.log('🗑️ Step 2: Deleting habits archived before today...');
         const deletedCount = await deleteOldArchivedHabits();
 
@@ -151,41 +155,80 @@ const runDailyCleanup = async () => {
         console.log('🧽 Step 3: Cleaning old completion days from active habits...');
         const cleanedCount = await removeOldCompletionDays();
 
-        console.log(`✅ Daily cleanup completed:`, {
+        const result = {
             archivedHabits: archivedCount,
             deletedAndPreservedHabits: deletedCount,
             cleanedHabits: cleanedCount,
             processedDate: today.toDateString(),
             timestamp: now.toISOString()
-        });
+        };
+
+        console.log('✅ Daily cleanup completed:', result);
+
+        // 🔧 IMPORTANT: Force garbage collection to prevent memory issues
+        if (global.gc) {
+            global.gc();
+            console.log('🗑️ Garbage collection triggered');
+        }
+
+        return result;
 
     } catch (error) {
         console.error('❌ Daily cleanup failed:', error);
+        // 🔧 CRITICAL: Don't re-throw the error - just log it
+        // Re-throwing could crash the server
+        return {
+            error: error.message,
+            timestamp: now.toISOString(),
+            status: 'failed'
+        };
     }
 };
 
 // Schedule cleanup to run every day at 12:05 AM UTC
 const startCleanupScheduler = () => {
-    // Run at 12:05 AM UTC every day
-    cron.schedule('5 0 * * *', async () => {
-        const now = new Date();
-        console.log(`⏰ Scheduled cleanup triggered at: ${now.toISOString()}`);
-        console.log(`📅 This cleanup will process habits from: ${new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toDateString()}`);
-        await runDailyCleanup();
-    }, {
-        scheduled: true,
-        timezone: "UTC"
-    });
+    try {
+        // Run at 12:05 AM UTC every day
+        cron.schedule('5 0 * * *', async () => {
+            const now = new Date();
+            console.log(`⏰ Scheduled cleanup triggered at: ${now.toISOString()}`);
 
-    console.log('📅 Cleanup scheduler started - will run daily at 12:05 AM UTC');
-    console.log('🔄 Cleanup logic: Habits completed on calendar day X will be deleted at 12:05 AM on day X+2');
-    console.log('   Example: Habit completed Aug 8 at 2 PM → Archived Aug 9 at 12:05 AM → Deleted Aug 10 at 12:05 AM');
+            try {
+                await runDailyCleanup();
+                console.log('✅ Scheduled cleanup completed successfully');
+            } catch (error) {
+                console.error('❌ Scheduled cleanup error (non-fatal):', error);
+                // Don't crash the server
+            }
+        }, {
+            scheduled: true,
+            timezone: "UTC"
+        });
+
+        console.log('📅 Cleanup scheduler started - will run daily at 12:05 AM UTC');
+        console.log('🔄 Cleanup logic: Habits completed on calendar day X will be deleted at 12:05 AM on day X+2');
+    } catch (error) {
+        console.error('❌ Error starting cleanup scheduler:', error);
+        // Don't crash the server if scheduler fails to start
+    }
 };
 
-// Manual cleanup function for testing/debugging
+// Manual cleanup function for testing/debugging - WRAPPED IN TRY-CATCH
 const runManualCleanup = async () => {
-    console.log('🔧 Running manual cleanup...');
-    await runDailyCleanup();
+    try {
+        console.log('🔧 Running manual cleanup...');
+        const result = await runDailyCleanup();
+        console.log('✅ Manual cleanup finished:', result);
+        return result;
+    } catch (error) {
+        console.error('❌ Manual cleanup error:', error);
+        // Return error info instead of throwing
+        return {
+            error: error.message,
+            timestamp: new Date().toISOString(),
+            status: 'failed'
+        };
+    }
 };
 
 export {
