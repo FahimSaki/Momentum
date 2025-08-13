@@ -32,15 +32,16 @@ class MyDrawer extends StatelessWidget {
 
     if (shouldLogout == true) {
       try {
-        // Clear stored authentication data
         await AuthService.logout();
 
         if (context.mounted) {
-          // Navigate to login page and clear all previous routes
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            '/login',
-            (route) => false,
-          );
+          // Ensure navigation happens after dialog closes
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/login',
+              (route) => false,
+            );
+          });
         }
       } catch (e) {
         if (context.mounted) {
@@ -74,28 +75,41 @@ class MyDrawer extends StatelessWidget {
                 color: Theme.of(context).colorScheme.surface,
               ),
               child: Center(
-                child: Image.asset(
-                  isLightMode
-                      ? 'assets/images/momentum_app_logo_light.png'
-                      : 'assets/images/momentum_app_logo_dark.png',
-                  width: 170,
-                  height: 164,
-                  errorBuilder: (context, error, stackTrace) {
-                    // Fallback if image not found
-                    return Container(
+                child: Column(
+                  children: [
+                    Image.asset(
+                      isLightMode
+                          ? 'assets/images/momentum_app_logo_main.png'
+                          : 'assets/images/momentum_app_logo_main.png',
                       width: 170,
                       height: 164,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(85),
+                      errorBuilder: (context, error, stackTrace) {
+                        // Fallback if image not found
+                        return Container(
+                          width: 170,
+                          height: 164,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(85),
+                          ),
+                          child: Icon(
+                            Icons.home,
+                            size: 80,
+                            color: Theme.of(context).colorScheme.surface,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Momentum',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.inversePrimary,
                       ),
-                      child: Icon(
-                        Icons.trending_up,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.surface,
-                      ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
             ),
