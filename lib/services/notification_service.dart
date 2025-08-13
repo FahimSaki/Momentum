@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:logger/logger.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -8,6 +9,9 @@ class NotificationService {
 
   final _notifications = FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
+
+  // Logger instance
+  final Logger _logger = Logger();
 
   Future<void> init() async {
     if (_isInitialized || kIsWeb) return;
@@ -33,8 +37,9 @@ class NotificationService {
           ?.createNotificationChannel(androidChannel);
 
       _isInitialized = true;
-    } catch (e) {
-      print('Notification service initialization error: $e');
+    } catch (e, stacktrace) {
+      _logger.e('Notification service initialization error',
+          error: e, stackTrace: stacktrace);
     }
   }
 
@@ -56,8 +61,8 @@ class NotificationService {
           ),
         ),
       );
-    } catch (e) {
-      print('Error showing notification: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error showing notification', error: e, stackTrace: stackTrace);
     }
   }
 }

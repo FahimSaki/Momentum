@@ -3,6 +3,7 @@ import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -12,6 +13,8 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
+  final Logger _logger = Logger();
+
   @override
   void initState() {
     super.initState();
@@ -25,12 +28,14 @@ class _SplashPageState extends State<SplashPage> {
 
       // Check if user has stored auth data
       final authData = await AuthService.getStoredAuthData();
+      _logger.i('Stored auth data: $authData');
 
       if (!mounted) return;
 
       if (authData != null) {
-        // Validate token with server (optional but recommended)
+        // Validate token with server
         final isValidToken = await AuthService.validateToken();
+        _logger.i('Token validation result: $isValidToken');
 
         if (!mounted) return;
 
@@ -42,24 +47,23 @@ class _SplashPageState extends State<SplashPage> {
             jwt: authData['token'],
             userId: authData['userId'],
           );
+          _logger.i('TaskDatabase initialized successfully');
 
           if (!mounted) return;
-          // Navigate to home page
           Navigator.pushReplacementNamed(context, '/home');
         } else {
-          // Token is invalid, clear it and go to login
+          _logger.w('Invalid token detected, logging out.');
           await AuthService.logout();
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/login');
         }
       } else {
-        // No stored auth data, go to login
+        _logger.w('No stored auth data found.');
         if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/login');
       }
-    } catch (e) {
-      print('Auth check error: $e');
-      // On error, go to login page
+    } catch (e, stackTrace) {
+      _logger.e('Auth check error', error: e, stackTrace: stackTrace);
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }
@@ -77,7 +81,6 @@ class _SplashPageState extends State<SplashPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // App Logo
             Image.asset(
               isLightMode
                   ? 'assets/images/momentum_app_logo_light.png'
@@ -85,7 +88,6 @@ class _SplashPageState extends State<SplashPage> {
               width: 200,
               height: 200,
               errorBuilder: (context, error, stackTrace) {
-                // Fallback if image not found
                 return Container(
                   width: 200,
                   height: 200,
@@ -102,7 +104,6 @@ class _SplashPageState extends State<SplashPage> {
               },
             ),
             const SizedBox(height: 24),
-            // App Name
             Text(
               'Momentum',
               style: TextStyle(
@@ -112,14 +113,12 @@ class _SplashPageState extends State<SplashPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // Loading indicator
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary,
               ),
             ),
             const SizedBox(height: 16),
-            // Loading text
             Text(
               'Loading...',
               style: TextStyle(

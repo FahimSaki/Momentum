@@ -2,12 +2,15 @@ import 'dart:convert';
 import 'package:momentum/constants/api_base_url.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:logger/logger.dart';
 
 class AuthService {
   static const String backendUrl = apiBaseUrl;
   static const String _jwtTokenKey = 'jwt_token';
   static const String _userIdKey = 'user_id';
   static const String _userDataKey = 'user_data';
+
+  static final Logger _logger = Logger();
 
   // Login with email and password
   static Future<Map<String, dynamic>> login(
@@ -28,12 +31,15 @@ class AuthService {
         userData: data['user'],
       );
 
+      _logger.i('Login successful for user: ${data['user']['_id']}');
+
       return {
         'token': data['token'],
         'userId': data['user']['_id'],
         'user': data['user'],
       };
     } else {
+      _logger.e('Login failed: ${response.body}');
       throw Exception('Login failed: ${response.body}');
     }
   }
@@ -57,6 +63,8 @@ class AuthService {
         userData: data['user'],
       );
 
+      _logger.i('Registration successful for user: ${data['user']['_id']}');
+
       return {
         'success': true,
         'token': data['token'],
@@ -66,8 +74,10 @@ class AuthService {
     } else {
       try {
         final errorData = json.decode(response.body);
+        _logger.e('Registration failed: ${errorData['message']}');
         throw Exception(errorData['message'] ?? 'Registration failed');
       } catch (e) {
+        _logger.e('Registration failed with raw body: ${response.body}');
         throw Exception('Registration failed: ${response.body}');
       }
     }
@@ -83,6 +93,8 @@ class AuthService {
     await prefs.setString(_jwtTokenKey, token);
     await prefs.setString(_userIdKey, userId);
     await prefs.setString(_userDataKey, json.encode(userData));
+
+    _logger.d('Auth data saved for userId: $userId');
   }
 
   // Get stored authentication data
@@ -94,15 +106,16 @@ class AuthService {
       final userDataJson = prefs.getString(_userDataKey);
 
       if (token != null && userId != null && userDataJson != null) {
+        _logger.d('Stored auth data found for userId: $userId');
         return {
           'token': token,
           'userId': userId,
           'user': json.decode(userDataJson),
         };
       }
-    } catch (e) {
-      // If there's any error reading stored data, return null
-      print('Error reading stored auth data: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error reading stored auth data',
+          error: e, stackTrace: stackTrace);
     }
     return null;
   }
@@ -119,6 +132,8 @@ class AuthService {
     await prefs.remove(_jwtTokenKey);
     await prefs.remove(_userIdKey);
     await prefs.remove(_userDataKey);
+
+    _logger.i('User logged out and auth data cleared');
   }
 
   // Validate token with server (optional - for extra security)
@@ -127,15 +142,17 @@ class AuthService {
       final authData = await getStoredAuthData();
       if (authData == null) return false;
 
-      // Make a simple authenticated request to verify token
       final response = await http.get(
         Uri.parse('$backendUrl/tasks/assigned?userId=${authData['userId']}'),
         headers: {'Authorization': 'Bearer ${authData['token']}'},
       );
 
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Token validation error: $e');
+      final valid = response.statusCode == 200;
+      _logger.d(
+          'Token validation result for userId ${authData['userId']}: $valid');
+      return valid;
+    } catch (e, stackTrace) {
+      _logger.e('Token validation error', error: e, stackTrace: stackTrace);
       return false;
     }
   }
