@@ -74,43 +74,49 @@ class MyDrawer extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
               ),
-              child: Center(
-                child: Column(
-                  children: [
-                    Image.asset(
-                      isLightMode
-                          ? 'assets/images/momentum_app_logo_main.png'
-                          : 'assets/images/momentum_app_logo_main.png',
-                      width: 170,
-                      height: 164,
-                      errorBuilder: (context, error, stackTrace) {
-                        // Fallback if image not found
-                        return Container(
-                          width: 170,
-                          height: 164,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(85),
+              margin: EdgeInsets.zero,
+              padding: EdgeInsets.zero,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Use available height to scale image and text
+                  final double availableHeight = constraints.maxHeight;
+                  final double imageHeight =
+                      availableHeight * 0.6; // 60% for image
+                  final double textHeight =
+                      availableHeight * 0.2; // 20% for text
+
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Responsive Image
+                        SizedBox(
+                          height: imageHeight,
+                          child: Image.asset(
+                            isLightMode
+                                ? 'assets/images/momentum_app_logo_main.png'
+                                : 'assets/images/momentum_app_logo_main.png',
+                            fit: BoxFit.contain, // maintain aspect ratio
                           ),
-                          child: Icon(
-                            Icons.home,
-                            size: 80,
-                            color: Theme.of(context).colorScheme.surface,
+                        ),
+                        const SizedBox(height: 8),
+                        // Responsive Text
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            'Momentum',
+                            style: TextStyle(
+                              fontSize: textHeight,
+                              fontWeight: FontWeight.bold,
+                              color:
+                                  Theme.of(context).colorScheme.inversePrimary,
+                            ),
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Momentum',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.inversePrimary,
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),
