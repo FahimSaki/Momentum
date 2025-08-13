@@ -83,14 +83,14 @@ class _SplashPageState extends State<SplashPage> {
           children: [
             Image.asset(
               isLightMode
-                  ? 'assets/images/momentum_app_logo_light.png'
-                  : 'assets/images/momentum_app_logo_dark.png',
+                  ? 'assets/images/momentum_app_logo_main.png'
+                  : 'assets/images/momentum_app_logo_main.png',
               width: 200,
-              height: 200,
+              height: 163,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   width: 200,
-                  height: 200,
+                  height: 163,
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primary,
                     borderRadius: BorderRadius.circular(100),
@@ -104,6 +104,15 @@ class _SplashPageState extends State<SplashPage> {
               },
             ),
             const SizedBox(height: 24),
+            Text(
+              'Momentum',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.inversePrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary,

@@ -79,12 +79,12 @@ class MyDrawer extends StatelessWidget {
                       ? 'assets/images/momentum_app_logo_light.png'
                       : 'assets/images/momentum_app_logo_dark.png',
                   width: 170,
-                  height: 170,
+                  height: 164,
                   errorBuilder: (context, error, stackTrace) {
                     // Fallback if image not found
                     return Container(
                       width: 170,
-                      height: 170,
+                      height: 164,
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(85),

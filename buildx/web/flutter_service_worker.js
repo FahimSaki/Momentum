@@ -3,11 +3,12 @@ const MANIFEST = 'flutter-app-manifest';
 const TEMP = 'flutter-temp-cache';
 const CACHE_NAME = 'flutter-app-cache';
 
-const RESOURCES = {"assets/AssetManifest.bin": "0a91c53a08fe21504788d0b03610a6ea",
-"assets/AssetManifest.bin.json": "ebbb3dd994e3e08758315174c6606b60",
-"assets/AssetManifest.json": "566b078fa0de631fe482a66066922d2b",
+const RESOURCES = {"assets/AssetManifest.bin": "d3de042c5415bd521a8bbb6596f59f4f",
+"assets/AssetManifest.bin.json": "2ff1acd9f78ba8856f17f24841305848",
+"assets/AssetManifest.json": "124464f6eee688785223680a1bb70b88",
 "assets/assets/images/momentum_app_logo_dark.png": "65a2adf191cb51141e5778c3037c0f9f",
 "assets/assets/images/momentum_app_logo_light.png": "db6c49833e291b6e38459735b145736d",
+"assets/assets/images/momentum_app_logo_main.png": "28807c9500ae11401e0104198e2a7098",
 "assets/FontManifest.json": "5a32d4310a6f5d9a6b651e75ba0d7372",
 "assets/fonts/MaterialIcons-Regular.otf": "ec38d59f08bfef32ebd073971c6a9729",
 "assets/NOTICES": "f2757b2c47100839c1e6bd0b08eb3f55",
@@ -28,14 +29,14 @@ const RESOURCES = {"assets/AssetManifest.bin": "0a91c53a08fe21504788d0b03610a6ea
 "canvaskit/skwasm.worker.js": "89990e8c92bcb123999aa81f7e203b1c",
 "favicon.png": "fcfd84aa1cfe960636a6e1149ed94b0d",
 "flutter.js": "f393d3c16b631f36852323de8e583132",
-"flutter_bootstrap.js": "2ed1a176601a0dcbb048ee9da96f42b3",
+"flutter_bootstrap.js": "a94d7bd4332d53c3951e459643ad589b",
 "icons/Icon-192.png": "c14fdafdaadfe023fe1388831ab26383",
 "icons/Icon-512.png": "325807f4e80c7973badde9f6d3577a33",
 "icons/Icon-maskable-192.png": "c14fdafdaadfe023fe1388831ab26383",
 "icons/Icon-maskable-512.png": "325807f4e80c7973badde9f6d3577a33",
 "index.html": "32d727bfda54f85caabc49e7fd860ba9",
 "/": "32d727bfda54f85caabc49e7fd860ba9",
-"main.dart.js": "4d4d9707da960717989efe83099fd738",
+"main.dart.js": "56b87c9532fed1d88b6722a0484fd83c",
 "manifest.json": "23500da4346586f2f7b6dfe959887426",
 "version.json": "88c9b9fb6745a949aca3cf76afd139e8"};
 // The application shell files that are downloaded before a service worker can
