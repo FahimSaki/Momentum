@@ -24,18 +24,16 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final result = await AuthService.login(
-        emailController.text,
-        passwordController.text,
+        emailController.text.trim(),
+        passwordController.text.trim(),
       );
 
-      // Check if widget is still mounted after async operation
       if (!mounted) return;
 
       final jwt = result['token'];
       final userId = result['userId'];
 
       if (jwt == null || userId == null) {
-        // Check mounted before setState
         if (!mounted) return;
         setState(() {
           error = "Invalid login response from server.";
@@ -48,18 +46,15 @@ class _LoginPageState extends State<LoginPage> {
       final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
       await taskDatabase.initialize(jwt: jwt, userId: userId);
 
-      // Check mounted before navigation
       if (!mounted) return;
-      // Navigate to your main/home page
+      // Navigate to home page and clear login stack
       Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
-      // Check mounted before setState
       if (!mounted) return;
       setState(() {
-        error = e.toString();
+        error = e.toString().replaceFirst('Exception: ', '');
       });
     } finally {
-      // Check mounted before final setState
       if (mounted) {
         setState(() {
           isLoading = false;
@@ -69,8 +64,16 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -79,32 +82,55 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const Text(
                 'Momentum',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Welcome back!',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .inversePrimary
+                      .withOpacity(0.7),
+                ),
               ),
               const SizedBox(height: 32),
               TextField(
                 controller: emailController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  border: UnderlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
+                  border: const UnderlineInputBorder(),
+                  prefixIcon: const Icon(Icons.email),
+                  errorText:
+                      error != null && error!.toLowerCase().contains('email')
+                          ? error
+                          : null,
                 ),
                 keyboardType: TextInputType.emailAddress,
                 enabled: !isLoading,
+                onSubmitted: (_) => login(),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Password',
-                  border: UnderlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
+                  border: const UnderlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock),
                   helperText: 'Must be at least 6 characters',
+                  errorText:
+                      error != null && error!.toLowerCase().contains('password')
+                          ? error
+                          : null,
                 ),
                 obscureText: true,
                 enabled: !isLoading,
+                onSubmitted: (_) => login(),
               ),
-              if (error != null) ...[
+              if (error != null &&
+                  !error!.toLowerCase().contains('email') &&
+                  !error!.toLowerCase().contains('password')) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -128,20 +154,36 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ],
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: isLoading ? null : login,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: isLoading ? null : login,
+                  style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    backgroundColor: Theme.of(context).colorScheme.primary,
                   ),
+                  child: isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Theme.of(context).colorScheme.surface,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Login', style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 16),
               TextButton(
