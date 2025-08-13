@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/models/task.dart';
-import 'package:momentum/services/realtime_service.dart';
 import 'package:momentum/database/api_service.dart';
 import 'package:momentum/database/widget_service.dart';
 import 'package:momentum/database/timer_service.dart';
@@ -19,7 +18,6 @@ class TaskDatabase extends ChangeNotifier {
   final List<DateTime> _historicalCompletions = [];
 
   DateTime? lastLocalInsertTime;
-  RealtimeService? _realtimeService;
   String? jwtToken;
   String? userId;
 
@@ -50,18 +48,12 @@ class TaskDatabase extends ChangeNotifier {
     this.userId = userId;
 
     _apiService = TaskApiService(jwtToken: jwt, userId: userId);
-    _realtimeService = RealtimeService();
-
-    if (!kIsWeb) {
-      await _realtimeService!.init();
-      _initializeTimerService();
-    }
 
     await _loadHistoricalCompletions();
     await readTasks();
-    _startPolling();
 
     if (!kIsWeb) {
+      _startPolling();
       _scheduleMidnightCleanup();
     }
   }
@@ -111,8 +103,6 @@ class TaskDatabase extends ChangeNotifier {
           error: e, stackTrace: stackTrace);
     }
   }
-
-  // REMOVED: getFirstLaunchDate() method - no longer needed
 
   Future<void> readTasks() async {
     try {
