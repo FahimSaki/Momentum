@@ -104,15 +104,6 @@ class _SplashPageState extends State<SplashPage> {
               },
             ),
             const SizedBox(height: 24),
-            Text(
-              'Momentum',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.inversePrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
             CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary,
