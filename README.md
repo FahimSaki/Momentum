@@ -17,7 +17,7 @@ The app helps users track daily tasks with more focus and clarity.
 
 ### Frontend (Flutter)
 
-- **Cross-platform**: Works on Android, iOS, and Web
+- **Cross-platform**: Works on Android, iOS, Web and Windows
 - **User Authentication**: Email/password registration and login
 - **Task Management**: Create, edit, delete, and complete tasks
 - **Interactive UI**:

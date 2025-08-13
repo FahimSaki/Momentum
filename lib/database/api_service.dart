@@ -175,33 +175,4 @@ class TaskApiService {
       rethrow;
     }
   }
-
-  Future<DateTime?> getFirstLaunchDate() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$apiBaseUrl/app_settings/first_launch_date?userId=$userId'),
-        headers: {'Authorization': 'Bearer $jwtToken'},
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return DateTime.parse(data['first_launch_date']);
-      }
-    } catch (e) {
-      _logger.e('Error getting first launch date', error: e);
-    }
-    return null;
-  }
-
-  Future<void> setFirstLaunchDate(DateTime date) async {
-    try {
-      await http.post(
-        Uri.parse('$apiBaseUrl/app_settings/first_launch_date'),
-        headers: _headers,
-        body: json.encode(
-            {'first_launch_date': date.toIso8601String(), 'userId': userId}),
-      );
-    } catch (e) {
-      _logger.e('Error setting first launch date', error: e);
-    }
-  }
 }

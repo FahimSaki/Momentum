@@ -18,7 +18,6 @@ class TaskDatabase extends ChangeNotifier {
 
   final List<DateTime> _historicalCompletions = [];
 
-  DateTime? _firstLaunchDate;
   DateTime? lastLocalInsertTime;
   RealtimeService? _realtimeService;
   String? jwtToken;
@@ -29,7 +28,7 @@ class TaskDatabase extends ChangeNotifier {
   final WidgetService _widgetService = WidgetService();
   TimerService? _timerService;
 
-  // 🔧 NEW: Getter to expose historical data to UI components
+  // Getter to expose historical data to UI components
   List<DateTime> get historicalCompletions =>
       List.unmodifiable(_historicalCompletions);
 
@@ -51,7 +50,6 @@ class TaskDatabase extends ChangeNotifier {
     this.userId = userId;
 
     _apiService = TaskApiService(jwtToken: jwt, userId: userId);
-    _firstLaunchDate = await getFirstLaunchDate();
     _realtimeService = RealtimeService();
 
     if (!kIsWeb) {
@@ -77,7 +75,6 @@ class TaskDatabase extends ChangeNotifier {
       logger
           .i('Loaded ${_historicalCompletions.length} historical completions');
 
-      // 🔧 NEW: Notify listeners when historical data changes
       notifyListeners();
     } catch (e, stackTrace) {
       logger.w('Could not load historical completions (non-critical)',
@@ -107,7 +104,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> removeYesterdayCompletions() async {
     try {
       await _apiService?.removeYesterdayCompletions();
-      // ✅ Refresh historical data after cleanup
       await _loadHistoricalCompletions();
       await readTasks();
     } catch (e, stackTrace) {
@@ -116,22 +112,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  Future<DateTime?> getFirstLaunchDate() async {
-    if (_firstLaunchDate != null) return _firstLaunchDate;
-
-    try {
-      final date = await _apiService?.getFirstLaunchDate();
-      if (date != null) {
-        _firstLaunchDate = date;
-      } else {
-        _firstLaunchDate = DateTime.now();
-        await _apiService?.setFirstLaunchDate(_firstLaunchDate!);
-      }
-    } catch (e) {
-      _firstLaunchDate = DateTime.now();
-    }
-    return _firstLaunchDate;
-  }
+  // REMOVED: getFirstLaunchDate() method - no longer needed
 
   Future<void> readTasks() async {
     try {
@@ -192,7 +173,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> deleteTask(String id) async {
     try {
       await _apiService?.deleteTask(id);
-      // ✅ Refresh historical data after manual deletion
       await _loadHistoricalCompletions();
       await readTasks();
     } catch (e, stackTrace) {
@@ -203,7 +183,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> deleteCompletedTasks() async {
     try {
       await _apiService?.deleteCompletedTasks();
-      // ✅ Refresh historical data after bulk deletion
       await _loadHistoricalCompletions();
       await readTasks();
     } catch (e, stackTrace) {
@@ -214,7 +193,6 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> updateWidget() async {
     if (kIsWeb) return;
-    // ✅ Use historical data + current tasks for complete heatmap
     await _widgetService.updateWidgetWithHistoricalData(
         _historicalCompletions, currentTasks);
   }
