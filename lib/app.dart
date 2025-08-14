@@ -5,6 +5,9 @@ import 'package:momentum/pages/register_page.dart';
 import 'package:momentum/pages/splash_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -27,7 +30,7 @@ class MyApp extends StatelessWidget {
           // 🔧 NEW: Handle unknown routes (like direct URL access to /home)
           onUnknownRoute: (settings) {
             // If someone tries to access any unknown route, redirect to splash
-            print('Unknown route accessed: ${settings.name}');
+            logger.w('Unknown route accessed: ${settings.name}');
             return MaterialPageRoute(
               builder: (context) => const SplashPage(),
             );

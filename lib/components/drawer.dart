@@ -5,6 +5,9 @@ import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
+
+final logger = Logger();
 
 class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
@@ -49,7 +52,7 @@ class MyDrawer extends StatelessWidget {
         // 🔧 FIXED: Perform logout after navigation to prevent any UI updates
         await AuthService.logout();
       } catch (e) {
-        print('Logout error: $e');
+        logger.e('Logout error: $e');
 
         // 🔧 IMPROVED: If there's any error, force navigation anyway
         if (context.mounted) {

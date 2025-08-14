@@ -55,8 +55,9 @@ class _HomePageState extends State<HomePage> {
           } else {
             // Invalid token, redirect to login
             if (mounted) {
+              final navigator = Navigator.of(context);
               await AuthService.logout();
-              Navigator.of(context).pushNamedAndRemoveUntil(
+              navigator.pushNamedAndRemoveUntil(
                 '/login',
                 (route) => false,
               );
@@ -80,8 +81,9 @@ class _HomePageState extends State<HomePage> {
             _initializationFailed = true;
           });
 
+          final navigator = Navigator.of(context);
           await AuthService.logout();
-          Navigator.of(context).pushNamedAndRemoveUntil(
+          navigator.pushNamedAndRemoveUntil(
             '/login',
             (route) => false,
           );
