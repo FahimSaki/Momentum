@@ -16,13 +16,40 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: themeProvider.themeData,
-          // Start with splash screen to check authentication
+          // 🔧 FIXED: Always start with splash screen for proper auth flow
           initialRoute: '/splash',
           routes: {
             '/splash': (context) => const SplashPage(),
             '/login': (context) => const LoginPage(),
             '/home': (context) => const HomePage(),
             '/register': (context) => const RegisterPage(),
+          },
+          // 🔧 NEW: Handle unknown routes (like direct URL access to /home)
+          onUnknownRoute: (settings) {
+            // If someone tries to access any unknown route, redirect to splash
+            print('Unknown route accessed: ${settings.name}');
+            return MaterialPageRoute(
+              builder: (context) => const SplashPage(),
+            );
+          },
+          // 🔧 NEW: Better route generation for web support
+          onGenerateRoute: (settings) {
+            // Handle direct navigation to specific routes
+            switch (settings.name) {
+              case '/':
+              case '/splash':
+                return MaterialPageRoute(builder: (_) => const SplashPage());
+              case '/login':
+                return MaterialPageRoute(builder: (_) => const LoginPage());
+              case '/register':
+                return MaterialPageRoute(builder: (_) => const RegisterPage());
+              case '/home':
+                // 🔧 For direct /home access, go through splash for auth check
+                return MaterialPageRoute(builder: (_) => const SplashPage());
+              default:
+                // Unknown route, redirect to splash
+                return MaterialPageRoute(builder: (_) => const SplashPage());
+            }
           },
         );
       },

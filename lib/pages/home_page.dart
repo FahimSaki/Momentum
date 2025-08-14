@@ -5,6 +5,7 @@ import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/components/animated_task_tile.dart';
 import 'package:momentum/components/completed_tasks.dart';
+import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
@@ -16,17 +17,84 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   bool _showCompletedTasks = false;
+  bool _isInitializing = false;
   final TextEditingController textController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      if (db.isInitialized) {
-        db.readTasks();
+    _ensureInitialized();
+  }
+
+  // 🔧 NEW: Ensure TaskDatabase is initialized when HomePage loads
+  Future<void> _ensureInitialized() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+
+    if (!db.isInitialized) {
+      setState(() {
+        _isInitializing = true;
+      });
+
+      try {
+        // Get stored auth data
+        final authData = await AuthService.getStoredAuthData();
+
+        if (authData != null) {
+          // Validate token
+          final isValidToken = await AuthService.validateToken();
+
+          if (isValidToken && mounted) {
+            // Initialize TaskDatabase
+            await db.initialize(
+              jwt: authData['token'],
+              userId: authData['userId'],
+            );
+          } else {
+            // Invalid token, redirect to login
+            if (mounted) {
+              await AuthService.logout();
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/login',
+                (route) => false,
+              );
+              return;
+            }
+          }
+        } else {
+          // No auth data, redirect to login
+          if (mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/login',
+              (route) => false,
+            );
+            return;
+          }
+        }
+      } catch (e) {
+        // Error during initialization, redirect to login
+        if (mounted) {
+          await AuthService.logout();
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false,
+          );
+          return;
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isInitializing = false;
+          });
+        }
       }
-    });
+    } else {
+      // Already initialized, just refresh tasks
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          db.readTasks();
+        }
+      });
+    }
   }
 
   void createNewTask() {
@@ -142,8 +210,8 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
-          // Show loading if not initialized
-          if (!db.isInitialized) {
+          // Show loading if initializing or not initialized
+          if (_isInitializing || !db.isInitialized) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

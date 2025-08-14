@@ -36,31 +36,53 @@ class MyDrawer extends StatelessWidget {
         // Close the drawer first
         Navigator.of(context).pop();
 
-        // 🔧 FIXED: Use clearData() method instead of dispose()
+        // 🔧 FIXED: Clear TaskDatabase data first, THEN logout
         final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
-
-        // Clear TaskDatabase data without disposing
         taskDatabase.clearData();
 
         // Perform logout (clears JWT and all stored data)
         await AuthService.logout();
 
-        // Navigate to login page and clear entire navigation stack
+        // 🔧 FIXED: Navigate immediately after logout without waiting
         if (context.mounted) {
+          // Use pushNamedAndRemoveUntil to completely clear navigation stack
           Navigator.of(context).pushNamedAndRemoveUntil(
             '/login',
             (route) => false, // This removes all previous routes
           );
         }
       } catch (e) {
+        // 🔧 IMPROVED: Better error handling with fallback navigation
+        print('Logout error: $e'); // For debugging
+
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error during logout: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          // Try to navigate anyway even if there was an error
+          try {
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              '/login',
+              (route) => false,
+            );
+          } catch (navError) {
+            // If navigation fails, show error and try alternative approach
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Logout error. Please restart the app.'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: 'Restart',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    // Force restart by clearing everything and going to splash
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/splash',
+                      (route) => false,
+                    );
+                  },
+                ),
+              ),
+            );
+          }
         }
       }
     }
