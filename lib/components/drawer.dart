@@ -3,6 +3,7 @@ import 'package:momentum/components/drawer_tile.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 
 class MyDrawer extends StatelessWidget {
@@ -30,25 +31,53 @@ class MyDrawer extends StatelessWidget {
       },
     );
 
-    if (shouldLogout == true) {
+    if (shouldLogout == true && context.mounted) {
       try {
+        // Close the drawer first
+        Navigator.of(context).pop();
+
+        // Show loading indicator
+        if (context.mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => const Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        // Clean up TaskDatabase state
+        final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
+        taskDatabase.dispose(); // This will stop timers and clear data
+
+        // Perform logout (clears JWT and all stored data)
         await AuthService.logout();
 
+        // Dismiss loading dialog
         if (context.mounted) {
-          // Ensure navigation happens after dialog closes
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/login',
-              (route) => false,
-            );
-          });
+          Navigator.of(context).pop(); // Close loading dialog
+        }
+
+        // Navigate to login page and clear entire navigation stack
+        if (context.mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/login',
+            (route) => false, // This removes all previous routes
+          );
         }
       } catch (e) {
+        // Dismiss loading dialog if it's showing
+        if (context.mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+        }
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Error during logout: $e'),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -153,10 +182,7 @@ class MyDrawer extends StatelessWidget {
             child: DrawerTile(
               title: 'Logout',
               leading: const Icon(Icons.logout),
-              onTap: () {
-                Navigator.pop(context); // Close drawer first
-                _handleLogout(context);
-              },
+              onTap: () => _handleLogout(context),
             ),
           ),
         ],

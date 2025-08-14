@@ -126,33 +126,111 @@ class AuthService {
     return authData != null;
   }
 
-  // Logout - clear stored authentication data
+  // Enhanced logout with proper cleanup
   static Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_jwtTokenKey);
-    await prefs.remove(_userIdKey);
-    await prefs.remove(_userDataKey);
+    try {
+      _logger.i('Starting logout process...');
 
-    _logger.i('User logged out and auth data cleared');
+      // Get current auth data before clearing (for server logout if needed)
+      final authData = await getStoredAuthData();
+
+      // Clear all stored authentication data
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_jwtTokenKey);
+      await prefs.remove(_userIdKey);
+      await prefs.remove(_userDataKey);
+
+      // Optional: Clear all other app data if needed
+      // await prefs.clear(); // Use this if you want to clear ALL stored data
+
+      _logger.i('User logged out and auth data cleared');
+
+      // Optional: Notify server about logout (if your backend supports it)
+      if (authData != null) {
+        try {
+          await _notifyServerLogout(authData['token']);
+        } catch (e) {
+          _logger.w('Failed to notify server about logout (non-critical): $e');
+          // Don't throw error here as local logout should still succeed
+        }
+      }
+    } catch (e, stackTrace) {
+      _logger.e('Error during logout', error: e, stackTrace: stackTrace);
+      // Even if there's an error, try to clear the data
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+      } catch (clearError) {
+        _logger.e('Failed to clear prefs during error cleanup',
+            error: clearError);
+      }
+      rethrow;
+    }
   }
 
-  // Validate token with server (optional - for extra security)
+  // Optional: Notify server about logout (implement if your backend supports it)
+  static Future<void> _notifyServerLogout(String token) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$backendUrl/auth/logout'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5)); // Add timeout
+
+      if (response.statusCode == 200) {
+        _logger.d('Server notified about logout successfully');
+      } else {
+        _logger.w('Server logout notification failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      _logger.w('Server logout notification error: $e');
+      // Don't rethrow - this is non-critical
+    }
+  }
+
+  // Validate token with server (enhanced with better error handling)
   static Future<bool> validateToken() async {
     try {
       final authData = await getStoredAuthData();
-      if (authData == null) return false;
+      if (authData == null) {
+        _logger.d('No auth data found for token validation');
+        return false;
+      }
+
+      _logger.d('Validating token for userId: ${authData['userId']}');
 
       final response = await http.get(
         Uri.parse('$backendUrl/tasks/assigned?userId=${authData['userId']}'),
         headers: {'Authorization': 'Bearer ${authData['token']}'},
-      );
+      ).timeout(const Duration(seconds: 10)); // Add timeout
 
       final valid = response.statusCode == 200;
-      _logger.d(
-          'Token validation result for userId ${authData['userId']}: $valid');
+
+      if (!valid) {
+        _logger.w(
+            'Token validation failed: ${response.statusCode} - ${response.body}');
+        // If token is invalid, clear stored data
+        if (response.statusCode == 401 || response.statusCode == 403) {
+          _logger.i('Token expired/invalid, clearing stored auth data');
+          await logout();
+        }
+      } else {
+        _logger.d('Token validation successful');
+      }
+
       return valid;
     } catch (e, stackTrace) {
       _logger.e('Token validation error', error: e, stackTrace: stackTrace);
+
+      // If it's a network error, don't clear the token (user might be offline)
+      // If it's an auth error, clear the token
+      if (e.toString().contains('401') || e.toString().contains('403')) {
+        _logger.i('Auth error detected, clearing stored data');
+        await logout();
+      }
+
       return false;
     }
   }
