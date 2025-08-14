@@ -20,6 +20,7 @@ class TaskDatabase extends ChangeNotifier {
   DateTime? lastLocalInsertTime;
   String? jwtToken;
   String? userId;
+  bool _isInitialized = false;
 
   // Services
   TaskApiService? _apiService;
@@ -29,6 +30,9 @@ class TaskDatabase extends ChangeNotifier {
   // Getter to expose historical data to UI components
   List<DateTime> get historicalCompletions =>
       List.unmodifiable(_historicalCompletions);
+
+  // Check if database is initialized
+  bool get isInitialized => _isInitialized;
 
   TaskDatabase() {
     if (!kIsWeb) {
@@ -44,18 +48,49 @@ class TaskDatabase extends ChangeNotifier {
   }
 
   Future<void> initialize({required String jwt, required String userId}) async {
-    jwtToken = jwt;
-    this.userId = userId;
+    try {
+      logger.i('Initializing TaskDatabase with userId: $userId');
 
-    _apiService = TaskApiService(jwtToken: jwt, userId: userId);
+      jwtToken = jwt;
+      this.userId = userId;
 
-    await _loadHistoricalCompletions();
-    await readTasks();
+      _apiService = TaskApiService(jwtToken: jwt, userId: userId);
 
-    if (!kIsWeb) {
-      _startPolling();
-      _scheduleMidnightCleanup();
+      // Load data
+      await _loadHistoricalCompletions();
+      await readTasks();
+
+      // Only start polling/cleanup on mobile
+      if (!kIsWeb) {
+        _startPolling();
+        _scheduleMidnightCleanup();
+      }
+
+      _isInitialized = true;
+      logger.i('TaskDatabase initialization complete');
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e('TaskDatabase initialization failed',
+          error: e, stackTrace: stackTrace);
+      _isInitialized = false;
+      rethrow;
     }
+  }
+
+  // 🔧 NEW: Method to clear data without disposing (for logout)
+  void clearData() {
+    logger.i('Clearing TaskDatabase data');
+    currentTasks.clear();
+    activeTasks.clear();
+    completedTasks.clear();
+    _historicalCompletions.clear();
+
+    jwtToken = null;
+    userId = null;
+    _apiService = null;
+    _isInitialized = false;
+
+    notifyListeners();
   }
 
   Future<void> _loadHistoricalCompletions() async {
@@ -84,6 +119,7 @@ class TaskDatabase extends ChangeNotifier {
 
   @override
   void dispose() {
+    logger.i('Disposing TaskDatabase');
     _timerService?.dispose();
     super.dispose();
   }
@@ -95,6 +131,12 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> removeYesterdayCompletions() async {
     try {
+      if (!_isInitialized) {
+        logger.w(
+            'TaskDatabase not initialized, skipping removeYesterdayCompletions');
+        return;
+      }
+
       await _apiService?.removeYesterdayCompletions();
       await _loadHistoricalCompletions();
       await readTasks();
@@ -106,6 +148,12 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> readTasks() async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, skipping readTasks');
+        return;
+      }
+
+      logger.d('Reading tasks from API');
       final tasks = await _apiService?.fetchTasks() ?? [];
 
       TaskOrganizer.organizeTasks(
@@ -114,6 +162,9 @@ class TaskDatabase extends ChangeNotifier {
         activeTasks,
         completedTasks,
       );
+
+      logger.d(
+          'Organized ${tasks.length} tasks into ${currentTasks.length} current, ${activeTasks.length} active, ${completedTasks.length} completed');
 
       notifyListeners();
       await updateWidget();
@@ -124,6 +175,11 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> addTask(String taskName) async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, cannot add task');
+        return;
+      }
+
       lastLocalInsertTime = DateTime.now();
       await _apiService?.createTask(taskName);
       await readTasks();
@@ -134,6 +190,11 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> updateTaskCompletion(String id, bool isCompleted) async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, cannot update task completion');
+        return;
+      }
+
       final task = currentTasks.firstWhere((h) => h.id == id);
       final updates =
           TaskCompletionHelper.processCompletionToggle(task, isCompleted);
@@ -153,6 +214,11 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> updateTaskName(String id, String newName) async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, cannot update task name');
+        return;
+      }
+
       await _apiService?.updateTask(id, {'name': newName});
       await readTasks();
     } catch (e, stackTrace) {
@@ -162,6 +228,11 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> deleteTask(String id) async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, cannot delete task');
+        return;
+      }
+
       await _apiService?.deleteTask(id);
       await _loadHistoricalCompletions();
       await readTasks();
@@ -172,6 +243,11 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> deleteCompletedTasks() async {
     try {
+      if (!_isInitialized) {
+        logger.w('TaskDatabase not initialized, cannot delete completed tasks');
+        return;
+      }
+
       await _apiService?.deleteCompletedTasks();
       await _loadHistoricalCompletions();
       await readTasks();

@@ -21,13 +21,26 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    db.readTasks();
-    // 🔧 REMOVED: Don't call deleteCompletedTasks immediately!
-    // The backend scheduler will handle cleanup automatically
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      if (db.isInitialized) {
+        db.readTasks();
+      }
+    });
   }
 
   void createNewTask() {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (!db.isInitialized) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please wait, app is loading...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -62,6 +75,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void editTaskBox(BuildContext context, Task task) {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (!db.isInitialized) return;
+
     textController.text = task.name;
     showDialog(
       context: context,
@@ -85,6 +101,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void deleteTaskBox(BuildContext context, Task task) {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (!db.isInitialized) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -121,20 +140,31 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Theme.of(context).colorScheme.tertiary,
         child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
       ),
-      body: ListView(
-        children: [
-          const HeatMapComponent(),
-          Consumer<TaskDatabase>(
-            builder: (context, db, _) {
-              final activeTasks = db.activeTasks;
-              final completedTasks = db.completedTasks;
+      body: Consumer<TaskDatabase>(
+        builder: (context, db, _) {
+          // Show loading if not initialized
+          if (!db.isInitialized) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading your tasks...'),
+                ],
+              ),
+            );
+          }
 
-              return Column(
+          return ListView(
+            children: [
+              const HeatMapComponent(),
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 16),
                   const SizedBox(height: 8),
-                  ...activeTasks.map((task) {
+                  ...db.activeTasks.map((task) {
                     final isCompletedToday = task.completedDays.any((d) {
                       final localDate = d.toLocal();
                       final now = DateTime.now();
@@ -148,10 +178,10 @@ class _HomePageState extends State<HomePage> {
                       text: task.name,
                       isCompleted: isCompletedToday,
                       onChanged: (value) {
-                        context.read<TaskDatabase>().updateTaskCompletion(
-                              task.id,
-                              value ?? false,
-                            );
+                        db.updateTaskCompletion(
+                          task.id,
+                          value ?? false,
+                        );
                       },
                       editTask: (context) => editTaskBox(context, task),
                       deleteTask: (context) => deleteTaskBox(context, task),
@@ -159,12 +189,10 @@ class _HomePageState extends State<HomePage> {
                   }),
                   const SizedBox(height: 12),
                   CompletedTasks(
-                    completedTasks: completedTasks,
+                    completedTasks: db.completedTasks,
                     showCompletedTasks: _showCompletedTasks,
                     onChanged: (task) => (value) {
-                      context
-                          .read<TaskDatabase>()
-                          .updateTaskCompletion(task.id, value ?? false);
+                      db.updateTaskCompletion(task.id, value ?? false);
                     },
                     editTask: editTaskBox,
                     deleteTask: deleteTaskBox,
@@ -174,11 +202,25 @@ class _HomePageState extends State<HomePage> {
                       });
                     },
                   ),
+                  // Show message if no tasks
+                  if (db.activeTasks.isEmpty && db.completedTasks.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 80, right: 16, left: 16),
+                      child: Center(
+                        child: Text(
+                          'No tasks found. Please add a new task.',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
-              );
-            },
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

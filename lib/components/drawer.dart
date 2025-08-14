@@ -36,28 +36,14 @@ class MyDrawer extends StatelessWidget {
         // Close the drawer first
         Navigator.of(context).pop();
 
-        // Show loading indicator
-        if (context.mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (context) => const Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        // Clean up TaskDatabase state
+        // 🔧 FIXED: Use clearData() method instead of dispose()
         final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
-        taskDatabase.dispose(); // This will stop timers and clear data
+
+        // Clear TaskDatabase data without disposing
+        taskDatabase.clearData();
 
         // Perform logout (clears JWT and all stored data)
         await AuthService.logout();
-
-        // Dismiss loading dialog
-        if (context.mounted) {
-          Navigator.of(context).pop(); // Close loading dialog
-        }
 
         // Navigate to login page and clear entire navigation stack
         if (context.mounted) {
@@ -67,11 +53,6 @@ class MyDrawer extends StatelessWidget {
           );
         }
       } catch (e) {
-        // Dismiss loading dialog if it's showing
-        if (context.mounted) {
-          Navigator.of(context).pop(); // Close loading dialog
-        }
-
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
