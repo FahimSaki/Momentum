@@ -3,7 +3,6 @@ import 'package:momentum/components/drawer_tile.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -36,53 +35,21 @@ class MyDrawer extends StatelessWidget {
 
     if (shouldLogout == true && context.mounted) {
       try {
-        // 🔧 FIXED: Close the drawer first
+        // Close the drawer first
         Navigator.of(context).pop();
 
-        // 🔧 FIXED: Navigate IMMEDIATELY to prevent HomePage from rebuilding
+        // ✅ Navigate immediately (before logout finishes)
         Navigator.of(context).pushNamedAndRemoveUntil(
           '/login',
-          (route) => false, // This removes all previous routes
+          (route) => false,
         );
 
-        // 🔧 FIXED: Clear data AFTER navigation to prevent loading state
-        final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
-        taskDatabase.clearData();
-
-        // 🔧 FIXED: Perform logout after navigation to prevent any UI updates
-        await AuthService.logout();
+        // Run logout in background
+        AuthService.logout().catchError((e) {
+          logger.e('Logout error: $e');
+        });
       } catch (e) {
-        logger.e('Logout error: $e');
-
-        // 🔧 IMPROVED: If there's any error, force navigation anyway
-        if (context.mounted) {
-          try {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/login',
-              (route) => false,
-            );
-          } catch (navError) {
-            // If navigation fails, show error and try alternative approach
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Logout error. Please restart the app.'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: 'Restart',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    // Force restart by clearing everything and going to splash
-                    Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/splash',
-                      (route) => false,
-                    );
-                  },
-                ),
-              ),
-            );
-          }
-        }
+        logger.e('Logout navigation error: $e');
       }
     }
   }
