@@ -18,6 +18,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _showCompletedTasks = false;
   bool _isInitializing = false;
+  bool _initializationFailed = false;
   final TextEditingController textController = TextEditingController();
 
   @override
@@ -26,11 +27,13 @@ class _HomePageState extends State<HomePage> {
     _ensureInitialized();
   }
 
-  // 🔧 NEW: Ensure TaskDatabase is initialized when HomePage loads
+  // 🔧 IMPROVED: Better initialization handling
   Future<void> _ensureInitialized() async {
     final db = Provider.of<TaskDatabase>(context, listen: false);
 
-    if (!db.isInitialized) {
+    // 🔧 NEW: Don't show loading if database was previously initialized
+    // This prevents the loading state during logout
+    if (!db.isInitialized && !_initializationFailed) {
       setState(() {
         _isInitializing = true;
       });
@@ -39,7 +42,7 @@ class _HomePageState extends State<HomePage> {
         // Get stored auth data
         final authData = await AuthService.getStoredAuthData();
 
-        if (authData != null) {
+        if (authData != null && mounted) {
           // Validate token
           final isValidToken = await AuthService.validateToken();
 
@@ -71,8 +74,12 @@ class _HomePageState extends State<HomePage> {
           }
         }
       } catch (e) {
-        // Error during initialization, redirect to login
+        // Error during initialization
         if (mounted) {
+          setState(() {
+            _initializationFailed = true;
+          });
+
           await AuthService.logout();
           Navigator.of(context).pushNamedAndRemoveUntil(
             '/login',
@@ -87,10 +94,10 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
-    } else {
+    } else if (db.isInitialized) {
       // Already initialized, just refresh tasks
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && db.isInitialized) {
           db.readTasks();
         }
       });
@@ -210,8 +217,8 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
-          // Show loading if initializing or not initialized
-          if (_isInitializing || !db.isInitialized) {
+          // 🔧 IMPROVED: Only show loading during initial app startup, not during logout
+          if (_isInitializing) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -222,6 +229,34 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             );
+          }
+
+          // 🔧 NEW: If initialization failed, show error
+          if (_initializationFailed) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text('Failed to load tasks. Please restart the app.'),
+                ],
+              ),
+            );
+          }
+
+          // 🔧 IMPROVED: If not initialized but not initializing, redirect to login
+          if (!db.isInitialized) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/login',
+                  (route) => false,
+                );
+              }
+            });
+            return const SizedBox
+                .shrink(); // Return empty widget while redirecting
           }
 
           return ListView(

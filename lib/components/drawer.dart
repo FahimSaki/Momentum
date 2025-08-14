@@ -33,30 +33,26 @@ class MyDrawer extends StatelessWidget {
 
     if (shouldLogout == true && context.mounted) {
       try {
-        // Close the drawer first
+        // 🔧 FIXED: Close the drawer first
         Navigator.of(context).pop();
 
-        // 🔧 FIXED: Clear TaskDatabase data first, THEN logout
+        // 🔧 FIXED: Navigate IMMEDIATELY to prevent HomePage from rebuilding
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false, // This removes all previous routes
+        );
+
+        // 🔧 FIXED: Clear data AFTER navigation to prevent loading state
         final taskDatabase = Provider.of<TaskDatabase>(context, listen: false);
         taskDatabase.clearData();
 
-        // Perform logout (clears JWT and all stored data)
+        // 🔧 FIXED: Perform logout after navigation to prevent any UI updates
         await AuthService.logout();
-
-        // 🔧 FIXED: Navigate immediately after logout without waiting
-        if (context.mounted) {
-          // Use pushNamedAndRemoveUntil to completely clear navigation stack
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            '/login',
-            (route) => false, // This removes all previous routes
-          );
-        }
       } catch (e) {
-        // 🔧 IMPROVED: Better error handling with fallback navigation
-        print('Logout error: $e'); // For debugging
+        print('Logout error: $e');
 
+        // 🔧 IMPROVED: If there's any error, force navigation anyway
         if (context.mounted) {
-          // Try to navigate anyway even if there was an error
           try {
             Navigator.of(context).pushNamedAndRemoveUntil(
               '/login',
