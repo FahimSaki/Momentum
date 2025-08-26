@@ -112,10 +112,10 @@ jobs:
           - os: windows-latest
             platform: windows
             output: exe
-          - os: macos-14
+          - os: macos-latest
             platform: ios
             output: simulator
-          - os: macos-14
+          - os: macos-latest
             platform: macos
             output: app
 
@@ -179,45 +179,35 @@ jobs:
               ;;
           esac
 
-      - name: Setup Xcode 16.0
-        if: matrix.os == 'macos-14'
-        run: |
-          echo "📥 Setting up Xcode..."
-          sudo xcode-select -s "/Applications/Xcode_16.1.app" || sudo xcode-select -s "/Applications/Xcode.app"
-          xcodebuild -version
-
       - name: Setup iOS Simulator
         if: matrix.platform == 'ios'
         run: |
-          echo "📱 Preparing iOS Simulator..."
-          # Check if a simulator named GitHubActionsiPhone already exists
-          DEVICE_ID=$(xcrun simctl list devices available | grep "GitHubActionsiPhone" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/')
-
-          # If it doesn't exist, create iPhone 14 with iOS 17
-          if [ -z "$DEVICE_ID" ]; then
-            echo "❌ No existing GitHubActionsiPhone simulator found. Creating one..."
-            DEVICE_ID=$(xcrun simctl create "GitHubActionsiPhone" com.apple.CoreSimulator.SimDeviceType.iPhone-14 com.apple.CoreSimulator.SimRuntime.iOS-17-0)
+          echo "📱 Setting up iOS Simulator with default runner..."
+          
+          # List available simulators
+          echo "Available simulators:"
+          xcrun simctl list devices available
+          
+          # Use default iPhone simulator (let Xcode/Flutter choose)
+          echo "🚀 Using default iOS simulator configuration"
+          
+          # Optional: Boot a specific simulator if needed
+          # Get the first available iPhone simulator
+          DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+          
+          if [ -n "$DEVICE_ID" ]; then
+            echo "Found simulator: $DEVICE_ID"
+            echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
+            
+            # Boot the simulator
+            echo "🚀 Booting simulator..."
+            xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted"
+            
+            echo "⏳ Waiting for simulator to be ready..."
+            sleep 30
+          else
+            echo "No specific simulator ID found, using Flutter's default"
           fi
-
-          echo "Using device ID: $DEVICE_ID"
-          echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
-
-          echo "🚀 Erasing and booting simulator..."
-          xcrun simctl erase "$DEVICE_ID"
-          xcrun simctl boot "$DEVICE_ID"
-
-          echo "⏳ Waiting for simulator to fully boot..."
-          MAX_WAIT=360
-          SECONDS_WAITED=0
-          until xcrun simctl bootstatus "$DEVICE_ID" | grep -q "Booted"; do
-            sleep 2
-            SECONDS_WAITED=$((SECONDS_WAITED + 2))
-            if [ $SECONDS_WAITED -ge $MAX_WAIT ]; then
-              echo "❌ Simulator did not boot in time"
-              exit 1
-            fi
-          done
-          echo "✅ iOS Simulator is ready"
 
       - name: Get dependencies
         run: flutter pub get
@@ -240,9 +230,12 @@ jobs:
               flutter build windows --release
               ;;
             ios)
+              # Use Flutter's default simulator selection
               if [ -n "$IOS_SIMULATOR_ID" ]; then
+                echo "Building for specific simulator: $IOS_SIMULATOR_ID"
                 flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID"
               else
+                echo "Building for default iOS simulator"
                 flutter build ios --simulator --no-codesign
               fi
               ;;
