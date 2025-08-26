@@ -41,8 +41,10 @@ class _SplashPageState extends State<SplashPage> {
 
         if (isValidToken) {
           // Initialize TaskDatabase with stored credentials
-          final taskDatabase =
-              Provider.of<TaskDatabase>(context, listen: false);
+          final taskDatabase = Provider.of<TaskDatabase>(
+            context,
+            listen: false,
+          );
           await taskDatabase.initialize(
             jwt: authData['token'],
             userId: authData['userId'],
@@ -123,10 +125,9 @@ class _SplashPageState extends State<SplashPage> {
               'Loading...',
               style: TextStyle(
                 fontSize: 16,
-                color: Theme.of(context)
-                    .colorScheme
-                    .inversePrimary
-                    .withOpacity(0.7),
+                color: Theme.of(
+                  context,
+                ).colorScheme.inversePrimary.withValues(alpha: 0.7),
               ),
             ),
           ],

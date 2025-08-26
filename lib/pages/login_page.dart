@@ -89,10 +89,9 @@ class _LoginPageState extends State<LoginPage> {
                 'Welcome back!',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .inversePrimary
-                      .withOpacity(0.7),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.inversePrimary.withValues(alpha: 0.7),
                 ),
               ),
               const SizedBox(height: 32),
@@ -104,8 +103,8 @@ class _LoginPageState extends State<LoginPage> {
                   prefixIcon: const Icon(Icons.email),
                   errorText:
                       error != null && error!.toLowerCase().contains('email')
-                          ? error
-                          : null,
+                      ? error
+                      : null,
                 ),
                 keyboardType: TextInputType.emailAddress,
                 enabled: !isLoading,
@@ -121,8 +120,8 @@ class _LoginPageState extends State<LoginPage> {
                   helperText: 'Must be at least 6 characters',
                   errorText:
                       error != null && error!.toLowerCase().contains('password')
-                          ? error
-                          : null,
+                      ? error
+                      : null,
                 ),
                 obscureText: true,
                 enabled: !isLoading,

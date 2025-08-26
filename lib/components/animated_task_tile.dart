@@ -42,20 +42,12 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
     _slideAnimation = Tween<Offset>(
       begin: Offset.zero,
       end: const Offset(0, 1.5),
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _fadeAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -90,11 +82,14 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
               children: [
                 CustomSlidableAction(
                   onPressed: widget.editTask,
-                  backgroundColor:
-                      isLightMode ? Colors.grey.shade600 : Colors.grey.shade800,
+                  backgroundColor: isLightMode
+                      ? Colors.grey.shade600
+                      : Colors.grey.shade800,
                   borderRadius: BorderRadius.circular(8),
-                  child: const FaIcon(FontAwesomeIcons.penToSquare,
-                      color: Colors.white),
+                  child: const FaIcon(
+                    FontAwesomeIcons.penToSquare,
+                    color: Colors.white,
+                  ),
                 ),
                 SlidableAction(
                   onPressed: widget.deleteTask,
@@ -115,10 +110,10 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
                   boxShadow: [
                     if (!widget.isCompleted)
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         offset: const Offset(0, 2),
                         blurRadius: 4,
-                      )
+                      ),
                   ],
                 ),
                 padding: const EdgeInsets.all(12),
