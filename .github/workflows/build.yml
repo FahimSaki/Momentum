@@ -234,7 +234,7 @@ jobs:
               flutter build appbundle --release
               ;;
             web)
-              flutter build web --release --web-renderer canvaskit
+              flutter build web --release
               ;;
             windows)
               flutter build windows --release
