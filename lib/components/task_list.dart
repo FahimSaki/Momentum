@@ -56,10 +56,7 @@ class _TaskListComponentState extends State<TaskListComponent> {
             padding: EdgeInsets.only(top: 80, right: 16, left: 16),
             child: Text(
               'No tasks found. Please add a new task.',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 16,
-              ),
+              style: TextStyle(color: Colors.grey, fontSize: 16),
             ),
           )
         else
@@ -82,10 +79,12 @@ class _TaskListComponentState extends State<TaskListComponent> {
                             setState(() {
                               _removedTasks[task.id] = true;
                             });
-                            Future.delayed(const Duration(milliseconds: 300),
-                                () {
-                              widget.checkTaskOnOff(value, task);
-                            });
+                            Future.delayed(
+                              const Duration(milliseconds: 300),
+                              () {
+                                widget.checkTaskOnOff(value, task);
+                              },
+                            );
                           } else {
                             widget.checkTaskOnOff(value, task);
                           }

@@ -7,10 +7,7 @@ class TimerService {
   final Future<void> Function() onPollingTick;
   final Future<void> Function() onMidnightCleanup;
 
-  TimerService({
-    required this.onPollingTick,
-    required this.onMidnightCleanup,
-  });
+  TimerService({required this.onPollingTick, required this.onMidnightCleanup});
 
   void startPolling() {
     if (kIsWeb) return;

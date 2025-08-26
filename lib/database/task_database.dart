@@ -70,8 +70,11 @@ class TaskDatabase extends ChangeNotifier {
       logger.i('TaskDatabase initialization complete');
       notifyListeners();
     } catch (e, stackTrace) {
-      logger.e('TaskDatabase initialization failed',
-          error: e, stackTrace: stackTrace);
+      logger.e(
+        'TaskDatabase initialization failed',
+        error: e,
+        stackTrace: stackTrace,
+      );
       _isInitialized = false;
       rethrow;
     }
@@ -99,13 +102,17 @@ class TaskDatabase extends ChangeNotifier {
           await _apiService?.fetchHistoricalCompletions() ?? [];
       _historicalCompletions.clear();
       _historicalCompletions.addAll(historicalData);
-      logger
-          .i('Loaded ${_historicalCompletions.length} historical completions');
+      logger.i(
+        'Loaded ${_historicalCompletions.length} historical completions',
+      );
 
       notifyListeners();
     } catch (e, stackTrace) {
-      logger.w('Could not load historical completions (non-critical)',
-          error: e, stackTrace: stackTrace);
+      logger.w(
+        'Could not load historical completions (non-critical)',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -133,7 +140,8 @@ class TaskDatabase extends ChangeNotifier {
     try {
       if (!_isInitialized) {
         logger.w(
-            'TaskDatabase not initialized, skipping removeYesterdayCompletions');
+          'TaskDatabase not initialized, skipping removeYesterdayCompletions',
+        );
         return;
       }
 
@@ -141,8 +149,11 @@ class TaskDatabase extends ChangeNotifier {
       await _loadHistoricalCompletions();
       await readTasks();
     } catch (e, stackTrace) {
-      logger.e('Error removing yesterday completions',
-          error: e, stackTrace: stackTrace);
+      logger.e(
+        'Error removing yesterday completions',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -164,7 +175,8 @@ class TaskDatabase extends ChangeNotifier {
       );
 
       logger.d(
-          'Organized ${tasks.length} tasks into ${currentTasks.length} current, ${activeTasks.length} active, ${completedTasks.length} completed');
+        'Organized ${tasks.length} tasks into ${currentTasks.length} current, ${activeTasks.length} active, ${completedTasks.length} completed',
+      );
 
       notifyListeners();
       await updateWidget();
@@ -196,8 +208,10 @@ class TaskDatabase extends ChangeNotifier {
       }
 
       final task = currentTasks.firstWhere((h) => h.id == id);
-      final updates =
-          TaskCompletionHelper.processCompletionToggle(task, isCompleted);
+      final updates = TaskCompletionHelper.processCompletionToggle(
+        task,
+        isCompleted,
+      );
 
       if (updates != null) {
         await _apiService?.updateTask(id, updates);
@@ -207,8 +221,11 @@ class TaskDatabase extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e, stackTrace) {
-      logger.e('Error updating task completion',
-          error: e, stackTrace: stackTrace);
+      logger.e(
+        'Error updating task completion',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -252,14 +269,19 @@ class TaskDatabase extends ChangeNotifier {
       await _loadHistoricalCompletions();
       await readTasks();
     } catch (e, stackTrace) {
-      logger.e('Error deleting completed tasks',
-          error: e, stackTrace: stackTrace);
+      logger.e(
+        'Error deleting completed tasks',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
   Future<void> updateWidget() async {
     if (kIsWeb) return;
     await _widgetService.updateWidgetWithHistoricalData(
-        _historicalCompletions, currentTasks);
+      _historicalCompletions,
+      currentTasks,
+    );
   }
 }

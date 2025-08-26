@@ -26,18 +26,23 @@ class HeatMapComponent extends StatelessWidget {
 
     // Check historical completions (already in local time from API)
     if (historicalCompletions.isNotEmpty) {
-      final earliest =
-          historicalCompletions.reduce((a, b) => a.isBefore(b) ? a : b);
+      final earliest = historicalCompletions.reduce(
+        (a, b) => a.isBefore(b) ? a : b,
+      );
       earliestDataDate = DateTime(earliest.year, earliest.month, earliest.day);
     }
 
     // Check current tasks for earliest completion (already converted to local in Task model)
     for (final task in currentTasks) {
       if (task.completedDays.isNotEmpty) {
-        final taskEarliest =
-            task.completedDays.reduce((a, b) => a.isBefore(b) ? a : b);
-        final taskEarliestDate =
-            DateTime(taskEarliest.year, taskEarliest.month, taskEarliest.day);
+        final taskEarliest = task.completedDays.reduce(
+          (a, b) => a.isBefore(b) ? a : b,
+        );
+        final taskEarliestDate = DateTime(
+          taskEarliest.year,
+          taskEarliest.month,
+          taskEarliest.day,
+        );
 
         if (earliestDataDate == null ||
             taskEarliestDate.isBefore(earliestDataDate)) {
@@ -49,28 +54,36 @@ class HeatMapComponent extends StatelessWidget {
     // Use the earliest data date if available, otherwise use today (for new users)
     final firstLaunchDate = earliestDataDate ?? today;
 
-    developer.log('Earliest data date: $earliestDataDate',
-        name: 'HeatMapComponent');
-    developer.log('Using first launch date: $firstLaunchDate',
-        name: 'HeatMapComponent');
+    developer.log(
+      'Earliest data date: $earliestDataDate',
+      name: 'HeatMapComponent',
+    );
+    developer.log(
+      'Using first launch date: $firstLaunchDate',
+      name: 'HeatMapComponent',
+    );
     developer.log('Today: $today', name: 'HeatMapComponent');
 
     // Calculate days since first launch
     final daysSinceFirstLaunch = today.difference(firstLaunchDate).inDays;
-    developer.log('Days since first launch: $daysSinceFirstLaunch',
-        name: 'HeatMapComponent');
+    developer.log(
+      'Days since first launch: $daysSinceFirstLaunch',
+      name: 'HeatMapComponent',
+    );
 
     // Use progressive start date: grow from first launch until 39 days, then maintain 39-day window
     final startDate = daysSinceFirstLaunch < 39
         ? firstLaunchDate
         : today.subtract(
-            const Duration(days: 38)); // 38 days ago + today = 39 days
+            const Duration(days: 38),
+          ); // 38 days ago + today = 39 days
 
     developer.log('Start Date: $startDate', name: 'HeatMapComponent');
     developer.log('End Date: $today', name: 'HeatMapComponent');
     developer.log(
-        'Total days showing: ${today.difference(startDate).inDays + 1}',
-        name: 'HeatMapComponent');
+      'Total days showing: ${today.difference(startDate).inDays + 1}',
+      name: 'HeatMapComponent',
+    );
 
     final endDate = today;
 

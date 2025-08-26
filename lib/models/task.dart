@@ -21,18 +21,20 @@ class Task {
       name: json['name'],
       completedDays: (json['completedDays'] ?? json['completed_days'] ?? [])
           .map<DateTime>(
-              (e) => DateTime.parse(e).toLocal()) // <- Convert to local
+            (e) => DateTime.parse(e).toLocal(),
+          ) // <- Convert to local
           .toList(),
       lastCompletedDate:
           (json['lastCompletedDate'] ?? json['last_completed_date']) != null
-              ? DateTime.parse(
-                      json['lastCompletedDate'] ?? json['last_completed_date'])
-                  .toLocal() // <- Convert to local
-              : null,
+          ? DateTime.parse(
+                  json['lastCompletedDate'] ?? json['last_completed_date'],
+                )
+                .toLocal() // <- Convert to local
+          : null,
       isArchived: json['isArchived'] ?? json['is_archived'] ?? false,
       archivedAt: (json['archivedAt'] ?? json['archived_at']) != null
           ? DateTime.parse(json['archivedAt'] ?? json['archived_at'])
-              .toLocal() // <- Convert to local
+                .toLocal() // <- Convert to local
           : null,
     );
   }

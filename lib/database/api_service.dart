@@ -12,9 +12,9 @@ class TaskApiService {
   TaskApiService({required this.jwtToken, required this.userId});
 
   Map<String, String> get _headers => {
-        'Authorization': 'Bearer $jwtToken',
-        'Content-Type': 'application/json',
-      };
+    'Authorization': 'Bearer $jwtToken',
+    'Content-Type': 'application/json',
+  };
 
   Future<List<Task>> fetchTasks() async {
     try {
@@ -53,7 +53,8 @@ class TaskApiService {
           final List<dynamic> completedDays =
               historyItem['completedDays'] ?? [];
           _logger.d(
-              'Processing history item: ${historyItem['taskName']} with ${completedDays.length} completions');
+            'Processing history item: ${historyItem['taskName']} with ${completedDays.length} completions',
+          );
 
           for (final day in completedDays) {
             try {
@@ -64,17 +65,22 @@ class TaskApiService {
           }
         }
 
-        _logger
-            .i('Total historical completions loaded: ${allCompletions.length}');
+        _logger.i(
+          'Total historical completions loaded: ${allCompletions.length}',
+        );
         return allCompletions;
       } else {
         _logger.w(
-            'Error fetching task history (non-critical): ${response.statusCode} - ${response.body}');
+          'Error fetching task history (non-critical): ${response.statusCode} - ${response.body}',
+        );
         return []; // Return empty list if history endpoint fails
       }
     } catch (e, stackTrace) {
-      _logger.w('Error fetching task history (non-critical)',
-          error: e, stackTrace: stackTrace);
+      _logger.w(
+        'Error fetching task history (non-critical)',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return []; // Return empty list on error
     }
   }
@@ -140,8 +146,11 @@ class TaskApiService {
         throw Exception('Failed to remove yesterday completions');
       }
     } catch (e, stackTrace) {
-      _logger.e('Error removing yesterday completions',
-          error: e, stackTrace: stackTrace);
+      _logger.e(
+        'Error removing yesterday completions',
+        error: e,
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }
@@ -151,27 +160,34 @@ class TaskApiService {
       final now = DateTime.now();
       final yesterday = DateTime(now.year, now.month, now.day - 1);
 
-      _logger
-          .i('Deleting completed tasks before: ${yesterday.toIso8601String()}');
+      _logger.i(
+        'Deleting completed tasks before: ${yesterday.toIso8601String()}',
+      );
 
       final response = await http.delete(
         Uri.parse(
-            '$apiBaseUrl/tasks/completed?before=${yesterday.toIso8601String()}&userId=$userId'),
+          '$apiBaseUrl/tasks/completed?before=${yesterday.toIso8601String()}&userId=$userId',
+        ),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        _logger
-            .i('Delete completed tasks response: ${responseData['message']}');
+        _logger.i(
+          'Delete completed tasks response: ${responseData['message']}',
+        );
       } else {
         _logger.e(
-            'Error deleting completed tasks: ${response.statusCode} - ${response.body}');
+          'Error deleting completed tasks: ${response.statusCode} - ${response.body}',
+        );
         throw Exception('Failed to delete completed tasks');
       }
     } catch (e, stackTrace) {
-      _logger.e('Error deleting completed tasks',
-          error: e, stackTrace: stackTrace);
+      _logger.e(
+        'Error deleting completed tasks',
+        error: e,
+        stackTrace: stackTrace,
+      );
       rethrow;
     }
   }

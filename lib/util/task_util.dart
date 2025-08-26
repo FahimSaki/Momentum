@@ -26,42 +26,66 @@ bool shouldShowTask(Task task) {
   final now = DateTime.now().toUtc().add(const Duration(hours: 6));
   final today = DateTime(now.year, now.month, now.day);
 
-  final lastCompleted =
-      task.lastCompletedDate!.toUtc().add(const Duration(hours: 6));
-  final completed =
-      DateTime(lastCompleted.year, lastCompleted.month, lastCompleted.day);
+  final lastCompleted = task.lastCompletedDate!.toUtc().add(
+    const Duration(hours: 6),
+  );
+  final completed = DateTime(
+    lastCompleted.year,
+    lastCompleted.month,
+    lastCompleted.day,
+  );
 
   return today != completed;
 }
 
 // 🔧 FIXED: Now accepts both current tasks AND historical completions
-Map<DateTime, int> prepareMapDatasets(List<Task> tasks,
-    [List<DateTime>? historicalCompletions]) {
+Map<DateTime, int> prepareMapDatasets(
+  List<Task> tasks, [
+  List<DateTime>? historicalCompletions,
+]) {
   final Map<DateTime, int> heatMapData = {};
 
   // Process current tasks (same as before)
   for (final task in tasks) {
     for (final utcDate in task.completedDays) {
-      final localDate =
-          DateTime(utcDate.year, utcDate.month, utcDate.day).toLocal();
-      final localMidnight =
-          DateTime(localDate.year, localDate.month, localDate.day);
+      final localDate = DateTime(
+        utcDate.year,
+        utcDate.month,
+        utcDate.day,
+      ).toLocal();
+      final localMidnight = DateTime(
+        localDate.year,
+        localDate.month,
+        localDate.day,
+      );
 
-      heatMapData.update(localMidnight, (count) => count + 1,
-          ifAbsent: () => 1);
+      heatMapData.update(
+        localMidnight,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
     }
   }
 
   // 🔧 NEW: Process historical completions from deleted tasks
   if (historicalCompletions != null) {
     for (final utcDate in historicalCompletions) {
-      final localDate =
-          DateTime(utcDate.year, utcDate.month, utcDate.day).toLocal();
-      final localMidnight =
-          DateTime(localDate.year, localDate.month, localDate.day);
+      final localDate = DateTime(
+        utcDate.year,
+        utcDate.month,
+        utcDate.day,
+      ).toLocal();
+      final localMidnight = DateTime(
+        localDate.year,
+        localDate.month,
+        localDate.day,
+      );
 
-      heatMapData.update(localMidnight, (count) => count + 1,
-          ifAbsent: () => 1);
+      heatMapData.update(
+        localMidnight,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
     }
   }
 

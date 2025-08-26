@@ -31,9 +31,7 @@ class MyApp extends StatelessWidget {
           onUnknownRoute: (settings) {
             // If someone tries to access any unknown route, redirect to splash
             logger.w('Unknown route accessed: ${settings.name}');
-            return MaterialPageRoute(
-              builder: (context) => const SplashPage(),
-            );
+            return MaterialPageRoute(builder: (context) => const SplashPage());
           },
           // Better route generation for web support
           onGenerateRoute: (settings) {

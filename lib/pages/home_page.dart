@@ -57,20 +57,16 @@ class _HomePageState extends State<HomePage> {
             if (mounted) {
               final navigator = Navigator.of(context);
               await AuthService.logout();
-              navigator.pushNamedAndRemoveUntil(
-                '/login',
-                (route) => false,
-              );
+              navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               return;
             }
           }
         } else {
           // No auth data, redirect to login
           if (mounted) {
-            Navigator.of(context).pushNamedAndRemoveUntil(
-              '/login',
-              (route) => false,
-            );
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/login', (route) => false);
             return;
           }
         }
@@ -83,10 +79,7 @@ class _HomePageState extends State<HomePage> {
 
           final navigator = Navigator.of(context);
           await AuthService.logout();
-          navigator.pushNamedAndRemoveUntil(
-            '/login',
-            (route) => false,
-          );
+          navigator.pushNamedAndRemoveUntil('/login', (route) => false);
           return;
         }
       } finally {
@@ -123,9 +116,7 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => AlertDialog(
         content: TextField(
           controller: textController,
-          decoration: const InputDecoration(
-            hintText: 'Create a new task',
-          ),
+          decoration: const InputDecoration(hintText: 'Create a new task'),
         ),
         actions: [
           TextButton(
@@ -251,14 +242,12 @@ class _HomePageState extends State<HomePage> {
           if (!db.isInitialized) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil(
-                  '/login',
-                  (route) => false,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
               }
             });
-            return const SizedBox
-                .shrink(); // Return empty widget while redirecting
+            return const SizedBox.shrink(); // Return empty widget while redirecting
           }
 
           return ListView(
@@ -283,10 +272,7 @@ class _HomePageState extends State<HomePage> {
                       text: task.name,
                       isCompleted: isCompletedToday,
                       onChanged: (value) {
-                        db.updateTaskCompletion(
-                          task.id,
-                          value ?? false,
-                        );
+                        db.updateTaskCompletion(task.id, value ?? false);
                       },
                       editTask: (context) => editTaskBox(context, task),
                       deleteTask: (context) => deleteTaskBox(context, task),
@@ -314,10 +300,7 @@ class _HomePageState extends State<HomePage> {
                       child: Center(
                         child: Text(
                           'No tasks found. Please add a new task.',
-                          style: TextStyle(
-                            color: Colors.grey,
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.grey, fontSize: 16),
                         ),
                       ),
                     ),

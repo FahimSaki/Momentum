@@ -17,8 +17,9 @@ class NotificationService {
     if (_isInitialized || kIsWeb) return;
 
     try {
-      const androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
       const initSettings = InitializationSettings(android: androidSettings);
 
       await _notifications.initialize(initSettings);
@@ -33,13 +34,17 @@ class NotificationService {
 
       await _notifications
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(androidChannel);
 
       _isInitialized = true;
     } catch (e, stacktrace) {
-      _logger.e('Notification service initialization error',
-          error: e, stackTrace: stacktrace);
+      _logger.e(
+        'Notification service initialization error',
+        error: e,
+        stackTrace: stacktrace,
+      );
     }
   }
 

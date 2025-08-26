@@ -38,7 +38,9 @@ class WidgetService {
   }
 
   Future<void> updateWidgetWithHistoricalData(
-      List<DateTime> historicalCompletions, List<Task> currentTasks) async {
+    List<DateTime> historicalCompletions,
+    List<Task> currentTasks,
+  ) async {
     if (kIsWeb) return;
 
     try {
@@ -77,8 +79,11 @@ class WidgetService {
         androidName: 'MomentumHomeWidget',
       );
     } catch (e, stackTrace) {
-      _logger.e('Error updating widget with historical data',
-          error: e, stackTrace: stackTrace);
+      _logger.e(
+        'Error updating widget with historical data',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 }

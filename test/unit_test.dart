@@ -42,10 +42,7 @@ void main() {
     });
 
     test('Task with empty completedDays', () {
-      final task = Task(
-        id: 'test-id',
-        name: 'Empty Task',
-      );
+      final task = Task(id: 'test-id', name: 'Empty Task');
 
       expect(task.completedDays, isEmpty);
       expect(task.isArchived, isFalse);
@@ -80,11 +77,7 @@ void main() {
           name: 'Task 1',
           completedDays: [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
         ),
-        Task(
-          id: '2',
-          name: 'Task 2',
-          completedDays: [DateTime(2024, 1, 1)],
-        ),
+        Task(id: '2', name: 'Task 2', completedDays: [DateTime(2024, 1, 1)]),
       ];
 
       final result = prepareMapDatasets(tasks);
@@ -99,11 +92,7 @@ void main() {
 
     test('prepareMapDatasets with historical data', () {
       final tasks = [
-        Task(
-          id: '1',
-          name: 'Task 1',
-          completedDays: [DateTime(2024, 1, 1)],
-        ),
+        Task(id: '1', name: 'Task 1', completedDays: [DateTime(2024, 1, 1)]),
       ];
 
       final historicalCompletions = [
@@ -176,7 +165,9 @@ void main() {
         lastCompletedDate: today,
       );
       expect(
-          shouldShowTask(todayTask), isFalse); // ← CHANGED: now expects false
+        shouldShowTask(todayTask),
+        isFalse,
+      ); // ← CHANGED: now expects false
 
       // Additional test cases to verify the logic
       final todayWithTime = Task(
@@ -192,8 +183,10 @@ void main() {
         name: 'Now Task',
         lastCompletedDate: DateTime.now(),
       );
-      expect(shouldShowTask(nowTask),
-          isFalse); // Should be false for today's completion
+      expect(
+        shouldShowTask(nowTask),
+        isFalse,
+      ); // Should be false for today's completion
     });
   });
 
@@ -212,8 +205,11 @@ void main() {
 
     test('Date normalization', () {
       final dateWithTime = DateTime(2024, 1, 1, 14, 30, 45);
-      final normalizedDate =
-          DateTime(dateWithTime.year, dateWithTime.month, dateWithTime.day);
+      final normalizedDate = DateTime(
+        dateWithTime.year,
+        dateWithTime.month,
+        dateWithTime.day,
+      );
 
       expect(normalizedDate.hour, equals(0));
       expect(normalizedDate.minute, equals(0));
@@ -262,8 +258,10 @@ void main() {
 
       expect(recreatedTask.id, equals(originalTask.id));
       expect(recreatedTask.name, equals(originalTask.name));
-      expect(recreatedTask.completedDays.length,
-          equals(originalTask.completedDays.length));
+      expect(
+        recreatedTask.completedDays.length,
+        equals(originalTask.completedDays.length),
+      );
       expect(recreatedTask.isArchived, equals(originalTask.isArchived));
     });
   });

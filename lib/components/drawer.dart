@@ -39,10 +39,9 @@ class MyDrawer extends StatelessWidget {
         Navigator.of(context).pop();
 
         // ✅ Navigate immediately (before logout finishes)
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/login', (route) => false);
 
         // Run logout in background
         AuthService.logout().catchError((e) {
@@ -104,8 +103,9 @@ class MyDrawer extends StatelessWidget {
                             style: TextStyle(
                               fontSize: textHeight,
                               fontWeight: FontWeight.bold,
-                              color:
-                                  Theme.of(context).colorScheme.inversePrimary,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.inversePrimary,
                             ),
                           ),
                         ),
@@ -134,9 +134,7 @@ class MyDrawer extends StatelessWidget {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsPage(),
-                ),
+                MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             },
           ),

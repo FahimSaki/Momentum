@@ -14,7 +14,9 @@ class AuthService {
 
   // Login with email and password
   static Future<Map<String, dynamic>> login(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
     final response = await http.post(
       Uri.parse('$backendUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
@@ -46,7 +48,9 @@ class AuthService {
 
   // Register with email and password
   static Future<Map<String, dynamic>> register(
-      String email, String password) async {
+    String email,
+    String password,
+  ) async {
     final response = await http.post(
       Uri.parse('$backendUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
@@ -114,8 +118,11 @@ class AuthService {
         };
       }
     } catch (e, stackTrace) {
-      _logger.e('Error reading stored auth data',
-          error: e, stackTrace: stackTrace);
+      _logger.e(
+        'Error reading stored auth data',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
     return null;
   }
@@ -161,8 +168,10 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
       } catch (clearError) {
-        _logger.e('Failed to clear prefs during error cleanup',
-            error: clearError);
+        _logger.e(
+          'Failed to clear prefs during error cleanup',
+          error: clearError,
+        );
       }
       rethrow;
     }
@@ -171,13 +180,15 @@ class AuthService {
   // Optional: Notify server about logout (implement if your backend supports it)
   static Future<void> _notifyServerLogout(String token) async {
     try {
-      final response = await http.post(
-        Uri.parse('$backendUrl/auth/logout'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 5)); // Add timeout
+      final response = await http
+          .post(
+            Uri.parse('$backendUrl/auth/logout'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 5)); // Add timeout
 
       if (response.statusCode == 200) {
         _logger.d('Server notified about logout successfully');
@@ -201,16 +212,21 @@ class AuthService {
 
       _logger.d('Validating token for userId: ${authData['userId']}');
 
-      final response = await http.get(
-        Uri.parse('$backendUrl/tasks/assigned?userId=${authData['userId']}'),
-        headers: {'Authorization': 'Bearer ${authData['token']}'},
-      ).timeout(const Duration(seconds: 10)); // Add timeout
+      final response = await http
+          .get(
+            Uri.parse(
+              '$backendUrl/tasks/assigned?userId=${authData['userId']}',
+            ),
+            headers: {'Authorization': 'Bearer ${authData['token']}'},
+          )
+          .timeout(const Duration(seconds: 10)); // Add timeout
 
       final valid = response.statusCode == 200;
 
       if (!valid) {
         _logger.w(
-            'Token validation failed: ${response.statusCode} - ${response.body}');
+          'Token validation failed: ${response.statusCode} - ${response.body}',
+        );
         // If token is invalid, clear stored data
         if (response.statusCode == 401 || response.statusCode == 403) {
           _logger.i('Token expired/invalid, clearing stored auth data');

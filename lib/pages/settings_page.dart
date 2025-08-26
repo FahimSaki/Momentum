@@ -23,8 +23,10 @@ class SettingsPage extends StatelessWidget {
               color: Theme.of(context).colorScheme.secondary,
               borderRadius: BorderRadius.circular(12),
             ),
-            padding:
-                const EdgeInsets.symmetric(vertical: 20.0, horizontal: 25.0),
+            padding: const EdgeInsets.symmetric(
+              vertical: 20.0,
+              horizontal: 25.0,
+            ),
             margin: const EdgeInsets.only(left: 25.0, right: 25.0, top: 10.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -56,10 +58,7 @@ class SettingsPage extends StatelessWidget {
             child: Center(
               child: Text(
                 '℗ by Fahim Saki',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.normal,
-                ),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.normal),
               ),
             ),
           ),

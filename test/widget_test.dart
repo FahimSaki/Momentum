@@ -15,11 +15,7 @@ void main() {
 
   group('Isolated Widget Tests', () {
     testWidgets('Login page renders correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: LoginPage(),
-        ),
-      );
+      await tester.pumpWidget(const MaterialApp(home: LoginPage()));
 
       expect(find.text('Momentum'), findsOneWidget);
       expect(find.text('Welcome back!'), findsOneWidget);
@@ -29,11 +25,7 @@ void main() {
     });
 
     testWidgets('Register page renders correctly', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: RegisterPage(),
-        ),
-      );
+      await tester.pumpWidget(const MaterialApp(home: RegisterPage()));
 
       expect(find.text('Create Account'), findsOneWidget);
       expect(find.byType(TextField), findsNWidgets(2)); // Email and password
@@ -45,11 +37,7 @@ void main() {
       await tester.pumpWidget(
         ChangeNotifierProvider(
           create: (_) => ThemeProvider(),
-          child: MaterialApp(
-            home: Scaffold(
-              body: _TestableTaskTile(),
-            ),
-          ),
+          child: MaterialApp(home: Scaffold(body: _TestableTaskTile())),
         ),
       );
 
@@ -128,9 +116,7 @@ void main() {
             builder: (context, provider, child) {
               return MaterialApp(
                 theme: provider.themeData,
-                home: const Scaffold(
-                  body: Text('Theme Test'),
-                ),
+                home: const Scaffold(body: Text('Theme Test')),
               );
             },
           ),
