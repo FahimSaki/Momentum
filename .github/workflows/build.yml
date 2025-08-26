@@ -182,31 +182,60 @@ jobs:
       - name: Setup iOS Simulator
         if: matrix.platform == 'ios'
         run: |
-          echo "📱 Setting up iOS Simulator with default runner..."
+          echo "📱 Setting up iOS Simulator with compatible version..."
           
-          # List available simulators
+          # List available simulators and runtimes
           echo "Available simulators:"
           xcrun simctl list devices available
           
-          # Use default iPhone simulator (let Xcode/Flutter choose)
-          echo "🚀 Using default iOS simulator configuration"
+          echo "Available runtimes:"
+          xcrun simctl list runtimes
           
-          # Optional: Boot a specific simulator if needed
-          # Get the first available iPhone simulator
-          DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+          # Find a simulator with an available iOS runtime (prefer iOS 17.x or earlier)
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 1[567]" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+          
+          # If no iOS 15-17 device found, try to find any available iPhone simulator
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No iOS 15-17 device found, looking for any available iPhone..."
+            DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+          fi
+          
+          # If still no device found, create one with an available runtime
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No suitable simulator found, creating one..."
+            
+            # Get the latest available iOS runtime that's actually installed
+            AVAILABLE_RUNTIME=$(xcrun simctl list runtimes | grep "iOS" | grep -v "Unavailable" | tail -1 | awk '{print $NF}')
+            
+            if [ -n "$AVAILABLE_RUNTIME" ]; then
+              echo "Creating iPhone simulator with runtime: $AVAILABLE_RUNTIME"
+              DEVICE_ID=$(xcrun simctl create "GitHub-iPhone" "iPhone 14" "$AVAILABLE_RUNTIME")
+              echo "Created simulator with ID: $DEVICE_ID"
+            else
+              echo "❌ No available iOS runtime found"
+              exit 1
+            fi
+          fi
           
           if [ -n "$DEVICE_ID" ]; then
-            echo "Found simulator: $DEVICE_ID"
+            echo "✅ Selected simulator: $DEVICE_ID"
             echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
+            
+            # Verify the simulator exists and get its info
+            xcrun simctl list devices | grep "$DEVICE_ID" || echo "Simulator details not found in list"
             
             # Boot the simulator
             echo "🚀 Booting simulator..."
-            xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted"
+            xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted or boot failed"
             
             echo "⏳ Waiting for simulator to be ready..."
             sleep 30
+            
+            # Verify simulator is booted
+            xcrun simctl list devices | grep "$DEVICE_ID"
           else
-            echo "No specific simulator ID found, using Flutter's default"
+            echo "❌ No suitable simulator found"
+            exit 1
           fi
 
       - name: Get dependencies
@@ -230,13 +259,23 @@ jobs:
               flutter build windows --release
               ;;
             ios)
-              # Use Flutter's default simulator selection
+              # Enhanced iOS build with better error handling
+              echo "🍎 Building iOS app..."
+              
               if [ -n "$IOS_SIMULATOR_ID" ]; then
                 echo "Building for specific simulator: $IOS_SIMULATOR_ID"
-                flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID"
+                
+                # Verify simulator exists before building
+                if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
+                  echo "✅ Simulator verified, proceeding with build"
+                  flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID" --verbose
+                else
+                  echo "❌ Simulator $IOS_SIMULATOR_ID not found, falling back to default"
+                  flutter build ios --simulator --no-codesign --verbose
+                fi
               else
                 echo "Building for default iOS simulator"
-                flutter build ios --simulator --no-codesign
+                flutter build ios --simulator --no-codesign --verbose
               fi
               ;;
             macos)
