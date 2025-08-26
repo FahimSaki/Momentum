@@ -191,50 +191,24 @@ jobs:
           echo "Available runtimes:"
           xcrun simctl list runtimes
           
-          # Find a simulator with an available iOS runtime (prefer iOS 17.x or earlier)
-          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 1[567]" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+          # Prefer iOS 17.x simulators
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 17\.[0-9]+\)" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           
-          # If no iOS 15-17 device found, try to find any available iPhone simulator
+          # If no iOS 17 device found, fallback to any available iPhone
           if [ -z "$DEVICE_ID" ]; then
-            echo "No iOS 15-17 device found, looking for any available iPhone..."
+            echo "No iOS 17 simulator found, using any available iPhone..."
             DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           fi
           
-          # If still no device found, create one with an available runtime
-          if [ -z "$DEVICE_ID" ]; then
-            echo "No suitable simulator found, creating one..."
-            
-            # Get the latest available iOS runtime that's actually installed
-            AVAILABLE_RUNTIME=$(xcrun simctl list runtimes | grep "iOS" | grep -v "Unavailable" | tail -1 | awk '{print $NF}')
-            
-            if [ -n "$AVAILABLE_RUNTIME" ]; then
-              echo "Creating iPhone simulator with runtime: $AVAILABLE_RUNTIME"
-              DEVICE_ID=$(xcrun simctl create "GitHub-iPhone" "iPhone 14" "$AVAILABLE_RUNTIME")
-              echo "Created simulator with ID: $DEVICE_ID"
-            else
-              echo "❌ No available iOS runtime found"
-              exit 1
-            fi
-          fi
-          
+          # Boot the simulator
           if [ -n "$DEVICE_ID" ]; then
             echo "✅ Selected simulator: $DEVICE_ID"
             echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
-            
-            # Verify the simulator exists and get its info
-            xcrun simctl list devices | grep "$DEVICE_ID" || echo "Simulator details not found in list"
-            
-            # Boot the simulator
-            echo "🚀 Booting simulator..."
-            xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted or boot failed"
-            
-            echo "⏳ Waiting for simulator to be ready..."
+            xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted"
             sleep 30
-            
-            # Verify simulator is booted
             xcrun simctl list devices | grep "$DEVICE_ID"
           else
-            echo "❌ No suitable simulator found"
+            echo "❌ No suitable iOS simulator found"
             exit 1
           fi
 
@@ -259,13 +233,10 @@ jobs:
               flutter build windows --release
               ;;
             ios)
-              # Enhanced iOS build with better error handling
               echo "🍎 Building iOS app..."
               
               if [ -n "$IOS_SIMULATOR_ID" ]; then
                 echo "Building for specific simulator: $IOS_SIMULATOR_ID"
-                
-                # Verify simulator exists before building
                 if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
                   echo "✅ Simulator verified, proceeding with build"
                   flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID" --verbose
