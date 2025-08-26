@@ -183,24 +183,15 @@ jobs:
         if: matrix.platform == 'ios'
         run: |
           echo "📱 Setting up iOS Simulator with compatible version..."
-          
-          # List available simulators and runtimes
           echo "Available simulators:"
           xcrun simctl list devices available
-          
           echo "Available runtimes:"
           xcrun simctl list runtimes
-          
-          # Prefer iOS 17.x simulators
           DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 17\.[0-9]+\)" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
-          
-          # If no iOS 17 device found, fallback to any available iPhone
           if [ -z "$DEVICE_ID" ]; then
             echo "No iOS 17 simulator found, using any available iPhone..."
             DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           fi
-          
-          # Boot the simulator
           if [ -n "$DEVICE_ID" ]; then
             echo "✅ Selected simulator: $DEVICE_ID"
             echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
@@ -234,18 +225,14 @@ jobs:
               ;;
             ios)
               echo "🍎 Building iOS app..."
-              
               if [ -n "$IOS_SIMULATOR_ID" ]; then
                 echo "Building for specific simulator: $IOS_SIMULATOR_ID"
                 if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
-                  echo "✅ Simulator verified, proceeding with build"
                   flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID" --verbose
                 else
-                  echo "❌ Simulator $IOS_SIMULATOR_ID not found, falling back to default"
                   flutter build ios --simulator --no-codesign --verbose
                 fi
               else
-                echo "Building for default iOS simulator"
                 flutter build ios --simulator --no-codesign --verbose
               fi
               ;;
@@ -299,7 +286,7 @@ jobs:
           retention-days: 30
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: always() && startsWith(github.ref, 'refs/tags/')
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -311,10 +298,9 @@ jobs:
       - name: Prepare Release Files
         run: |
           mkdir -p release-files
-          find artifacts/ -name "*.apk" -exec cp {} release-files/ \;
-          find artifacts/ -name "*.aab" -exec cp {} release-files/ \;
-          find artifacts/ -name "*.zip" -exec cp {} release-files/ \;
-          find artifacts/ -name "*.txt" -exec cp {} release-files/ \;
+          # Copy all successfully built artifacts
+          find artifacts/ -type f -exec cp {} release-files/ \;
+          echo "✅ Release files ready:"
           ls -la release-files/
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -324,12 +310,11 @@ jobs:
           body: |
             ## 🚀 Momentum Release ${{ github.ref_name }}
             ### 📱 Downloads
-            - **Android APK**
-            - **Android AAB**
-            - **Windows**
-            - **Web**
-            - **iOS Simulator**
-            - **macOS**
+            - Android APK / AAB
+            - Web
+            - Windows
+            - iOS Simulator
+            - macOS
           draft: false
           prerelease: contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha')
           generate_release_notes: true
