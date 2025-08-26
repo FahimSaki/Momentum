@@ -187,17 +187,16 @@ jobs:
           # List available simulators and runtimes
           echo "Available simulators:"
           xcrun simctl list devices available
-          
           echo "Available runtimes:"
           xcrun simctl list runtimes
           
           # Prefer iOS 17.x simulators
           DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 17\.[0-9]+\)" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           
-          # If no iOS 17 device found, fallback to any available iPhone
+          # Fallback: any iPhone simulator EXCEPT iOS 18.x
           if [ -z "$DEVICE_ID" ]; then
-            echo "No iOS 17 simulator found, using any available iPhone..."
-            DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
+            echo "No iOS 17 simulator found, finding any available iPhone (excluding iOS 18)..."
+            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS [0-9]+\.[0-9]+\)" | grep -v "(iOS 18" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           fi
           
           # Boot the simulator
