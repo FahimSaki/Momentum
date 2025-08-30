@@ -1,27 +1,40 @@
 import admin from 'firebase-admin';
+import fs from 'fs';
+import path from 'path';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 
-// Initialize Firebase Admin SDK
-// Make sure to set FIREBASE_PROJECT_ID and FIREBASE_PRIVATE_KEY in your environment variables
+// Path to your Firebase service account file
+const serviceAccountPath = path.resolve('momentum-api-fcm-761b4eb73e69.json');
+
+// Initialize Firebase Admin SDK only if credentials are available
 const initializeFirebase = () => {
     if (!admin.apps.length) {
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+        if (!fs.existsSync(serviceAccountPath)) {
+            console.warn(`⚠️  Firebase service account file not found at: ${serviceAccountPath}`);
+            return false;
+        }
 
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
-            }),
-        });
+        try {
+            const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 
-        console.log('✅ Firebase Admin SDK initialized');
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+            });
+
+            console.log('✅ Firebase Admin SDK initialized using service account file');
+            return true;
+        } catch (error) {
+            console.error('❌ Firebase initialization error:', error.message);
+            return false;
+        }
     }
+    return true;
 };
 
-// Initialize Firebase
-initializeFirebase();
+// Initialize Firebase and store the result
+const isFirebaseInitialized = initializeFirebase();
+
 
 // Send notification to a specific user
 export const sendNotification = async (userId, notificationData, saveToDb = true) => {
@@ -40,8 +53,8 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
 
         let fcmResponse = null;
 
-        // Send FCM notification if user has push notifications enabled and FCM tokens
-        if (user.notificationSettings?.push && user.fcmTokens?.length > 0) {
+        // Send FCM notification only if Firebase is initialized and user has push notifications enabled
+        if (isFirebaseInitialized && user.notificationSettings?.push && user.fcmTokens?.length > 0) {
             const validTokens = user.fcmTokens.filter(tokenData =>
                 tokenData.token && tokenData.lastUsed > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days
             );
@@ -92,6 +105,8 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
                     console.error('FCM Send Error:', fcmError);
                 }
             }
+        } else if (!isFirebaseInitialized && user.notificationSettings?.push) {
+            console.log('⚠️  Firebase not initialized - skipping push notification');
         }
 
         // Save in-app notification to database

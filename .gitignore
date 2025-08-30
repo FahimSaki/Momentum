@@ -16,6 +16,7 @@ frontend.txt
 backend.txt
 history.txt
 backend/node_modules
+backend/momentum-api-fcm-761b4eb73e69.json
 
 # IntelliJ related
 *.iml
