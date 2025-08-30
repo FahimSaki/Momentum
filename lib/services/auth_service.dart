@@ -133,7 +133,7 @@ class AuthService {
     return authData != null;
   }
 
-  // Enhanced logout with proper cleanup
+  //  logout with proper cleanup
   static Future<void> logout() async {
     try {
       _logger.i('Starting logout process...');

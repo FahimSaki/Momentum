@@ -4,20 +4,20 @@ import 'package:momentum/components/task_map.dart';
 import 'package:momentum/components/task_list.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
-import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
-class EnhancedHomePage extends StatefulWidget {
-  const EnhancedHomePage({super.key});
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
 
   @override
-  State<EnhancedHomePage> createState() => _EnhancedHomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _EnhancedHomePageState extends State<EnhancedHomePage>
+class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   bool _isInitializing = false;
   bool _initializationFailed = false;
@@ -37,7 +37,7 @@ class _EnhancedHomePageState extends State<EnhancedHomePage>
   }
 
   Future<void> _ensureInitialized() async {
-    final db = Provider.of<EnhancedTaskDatabase>(context, listen: false);
+    final db = Provider.of<TaskDatabase>(context, listen: false);
 
     if (!db.isInitialized && !_initializationFailed) {
       setState(() {
@@ -94,7 +94,7 @@ class _EnhancedHomePageState extends State<EnhancedHomePage>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<EnhancedTaskDatabase>(
+    return Consumer<TaskDatabase>(
       builder: (context, db, _) {
         if (_isInitializing) {
           return const Scaffold(
@@ -187,7 +187,7 @@ class _EnhancedHomePageState extends State<EnhancedHomePage>
     );
   }
 
-  PreferredSizeWidget _buildAppBar(EnhancedTaskDatabase db) {
+  PreferredSizeWidget _buildAppBar(TaskDatabase db) {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -270,7 +270,7 @@ class _EnhancedHomePageState extends State<EnhancedHomePage>
     );
   }
 
-  Widget _buildDashboardTab(EnhancedTaskDatabase db) {
+  Widget _buildDashboardTab(TaskDatabase db) {
     return RefreshIndicator(
       onRefresh: () async {
         // Refresh data
@@ -372,11 +372,11 @@ class _EnhancedHomePageState extends State<EnhancedHomePage>
     );
   }
 
-  Widget _buildTasksTab(EnhancedTaskDatabase db) {
-    return const EnhancedTaskList();
+  Widget _buildTasksTab(TaskDatabase db) {
+    return const TaskList();
   }
 
-  Widget _buildAnalyticsTab(EnhancedTaskDatabase db) {
+  Widget _buildAnalyticsTab(TaskDatabase db) {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [

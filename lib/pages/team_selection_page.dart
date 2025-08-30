@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/pages/create_team_page.dart';
 import 'package:momentum/pages/team_invitations_page.dart';
@@ -30,7 +30,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
               );
             },
           ),
-          Consumer<EnhancedTaskDatabase>(
+          Consumer<TaskDatabase>(
             builder: (context, db, _) {
               final hasInvitations = db.pendingInvitations.isNotEmpty;
               return Stack(
@@ -76,7 +76,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
           ),
         ],
       ),
-      body: Consumer<EnhancedTaskDatabase>(
+      body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
           return ListView(
             padding: const EdgeInsets.all(16.0),

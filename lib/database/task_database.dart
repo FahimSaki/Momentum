@@ -11,7 +11,7 @@ import 'package:momentum/database/timer_service.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
-class EnhancedTaskDatabase extends ChangeNotifier {
+class TaskDatabase extends ChangeNotifier {
   final Logger logger = Logger();
 
   // Task management
@@ -36,7 +36,7 @@ class EnhancedTaskDatabase extends ChangeNotifier {
   String? jwtToken;
   String? userId;
   TeamService? _teamService;
-  EnhancedTaskService? _taskService;
+  TaskService? _taskService;
   NotificationService? _notificationService;
   final WidgetService _widgetService = WidgetService();
   TimerService? _timerService;
@@ -53,7 +53,7 @@ class EnhancedTaskDatabase extends ChangeNotifier {
       .where((task) => task.isArchived && task.isCompletedToday())
       .toList();
 
-  EnhancedTaskDatabase() {
+  TaskDatabase() {
     if (!kIsWeb) {
       _initializeTimerService();
       _notificationService = NotificationService();
@@ -70,14 +70,14 @@ class EnhancedTaskDatabase extends ChangeNotifier {
   // Initialize the database with authentication
   Future<void> initialize({required String jwt, required String userId}) async {
     try {
-      logger.i('Initializing EnhancedTaskDatabase with userId: $userId');
+      logger.i('Initializing TaskDatabase with userId: $userId');
 
       this.jwtToken = jwt;
       this.userId = userId;
 
       // Initialize services
       _teamService = TeamService(jwtToken: jwt);
-      _taskService = EnhancedTaskService(jwtToken: jwt, userId: userId);
+      _taskService = TaskService(jwtToken: jwt, userId: userId);
 
       if (!kIsWeb) {
         await _notificationService?.init(jwtToken: jwt);
@@ -99,11 +99,11 @@ class EnhancedTaskDatabase extends ChangeNotifier {
       }
 
       _isInitialized = true;
-      logger.i('EnhancedTaskDatabase initialization complete');
+      logger.i('TaskDatabase initialization complete');
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e(
-        'EnhancedTaskDatabase initialization failed',
+        'TaskDatabase initialization failed',
         error: e,
         stackTrace: stackTrace,
       );
@@ -114,7 +114,7 @@ class EnhancedTaskDatabase extends ChangeNotifier {
 
   // Clear all data (for logout)
   void clearData() {
-    logger.i('Clearing EnhancedTaskDatabase data');
+    logger.i('Clearing TaskDatabase data');
 
     currentTasks.clear();
     personalTasks.clear();
@@ -552,7 +552,7 @@ class EnhancedTaskDatabase extends ChangeNotifier {
 
   @override
   void dispose() {
-    logger.i('Disposing EnhancedTaskDatabase');
+    logger.i('Disposing TaskDatabase');
     _timerService?.dispose();
     super.dispose();
   }

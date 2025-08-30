@@ -1,3 +1,5 @@
+import 'package:momentum/models/user.dart';
+
 class TeamMember {
   final User user;
   final String role; // 'owner', 'admin', 'member'

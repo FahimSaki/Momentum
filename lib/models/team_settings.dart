@@ -1,3 +1,5 @@
+import 'package:momentum/models/notification_settings.dart';
+
 class TeamSettings {
   final bool allowMemberInvite;
   final bool taskAutoDelete;

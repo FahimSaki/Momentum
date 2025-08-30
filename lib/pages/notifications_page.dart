@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/app_notification.dart';
 import 'package:provider/provider.dart';
 
@@ -19,7 +19,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Consumer<EnhancedTaskDatabase>(
+      body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
           if (db.pendingInvitations.isEmpty) {
             return const Center(
@@ -55,7 +55,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _handleInvitation(
     BuildContext context,
-    EnhancedTaskDatabase db,
+    TaskDatabase db,
     TeamInvitation invitation,
     bool accept,
   ) async {

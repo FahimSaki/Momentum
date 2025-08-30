@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 
 class CreateTeamPage extends StatefulWidget {
@@ -135,7 +135,7 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
     });
 
     try {
-      final db = Provider.of<EnhancedTaskDatabase>(context, listen: false);
+      final db = Provider.of<TaskDatabase>(context, listen: false);
 
       final team = await db.createTeam(
         _nameController.text.trim(),

@@ -29,7 +29,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<EnhancedTaskDatabase>(
+    return Consumer<TaskDatabase>(
       builder: (context, db, _) {
         final selectedTeam = db.selectedTeam;
 
@@ -202,7 +202,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
       return;
     }
 
-    final db = Provider.of<EnhancedTaskDatabase>(context, listen: false);
+    final db = Provider.of<TaskDatabase>(context, listen: false);
 
     try {
       await db.createTask(

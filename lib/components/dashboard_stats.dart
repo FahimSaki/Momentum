@@ -7,7 +7,7 @@ class DashboardStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<EnhancedTaskDatabase>(
+    return Consumer<TaskDatabase>(
       builder: (context, db, _) {
         return FutureBuilder<Map<String, int>>(
           future: db.getDashboardStats(),

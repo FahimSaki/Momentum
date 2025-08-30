@@ -1,3 +1,6 @@
+import 'package:momentum/models/user.dart';
+import 'package:momentum/models/team.dart';
+
 class TeamInvitation {
   final String id;
   final Team team;

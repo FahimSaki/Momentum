@@ -1,3 +1,7 @@
+import 'package:momentum/models/user.dart';
+import 'package:momentum/models/team.dart';
+import 'package:momentum/models/task.dart';
+
 class AppNotification {
   final String id;
   final User recipient;

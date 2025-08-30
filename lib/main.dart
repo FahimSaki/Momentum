@@ -8,13 +8,12 @@ import 'package:momentum/services/initialization_service.dart';
 void main() async {
   await InitializationService.initialize();
 
-  // Create EnhancedTaskDatabase instance
-  final taskDatabase = EnhancedTaskDatabase();
-
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<EnhancedTaskDatabase>.value(value: taskDatabase),
+        ChangeNotifierProvider<TaskDatabase>(
+          create: (context) => TaskDatabase(),
+        ),
         ChangeNotifierProvider(create: (context) => ThemeProvider()),
       ],
       child: const MyApp(),

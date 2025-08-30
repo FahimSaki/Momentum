@@ -1,3 +1,5 @@
+import 'package:momentum/models/user.dart';
+
 class CompletionRecord {
   final User user;
   final DateTime completedAt;

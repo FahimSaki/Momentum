@@ -1,3 +1,7 @@
+import 'package:momentum/models/user.dart';
+import 'package:momentum/models/team.dart';
+import 'package:momentum/models/completion_record.dart';
+
 class Task {
   final String id;
   String name;

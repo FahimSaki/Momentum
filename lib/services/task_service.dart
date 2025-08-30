@@ -4,12 +4,12 @@ import 'package:momentum/constants/api_base_url.dart';
 import 'package:momentum/models/task.dart';
 import 'package:logger/logger.dart';
 
-class EnhancedTaskService {
+class TaskService {
   final Logger _logger = Logger();
   final String jwtToken;
   final String userId;
 
-  EnhancedTaskService({required this.jwtToken, required this.userId});
+  TaskService({required this.jwtToken, required this.userId});
 
   Map<String, String> get _headers => {
     'Authorization': 'Bearer $jwtToken',

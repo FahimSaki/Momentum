@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:provider/provider.dart';
 
@@ -239,7 +239,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     if (email.isEmpty) return;
 
     try {
-      final db = Provider.of<EnhancedTaskDatabase>(context, listen: false);
+      final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(teamId: widget.team.id, email: email);
 
       if (mounted) {

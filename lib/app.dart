@@ -24,7 +24,7 @@ class MyApp extends StatelessWidget {
           routes: {
             '/splash': (context) => const SplashPage(),
             '/login': (context) => const LoginPage(),
-            '/home': (context) => const EnhancedHomePage(),
+            '/home': (context) => const HomePage(),
             '/register': (context) => const RegisterPage(),
           },
           // Handle unknown routes (like direct URL access to /home)

@@ -1,3 +1,5 @@
+import 'package:momentum/models/user_notification_settings.dart';
+
 class User {
   final String id;
   final String email;

@@ -5,21 +5,21 @@ import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
 
-class EnhancedTaskList extends StatefulWidget {
-  const EnhancedTaskList({super.key});
+class TaskList extends StatefulWidget {
+  const askList({super.key});
 
   @override
-  State<EnhancedTaskList> createState() => _EnhancedTaskListState();
+  State<TaskList> createState() => _askListState();
 }
 
-class _EnhancedTaskListState extends State<EnhancedTaskList> {
+class _TaskListState extends State<TaskList> {
   bool _showCompletedTasks = false;
   String _filterBy = 'all'; // 'all', 'overdue', 'today', 'upcoming'
   String _sortBy = 'created'; // 'created', 'due', 'priority', 'name'
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<EnhancedTaskDatabase>(
+    return Consumer<TaskDatabase>(
       builder: (context, db, _) {
         final filteredTasks = _filterTasks(db.activeTasks);
         final sortedTasks = _sortTasks(filteredTasks);
@@ -123,7 +123,7 @@ class _EnhancedTaskListState extends State<EnhancedTaskList> {
                       )
                     else ...[
                       ...sortedTasks.map(
-                        (task) => EnhancedTaskTile(
+                        (task) => TaskTile(
                           key: ValueKey(task.id),
                           task: task,
                           onToggle: (isCompleted) {
@@ -154,7 +154,7 @@ class _EnhancedTaskListState extends State<EnhancedTaskList> {
                             },
                             children: completedTasks
                                 .map(
-                                  (task) => EnhancedTaskTile(
+                                  (task) => TaskTile(
                                     key: ValueKey('completed_${task.id}'),
                                     task: task,
                                     onToggle: (isCompleted) {
@@ -245,7 +245,7 @@ class _EnhancedTaskListState extends State<EnhancedTaskList> {
   void _editTaskDialog(
     BuildContext context,
     Task task,
-    EnhancedTaskDatabase db,
+    TaskDatabase db,
   ) {
     final nameController = TextEditingController(text: task.name);
     final descriptionController = TextEditingController(
@@ -297,7 +297,7 @@ class _EnhancedTaskListState extends State<EnhancedTaskList> {
   void _deleteTaskDialog(
     BuildContext context,
     Task task,
-    EnhancedTaskDatabase db,
+    TaskDatabase db,
   ) {
     showDialog(
       context: context,

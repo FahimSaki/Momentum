@@ -4,13 +4,13 @@ import 'package:momentum/models/task.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
-class EnhancedTaskTile extends StatelessWidget {
+class TaskTile extends StatelessWidget {
   final Task task;
   final Function(bool) onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const EnhancedTaskTile({
+  const TaskTile({
     super.key,
     required this.task,
     required this.onToggle,

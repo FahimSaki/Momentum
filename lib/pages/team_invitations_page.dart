@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team_invitation.dart';
 import 'package:provider/provider.dart';
+import 'package:momentum/models/team_invitation.dart';
 
 class TeamInvitationsPage extends StatelessWidget {
   const TeamInvitationsPage({super.key});
@@ -14,7 +15,7 @@ class TeamInvitationsPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          Consumer<EnhancedTaskDatabase>(
+          Consumer<TaskDatabase>(
             builder: (context, db, _) {
               if (db.unreadNotificationCount > 0) {
                 return TextButton(
@@ -27,7 +28,7 @@ class TeamInvitationsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<EnhancedTaskDatabase>(
+      body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
           if (db.notifications.isEmpty) {
             return const Center(
@@ -62,10 +63,7 @@ class TeamInvitationsPage extends StatelessWidget {
     );
   }
 
-  void _handleNotificationTap(
-    AppNotification notification,
-    EnhancedTaskDatabase db,
-  ) {
+  void _handleNotificationTap(AppNotification notification, TaskDatabase db) {
     // Mark as read if not already
     if (!notification.isRead) {
       db.markNotificationAsRead(notification.id);
