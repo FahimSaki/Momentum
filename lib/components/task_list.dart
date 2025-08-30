@@ -5,7 +5,7 @@ import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
 
 class TaskList extends StatefulWidget {
-  const askList({super.key});
+  const TaskList({Key? key}) : super(key: key);
 
   @override
   State<TaskList> createState() => _TaskListState();
@@ -105,7 +105,7 @@ class _TaskListState extends State<TaskList> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
-                  await db._refreshData();
+                  await db.refreshData();
                 },
                 child: ListView(
                   children: [
@@ -241,11 +241,7 @@ class _TaskListState extends State<TaskList> {
     return sortedTasks;
   }
 
-  void _editTaskDialog(
-    BuildContext context,
-    Task task,
-    TaskDatabase db,
-  ) {
+  void _editTaskDialog(BuildContext context, Task task, TaskDatabase db) {
     final nameController = TextEditingController(text: task.name);
     final descriptionController = TextEditingController(
       text: task.description ?? '',
@@ -293,11 +289,7 @@ class _TaskListState extends State<TaskList> {
     );
   }
 
-  void _deleteTaskDialog(
-    BuildContext context,
-    Task task,
-    TaskDatabase db,
-  ) {
+  void _deleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

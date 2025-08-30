@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/models/team_invitation.dart';
+import 'package:momentum/models/app_notification.dart';
 import 'package:provider/provider.dart';
-import 'package:momentum/models/team_invitation.dart';
 
 class TeamInvitationsPage extends StatelessWidget {
   const TeamInvitationsPage({super.key});
@@ -45,7 +44,8 @@ class TeamInvitationsPage extends StatelessWidget {
 
           return RefreshIndicator(
             onRefresh: () async {
-              await db._loadNotifications();
+              // Use the public refreshData method instead of private _loadNotifications
+              await db.refreshData();
             },
             child: ListView.builder(
               itemCount: db.notifications.length,
@@ -53,7 +53,11 @@ class TeamInvitationsPage extends StatelessWidget {
                 final notification = db.notifications[index];
                 return _NotificationTile(
                   notification: notification,
-                  onTap: () => _handleNotificationTap(notification, db),
+                  onTap: () => _handleNotificationTap(
+                    context,
+                    notification,
+                    db,
+                  ), // Pass context
                 );
               },
             ),
@@ -63,7 +67,12 @@ class TeamInvitationsPage extends StatelessWidget {
     );
   }
 
-  void _handleNotificationTap(AppNotification notification, TaskDatabase db) {
+  void _handleNotificationTap(
+    BuildContext context,
+    AppNotification notification,
+    TaskDatabase db,
+  ) {
+    // Add context parameter
     // Mark as read if not already
     if (!notification.isRead) {
       db.markNotificationAsRead(notification.id);
@@ -106,7 +115,9 @@ class _NotificationTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: notification.isRead
           ? Theme.of(context).colorScheme.surface
-          : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          : Theme.of(context).colorScheme.primary.withValues(
+              alpha: 0.1,
+            ), // Fix deprecated withOpacity
       child: ListTile(
         leading: _getNotificationIcon(),
         title: Text(
@@ -187,7 +198,7 @@ class _NotificationTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.2),
+        color: iconColor.withValues(alpha: 0.2), // Fix deprecated withOpacity
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(iconData, color: iconColor, size: 20),

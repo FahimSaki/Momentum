@@ -511,6 +511,10 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshData() async {
+    await _refreshData();
+  }
+
   Future<void> updateWidget() async {
     if (kIsWeb) return;
 

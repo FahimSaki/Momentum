@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/models/app_notification.dart';
+import 'package:momentum/models/team_invitation.dart';
 import 'package:provider/provider.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -109,7 +109,9 @@ class _InvitationCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.2),
+                    color: Colors.blue.withValues(
+                      alpha: 0.2,
+                    ), // Fixed deprecated withOpacity
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.group, color: Colors.blue),
@@ -159,7 +161,9 @@ class _InvitationCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(
+                    alpha: 0.1,
+                  ), // Fixed deprecated withOpacity
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(invitation.message!),

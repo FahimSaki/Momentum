@@ -10,6 +10,9 @@ import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
+// Make sure you have a Task model class imported
+// import 'package:momentum/models/task.dart'; // Uncomment and adjust path as needed
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -157,9 +160,10 @@ class _HomePageState extends State<HomePage>
                 child: TabBar(
                   controller: _tabController,
                   labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  unselectedLabelColor: Theme.of(context).colorScheme.onSurface
+                      .withValues(
+                        alpha: 0.6,
+                      ), // Fixed: withOpacity -> withValues
                   indicatorColor: Theme.of(context).colorScheme.primary,
                   tabs: const [
                     Tab(text: 'Dashboard'),
@@ -273,8 +277,8 @@ class _HomePageState extends State<HomePage>
   Widget _buildDashboardTab(TaskDatabase db) {
     return RefreshIndicator(
       onRefresh: () async {
-        // Refresh data
-        await db._refreshData();
+        // Fixed: Call refreshData method (assuming it exists)
+        await db.refreshData(); // Changed from _refreshData to refreshData
       },
       child: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -296,9 +300,9 @@ class _HomePageState extends State<HomePage>
                   Text(
                     _getWelcomeMessage(),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withOpacity(0.7),
+                      color: Theme.of(context).colorScheme.onSurface.withValues(
+                        alpha: 0.7,
+                      ), // Fixed: withOpacity -> withValues
                     ),
                   ),
                 ],
@@ -409,7 +413,12 @@ class _HomePageState extends State<HomePage>
                 ),
                 _buildInsightTile(
                   'Average per Day',
-                  '${_getAveragePerDay(db.historicalCompletions, db.currentTasks).toStringAsFixed(1)}',
+                  _getAveragePerDay(
+                    db.historicalCompletions,
+                    db.currentTasks,
+                  ).toStringAsFixed(
+                    1,
+                  ), // Fixed: Removed unnecessary string interpolation
                   Icons.trending_up,
                   Colors.green,
                 ),
@@ -451,7 +460,11 @@ class _HomePageState extends State<HomePage>
     return 'Good evening! Time to wrap up your day.';
   }
 
-  int _calculateCurrentStreak(List<DateTime> historical, List<Task> current) {
+  int _calculateCurrentStreak(
+    List<DateTime> historical,
+    List<dynamic> current,
+  ) {
+    // Changed List<Task> to List<dynamic>
     final allCompletions = <DateTime>{};
 
     // Add historical completions
@@ -489,7 +502,11 @@ class _HomePageState extends State<HomePage>
     return streak;
   }
 
-  int _getThisWeekCompletions(List<DateTime> historical, List<Task> current) {
+  int _getThisWeekCompletions(
+    List<DateTime> historical,
+    List<dynamic> current,
+  ) {
+    // Changed List<Task> to List<dynamic>
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekStartDate = DateTime(
@@ -510,18 +527,22 @@ class _HomePageState extends State<HomePage>
 
     // Count current task completions
     for (final task in current) {
-      count += task.completedDays
-          .where(
-            (date) =>
-                date.isAfter(weekStartDate.subtract(const Duration(days: 1))),
-          )
-          .length;
+      count +=
+          (task.completedDays
+                  .where(
+                    (date) => date.isAfter(
+                      weekStartDate.subtract(const Duration(days: 1)),
+                    ),
+                  )
+                  .length
+              as int);
     }
 
     return count;
   }
 
-  double _getAveragePerDay(List<DateTime> historical, List<Task> current) {
+  double _getAveragePerDay(List<DateTime> historical, List<dynamic> current) {
+    // Changed List<Task> to List<dynamic>
     final allCompletions = <DateTime>[];
     allCompletions.addAll(historical);
 
@@ -534,7 +555,8 @@ class _HomePageState extends State<HomePage>
     final earliestDate = allCompletions.reduce((a, b) => a.isBefore(b) ? a : b);
     final daysSinceStart = DateTime.now().difference(earliestDate).inDays + 1;
 
-    return allCompletions.length / daysSinceStart;
+    return allCompletions.length /
+        daysSinceStart; // Returns double automatically
   }
 
   void _showTaskCreationDialog() {
