@@ -5,6 +5,8 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import taskRoutes from './routes/task.js';
 import { authenticateToken } from './middleware/middle_auth.js';
+import teamRoutes from './routes/team.js';
+import notificationRoutes from './routes/notification.js';
 import { startCleanupScheduler, runManualCleanup } from './services/cleanup_scheduler.js';
 
 // Load environment variables
@@ -93,6 +95,8 @@ app.post('/manual-cleanup', async (req, res) => {
 // AUTHENTICATED ROUTES
 app.use('/auth', authRoutes);
 app.use('/tasks', authenticateToken, taskRoutes);
+app.use('/teams', authenticateToken, teamRoutes);
+app.use('/notifications', authenticateToken, notificationRoutes);
 
 // Health check (optional, helpful for monitoring)
 app.get('/health', (req, res) => {

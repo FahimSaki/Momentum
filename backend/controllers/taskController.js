@@ -1,280 +1,529 @@
+
 import Task from '../models/Task.js';
 import TaskHistory from '../models/TaskHistory.js';
+import Team from '../models/Team.js';
+import User from '../models/User.js';
+import { sendTaskAssignedNotification, sendTaskCompletedNotification } from '../services/notification_Service.js';
 
-// Helper function to save task to history before deletion
+// Helper function to save task to history before deletion (enhanced)
 const saveTaskToHistory = async (task) => {
     if (task.completedDays?.length > 0) {
         try {
-            // Check if this task's history already exists to avoid duplicates
-            const existingHistory = await TaskHistory.findOne({
-                userId: task.assignedTo,
-                taskName: task.name
-            });
+            // For team tasks, save history for each assignee
+            const assigneeIds = task.assignedTo && task.assignedTo.length > 0
+                ? task.assignedTo
+                : [task.assignedTo].filter(Boolean);
 
-            if (existingHistory) {
-                // Merge completion days and remove duplicates
-                const allDays = [...existingHistory.completedDays, ...task.completedDays];
-                const uniqueDays = [...new Set(allDays.map(d => d.toISOString()))].map(d => new Date(d));
-                existingHistory.completedDays = uniqueDays;
-                await existingHistory.save();
-                console.log(`Updated existing history for "${task.name}" with ${task.completedDays.length} new completion days`);
-            } else {
-                // Create new history record
-                await TaskHistory.create({
-                    userId: task.assignedTo,
-                    completedDays: task.completedDays,
+            for (const assigneeId of assigneeIds) {
+                const existingHistory = await TaskHistory.findOne({
+                    userId: assigneeId,
                     taskName: task.name
                 });
-                console.log(`Saved task "${task.name}" to history with ${task.completedDays.length} completion days`);
+
+                if (existingHistory) {
+                    const allDays = [...existingHistory.completedDays, ...task.completedDays];
+                    const uniqueDays = [...new Set(allDays.map(d => d.toISOString()))].map(d => new Date(d));
+                    existingHistory.completedDays = uniqueDays;
+                    await existingHistory.save();
+                } else {
+                    await TaskHistory.create({
+                        userId: assigneeId,
+                        completedDays: task.completedDays,
+                        taskName: task.name,
+                        teamId: task.team // Add team reference to history
+                    });
+                }
             }
+
+            console.log(`Saved task "${task.name}" to history for ${assigneeIds.length} users`);
         } catch (error) {
             console.error(`Error saving task "${task.name}" to history:`, error);
         }
     }
 };
 
-// ✅ Create a new task
+// Create a new task (enhanced for teams)
 export const createTask = async (req, res) => {
     try {
-        const { name, userId } = req.body;
-        if (!name || !userId) {
-            return res.status(400).json({ message: 'Name and userId are required' });
+        const {
+            name,
+            description,
+            assignedTo, // Can be array or single userId
+            teamId,
+            priority = 'medium',
+            dueDate,
+            tags = [],
+            assignmentType = 'individual'
+        } = req.body;
+
+        const assignerId = req.userId;
+
+        if (!name || name.trim().length === 0) {
+            return res.status(400).json({ message: 'Task name is required' });
         }
-        const task = new Task({ name, assignedTo: userId });
+
+        // Validate team membership if teamId is provided
+        if (teamId) {
+            const team = await Team.findById(teamId);
+            if (!team) {
+                return res.status(404).json({ message: 'Team not found' });
+            }
+
+            const isMember = team.members.some(member =>
+                member.user.toString() === assignerId
+            );
+
+            if (!isMember) {
+                return res.status(403).json({ message: 'You are not a member of this team' });
+            }
+        }
+
+        // Process assignees
+        let assigneeIds = [];
+        if (assignmentType === 'team' && teamId) {
+            // Assign to all team members
+            const team = await Team.findById(teamId);
+            assigneeIds = team.members.map(member => member.user);
+        } else if (assignedTo) {
+            assigneeIds = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+        } else {
+            // Self-assignment if no assignee specified
+            assigneeIds = [assignerId];
+        }
+
+        // Validate assignees exist and are team members (if team task)
+        if (teamId) {
+            const team = await Team.findById(teamId);
+            const teamMemberIds = team.members.map(m => m.user.toString());
+            const invalidAssignees = assigneeIds.filter(id => !teamMemberIds.includes(id));
+
+            if (invalidAssignees.length > 0) {
+                return res.status(400).json({
+                    message: 'Some assignees are not members of the team'
+                });
+            }
+        }
+
+        const task = new Task({
+            name: name.trim(),
+            description: description?.trim(),
+            assignedTo: assigneeIds,
+            assignedBy: assignerId,
+            team: teamId,
+            priority,
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            tags,
+            isTeamTask: !!teamId,
+            assignmentType
+        });
+
         await task.save();
-        res.status(200).json(task);
+
+        // Populate task data for response
+        await task.populate([
+            { path: 'assignedTo', select: 'name email avatar' },
+            { path: 'assignedBy', select: 'name email avatar' },
+            { path: 'team', select: 'name' }
+        ]);
+
+        // Send notifications to assignees (excluding self-assignment)
+        const notificationRecipients = assigneeIds.filter(id => id !== assignerId);
+        if (notificationRecipients.length > 0) {
+            await sendTaskAssignedNotification(task, req.user, notificationRecipients);
+        }
+
+        res.status(201).json({
+            message: 'Task created successfully',
+            task
+        });
     } catch (err) {
-        res.status(500).json({ message: 'Error creating task', error: err.message });
+        console.error('Create task error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// ✅ Get all tasks for a user
-export const getAssignedTasks = async (req, res) => {
+// Get tasks for user (enhanced with team tasks)
+export const getUserTasks = async (req, res) => {
     try {
-        const { userId } = req.query;
-        if (!userId) return res.status(400).json({ message: 'userId is required' });
-        const tasks = await Task.find({ assignedTo: userId });
-        res.status(200).json(tasks);
+        const { userId, teamId, type = 'all' } = req.query;
+        const requesterId = req.userId;
+
+        // Build query
+        let query = {};
+
+        if (type === 'personal') {
+            query = {
+                assignedTo: userId || requesterId,
+                team: { $exists: false }
+            };
+        } else if (type === 'team' && teamId) {
+            query = {
+                team: teamId,
+                assignedTo: userId || requesterId
+            };
+        } else {
+            // All tasks assigned to user (personal + team)
+            query = {
+                assignedTo: userId || requesterId
+            };
+        }
+
+        const tasks = await Task.find(query)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate('team', 'name')
+            .sort({ createdAt: -1 });
+
+        res.json(tasks);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching tasks', error: err.message });
+        console.error('Get user tasks error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// ✅ Update a task
+// Get team tasks
+export const getTeamTasks = async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const { status = 'active' } = req.query;
+        const userId = req.userId;
+
+        // Verify team membership
+        const team = await Team.findById(teamId);
+        if (!team) {
+            return res.status(404).json({ message: 'Team not found' });
+        }
+
+        const isMember = team.members.some(member =>
+            member.user.toString() === userId
+        );
+
+        if (!isMember) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        let query = { team: teamId };
+
+        if (status === 'active') {
+            query.isArchived = false;
+        } else if (status === 'archived') {
+            query.isArchived = true;
+        }
+
+        const tasks = await Task.find(query)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate('completedBy.user', 'name email avatar')
+            .sort({ createdAt: -1 });
+
+        res.json(tasks);
+    } catch (err) {
+        console.error('Get team tasks error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+// Update task (enhanced)
 export const updateTask = async (req, res) => {
     try {
         const { id } = req.params;
-        const update = req.body;
-        const task = await Task.findByIdAndUpdate(id, update, { new: true });
-        if (!task) return res.status(404).json({ message: 'Task not found' });
-        res.status(200).json(task);
-    } catch (err) {
-        res.status(500).json({ message: 'Error updating task', error: err.message });
-    }
-};
+        const updates = req.body;
+        const userId = req.userId;
 
-// 🔧 UPDATED: Archive tasks completed before today (date-based, not time-based)
-export const archiveCompletedTasks = async (req, res) => {
-    try {
-        // Get today's date at 00:00:00 UTC (start of today)
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        const task = await Task.findById(id)
+            .populate('team');
 
-        // Archive tasks that were completed before today (yesterday or earlier)
-        const result = await Task.updateMany(
-            { isArchived: false, lastCompletedDate: { $lt: today } },
-            { $set: { isArchived: true, archivedAt: new Date() } }
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        // Check permissions
+        const isAssignee = task.assignedTo.some(assigneeId =>
+            assigneeId.toString() === userId
+        );
+        const isAssigner = task.assignedBy?.toString() === userId;
+        let isTeamMember = false;
+
+        if (task.team) {
+            const team = await Team.findById(task.team._id);
+            isTeamMember = team.members.some(member =>
+                member.user.toString() === userId
+            );
+        }
+
+        if (!isAssignee && !isAssigner && !isTeamMember) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        // Restrict certain updates to assigners only
+        const restrictedFields = ['assignedTo', 'assignedBy', 'team', 'dueDate', 'priority'];
+        const hasRestrictedUpdates = Object.keys(updates).some(key =>
+            restrictedFields.includes(key)
         );
 
-        res.status(200).json({
-            message: `${result.modifiedCount} tasks archived (completed before ${today.toDateString()})`
+        if (hasRestrictedUpdates && !isAssigner && !isTeamMember) {
+            return res.status(403).json({
+                message: 'Only task assigners can modify assignment details'
+            });
+        }
+
+        const updatedTask = await Task.findByIdAndUpdate(id, updates, { new: true })
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate('team', 'name');
+
+        res.json({
+            message: 'Task updated successfully',
+            task: updatedTask
         });
     } catch (err) {
-        res.status(500).json({ message: 'Error archiving tasks', error: err.message });
+        console.error('Update task error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// 🔧 UPDATED: Delete completed tasks (date-based logic)
-export const deleteCompletedTasks = async (req, res) => {
+// Complete task (enhanced for team tasks)
+export const completeTask = async (req, res) => {
     try {
-        const { userId, before } = req.query;
-        if (!userId) return res.status(400).json({ message: 'userId is required' });
+        const { id } = req.params;
+        const { isCompleted } = req.body;
+        const userId = req.userId;
 
-        // Parse the before date or use today as default
-        let beforeDate;
-        if (before) {
-            beforeDate = new Date(before);
-            beforeDate.setUTCHours(0, 0, 0, 0); // Set to start of the specified day
-        } else {
-            // Default: delete tasks archived before today (i.e., yesterday and earlier)
-            beforeDate = new Date();
-            beforeDate.setUTCHours(0, 0, 0, 0);
+        const task = await Task.findById(id)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar');
+
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
         }
 
-        console.log(`Deleting completed tasks for user ${userId} archived before ${beforeDate.toDateString()}`);
+        // Check if user is assigned to this task
+        const isAssignee = task.assignedTo.some(assignee =>
+            assignee._id.toString() === userId
+        );
 
-        // Find tasks to delete (archived before the specified date)
-        const tasksToDelete = await Task.find({
-            assignedTo: userId,
-            isArchived: true,
-            archivedAt: { $lt: beforeDate }
-        });
-
-        console.log(`Found ${tasksToDelete.length} tasks to delete and preserve`);
-
-        // Save each task to history before deletion
-        for (const task of tasksToDelete) {
-            await saveTaskToHistory(task);
-            await task.deleteOne();
+        if (!isAssignee) {
+            return res.status(403).json({
+                message: 'You can only complete tasks assigned to you'
+            });
         }
 
-        res.status(200).json({
-            message: `${tasksToDelete.length} completed tasks deleted and preserved in history`
-        });
-    } catch (err) {
-        console.error('Error in deleteCompletedTasks:', err);
-        res.status(500).json({ message: 'Error deleting completed tasks', error: err.message });
-    }
-};
-
-// 🔧 UPDATED: Delete old archived tasks (date-based)
-export const deleteOldArchivedTasks = async (req, res) => {
-    try {
-        // Get today's date at 00:00:00 UTC (start of today)
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
-        // Find tasks that were archived before today
-        const tasksToDelete = await Task.find({
-            isArchived: true,
-            archivedAt: { $lt: today }
-        });
+        if (isCompleted) {
+            // Add completion
+            const alreadyCompletedToday = task.completedDays.some(date => {
+                const completedDate = new Date(date);
+                completedDate.setUTCHours(0, 0, 0, 0);
+                return completedDate.getTime() === today.getTime();
+            });
 
-        console.log(`Found ${tasksToDelete.length} old archived tasks to delete (archived before ${today.toDateString()})`);
+            if (!alreadyCompletedToday) {
+                task.completedDays.push(today);
+                task.lastCompletedDate = today;
+                task.isArchived = true;
+                task.archivedAt = new Date();
 
-        for (const task of tasksToDelete) {
-            await saveTaskToHistory(task);
-            await task.deleteOne();
-        }
+                // Track who completed it
+                const existingCompletion = task.completedBy.find(c =>
+                    c.user.toString() === userId
+                );
 
-        res.status(200).json({
-            message: `${tasksToDelete.length} old archived tasks deleted and history preserved`
-        });
-    } catch (err) {
-        res.status(500).json({ message: 'Error deleting old archived tasks', error: err.message });
-    }
-};
-
-// 🔧 UPDATED: Remove old completion days (date-based)
-export const removeOldCompletionDays = async (req, res) => {
-    try {
-        const { userId, before } = req.body;
-
-        // If no specific date provided, use today as cutoff
-        let beforeDate;
-        if (before) {
-            beforeDate = new Date(before);
-            beforeDate.setUTCHours(0, 0, 0, 0);
+                if (!existingCompletion) {
+                    task.completedBy.push({
+                        user: userId,
+                        completedAt: new Date()
+                    });
+                }
+            }
         } else {
-            beforeDate = new Date();
-            beforeDate.setUTCHours(0, 0, 0, 0);
-        }
+            // Remove completion
+            task.completedDays = task.completedDays.filter(date => {
+                const completedDate = new Date(date);
+                completedDate.setUTCHours(0, 0, 0, 0);
+                return completedDate.getTime() !== today.getTime();
+            });
 
-        const query = userId ? { assignedTo: userId } : {};
-        const tasks = await Task.find(query);
+            // Remove from completedBy
+            task.completedBy = task.completedBy.filter(c =>
+                c.user.toString() !== userId
+            );
 
-        for (const task of tasks) {
-            // Save to history BEFORE removing completion days
-            const oldCompletions = task.completedDays.filter(date => new Date(date) < beforeDate);
+            // Update archive status
+            const hasCompletionsToday = task.completedDays.some(date => {
+                const completedDate = new Date(date);
+                completedDate.setUTCHours(0, 0, 0, 0);
+                return completedDate.getTime() === today.getTime();
+            });
 
-            if (oldCompletions.length > 0) {
-                const taskWithOldData = {
-                    ...task.toObject(),
-                    completedDays: oldCompletions
-                };
-                await saveTaskToHistory(taskWithOldData);
+            if (!hasCompletionsToday) {
+                task.isArchived = false;
+                task.archivedAt = null;
             }
 
-            // Remove old completion days (keep only today and future)
-            task.completedDays = task.completedDays.filter(date => new Date(date) >= beforeDate);
-            await task.save();
+            if (task.completedDays.length > 0) {
+                task.lastCompletedDate = task.completedDays.reduce((a, b) =>
+                    a > b ? a : b
+                );
+            } else {
+                task.lastCompletedDate = null;
+            }
         }
 
-        res.status(200).json({
-            message: `Old completion days removed and preserved in history (before ${beforeDate.toDateString()})`
+        await task.save();
+
+        // Send notification to assigner if task was completed
+        if (isCompleted && task.assignedBy && task.assignedBy._id.toString() !== userId) {
+            await sendTaskCompletedNotification(task, req.user, task.assignedBy._id);
+        }
+
+        await task.populate('team', 'name');
+
+        res.json({
+            message: `Task ${isCompleted ? 'completed' : 'unmarked'} successfully`,
+            task
         });
     } catch (err) {
-        res.status(500).json({ message: 'Error removing old completion days', error: err.message });
+        console.error('Complete task error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// 🔧 UPDATED: Remove only yesterday's completions but SAVE TO HISTORY FIRST (date-based)
-export const removeYesterdayCompletions = async (req, res) => {
-    try {
-        // Get today's date at 00:00:00 UTC (start of today)
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-
-        const tasks = await Task.find({});
-        let savedCount = 0;
-
-        for (const task of tasks) {
-            // Get completions from before today (yesterday and earlier)
-            const oldCompletions = task.completedDays.filter(date => new Date(date) < today);
-
-            if (oldCompletions.length > 0) {
-                // Create a temporary task object with only old completions
-                const taskWithOldData = {
-                    ...task.toObject(),
-                    completedDays: oldCompletions
-                };
-
-                await saveTaskToHistory(taskWithOldData);
-                savedCount++;
-            }
-
-            // Now remove old completions (keep only today's completions)
-            task.completedDays = task.completedDays.filter(date => new Date(date) >= today);
-            await task.save();
-        }
-
-        console.log(`Saved ${savedCount} tasks to history before removing old completions`);
-        res.status(200).json({
-            message: `Old completions removed and ${savedCount} tasks preserved in history (before ${today.toDateString()})`
-        });
-    } catch (err) {
-        console.error('Error in removeYesterdayCompletions:', err);
-        res.status(500).json({ message: 'Error removing old completions', error: err.message });
-    }
-};
-
-// ✅ Manual deletion by task ID - FIXED to preserve history
+// Delete task (enhanced with permissions)
 export const deleteTask = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.userId;
+
         const task = await Task.findById(id);
-        if (!task) return res.status(404).json({ message: 'Task not found' });
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
 
-        // Save to history before manual deletion
+        // Check permissions - only assigners and team admins/owners can delete
+        let canDelete = false;
+
+        if (task.assignedBy?.toString() === userId) {
+            canDelete = true;
+        } else if (task.team) {
+            const team = await Team.findById(task.team);
+            const member = team.members.find(m => m.user.toString() === userId);
+            canDelete = member && ['owner', 'admin'].includes(member.role);
+        }
+
+        if (!canDelete) {
+            return res.status(403).json({
+                message: 'Only task assigners or team admins can delete tasks'
+            });
+        }
+
+        // Save to history before deletion
         await saveTaskToHistory(task);
-
         await task.deleteOne();
-        res.status(200).json({ message: 'Task deleted successfully and preserved in history' });
+
+        res.json({
+            message: 'Task deleted successfully and preserved in history'
+        });
     } catch (err) {
-        res.status(500).json({ message: 'Error deleting task', error: err.message });
+        console.error('Delete task error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// ✅ Get task history for heatmap
+// Get task history (enhanced with team support)
 export const getTaskHistory = async (req, res) => {
     try {
-        const { userId } = req.query;
-        if (!userId) return res.status(400).json({ message: 'userId is required' });
+        const { userId, teamId } = req.query;
+        const requesterId = req.userId;
 
-        const history = await TaskHistory.find({ userId });
-        console.log(`Retrieved ${history.length} task history records for user ${userId}`);
-        res.status(200).json(history);
+        let query = {};
+
+        if (teamId) {
+            // Verify team membership
+            const team = await Team.findById(teamId);
+            if (!team) {
+                return res.status(404).json({ message: 'Team not found' });
+            }
+
+            const isMember = team.members.some(member =>
+                member.user.toString() === requesterId
+            );
+
+            if (!isMember) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+
+            query.teamId = teamId;
+        } else {
+            query.userId = userId || requesterId;
+        }
+
+        const history = await TaskHistory.find(query)
+            .populate('userId', 'name email avatar')
+            .populate('teamId', 'name')
+            .sort({ createdAt: -1 });
+
+        res.json(history);
     } catch (err) {
-        res.status(500).json({ message: 'Error fetching task history', error: err.message });
+        console.error('Get task history error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+// Get dashboard stats (new endpoint)
+export const getDashboardStats = async (req, res) => {
+    try {
+        const { teamId } = req.query;
+        const userId = req.userId;
+
+        let query = { assignedTo: userId };
+        if (teamId) {
+            query.team = teamId;
+        }
+
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+
+        const [
+            totalTasks,
+            completedToday,
+            overdueTasks,
+            upcomingTasks
+        ] = await Promise.all([
+            Task.countDocuments({ ...query, isArchived: false }),
+            Task.countDocuments({
+                ...query,
+                completedDays: {
+                    $elemMatch: {
+                        $gte: today,
+                        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+                    }
+                }
+            }),
+            Task.countDocuments({
+                ...query,
+                dueDate: { $lt: today },
+                isArchived: false
+            }),
+            Task.countDocuments({
+                ...query,
+                dueDate: {
+                    $gte: today,
+                    $lte: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+                },
+                isArchived: false
+            })
+        ]);
+
+        res.json({
+            totalTasks,
+            completedToday,
+            overdueTasks,
+            upcomingTasks
+        });
+    } catch (err) {
+        console.error('Get dashboard stats error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
     }
 };

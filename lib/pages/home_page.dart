@@ -1,59 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/drawer.dart';
 import 'package:momentum/components/task_map.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:momentum/models/task.dart';
-import 'package:momentum/components/animated_task_tile.dart';
-import 'package:momentum/components/completed_tasks.dart';
+import 'package:momentum/components/task_list.dart';
+import 'package:momentum/components/dashboard_stats.dart';
+import 'package:momentum/components/task_creation_dialog.dart';
+import 'package:momentum/database/enhanced_task_database.dart';
+import 'package:momentum/pages/team_selection_page.dart';
+import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class EnhancedHomePage extends StatefulWidget {
+  const EnhancedHomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<EnhancedHomePage> createState() => _EnhancedHomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  bool _showCompletedTasks = false;
+class _EnhancedHomePageState extends State<EnhancedHomePage>
+    with SingleTickerProviderStateMixin {
   bool _isInitializing = false;
   bool _initializationFailed = false;
-  final TextEditingController textController = TextEditingController();
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _ensureInitialized();
   }
 
-  // 🔧 IMPROVED: Better initialization handling
-  Future<void> _ensureInitialized() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
-    // 🔧 NEW: Don't show loading if database was previously initialized
-    // This prevents the loading state during logout
+  Future<void> _ensureInitialized() async {
+    final db = Provider.of<EnhancedTaskDatabase>(context, listen: false);
+
     if (!db.isInitialized && !_initializationFailed) {
       setState(() {
         _isInitializing = true;
       });
 
       try {
-        // Get stored auth data
         final authData = await AuthService.getStoredAuthData();
 
         if (authData != null && mounted) {
-          // Validate token
           final isValidToken = await AuthService.validateToken();
 
           if (isValidToken && mounted) {
-            // Initialize TaskDatabase
             await db.initialize(
               jwt: authData['token'],
               userId: authData['userId'],
             );
           } else {
-            // Invalid token, redirect to login
             if (mounted) {
               final navigator = Navigator.of(context);
               await AuthService.logout();
@@ -62,7 +64,6 @@ class _HomePageState extends State<HomePage> {
             }
           }
         } else {
-          // No auth data, redirect to login
           if (mounted) {
             Navigator.of(
               context,
@@ -71,7 +72,6 @@ class _HomePageState extends State<HomePage> {
           }
         }
       } catch (e) {
-        // Error during initialization
         if (mounted) {
           setState(() {
             _initializationFailed = true;
@@ -89,227 +89,458 @@ class _HomePageState extends State<HomePage> {
           });
         }
       }
-    } else if (db.isInitialized) {
-      // Already initialized, just refresh tasks
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && db.isInitialized) {
-          db.readTasks();
-        }
-      });
     }
-  }
-
-  void createNewTask() {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (!db.isInitialized) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please wait, app is loading...'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: TextField(
-          controller: textController,
-          decoration: const InputDecoration(hintText: 'Create a new task'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final newTaskName = textController.text.trim();
-              if (newTaskName.isNotEmpty) {
-                context.read<TaskDatabase>().addTask(newTaskName);
-              }
-              Navigator.pop(context);
-              textController.clear();
-            },
-            child: const Text('Save'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              textController.clear();
-            },
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void editTaskBox(BuildContext context, Task task) {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (!db.isInitialized) return;
-
-    textController.text = task.name;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: TextField(controller: textController),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final newName = textController.text.trim();
-              if (newName.isNotEmpty) {
-                context.read<TaskDatabase>().updateTaskName(task.id, newName);
-              }
-              Navigator.pop(context);
-              textController.clear();
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void deleteTaskBox(BuildContext context, Task task) {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (!db.isInitialized) return;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Are you sure you want to delete this task?'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              context.read<TaskDatabase>().deleteTask(task.id);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      drawer: const MyDrawer(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: createNewTask,
-        backgroundColor: Theme.of(context).colorScheme.tertiary,
-        child: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
-      ),
-      body: Consumer<TaskDatabase>(
-        builder: (context, db, _) {
-          // 🔧 IMPROVED: Only show loading during initial app startup, not during logout
-          if (_isInitializing) {
-            return const Center(
+    return Consumer<EnhancedTaskDatabase>(
+      builder: (context, db, _) {
+        if (_isInitializing) {
+          return const Scaffold(
+            body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
-                  Text('Loading your tasks...'),
+                  Text('Loading your workspace...'),
                 ],
               ),
-            );
-          }
+            ),
+          );
+        }
 
-          // 🔧 NEW: If initialization failed, show error
-          if (_initializationFailed) {
-            return const Center(
+        if (_initializationFailed) {
+          return const Scaffold(
+            body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.error_outline, size: 64, color: Colors.red),
                   SizedBox(height: 16),
-                  Text('Failed to load tasks. Please restart the app.'),
+                  Text('Failed to load workspace. Please restart the app.'),
                 ],
               ),
-            );
-          }
+            ),
+          );
+        }
 
-          // 🔧 IMPROVED: If not initialized but not initializing, redirect to login
-          if (!db.isInitialized) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) {
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
-              }
-            });
-            return const SizedBox.shrink(); // Return empty widget while redirecting
-          }
+        if (!db.isInitialized) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (route) => false);
+            }
+          });
+          return const SizedBox.shrink();
+        }
 
-          return ListView(
+        return Scaffold(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          appBar: _buildAppBar(db),
+          drawer: const MyDrawer(),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showTaskCreationDialog(),
+            backgroundColor: Theme.of(context).colorScheme.tertiary,
+            child: Icon(
+              Icons.add,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          body: Column(
             children: [
-              const HeatMapComponent(),
-              Column(
+              // Tab bar
+              Container(
+                color: Theme.of(context).colorScheme.surface,
+                child: TabBar(
+                  controller: _tabController,
+                  labelColor: Theme.of(context).colorScheme.primary,
+                  unselectedLabelColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                  indicatorColor: Theme.of(context).colorScheme.primary,
+                  tabs: const [
+                    Tab(text: 'Dashboard'),
+                    Tab(text: 'Tasks'),
+                    Tab(text: 'Analytics'),
+                  ],
+                ),
+              ),
+
+              // Tab content
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildDashboardTab(db),
+                    _buildTasksTab(db),
+                    _buildAnalyticsTab(db),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(EnhancedTaskDatabase db) {
+    return AppBar(
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      foregroundColor: Theme.of(context).colorScheme.inversePrimary,
+      title: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
+          );
+        },
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              db.selectedTeam != null ? Icons.group : Icons.person,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              db.selectedTeam?.name ?? 'Personal',
+              style: const TextStyle(fontSize: 18),
+            ),
+            const Icon(Icons.arrow_drop_down, size: 20),
+          ],
+        ),
+      ),
+      actions: [
+        // Notifications
+        Stack(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsPage(),
+                  ),
+                );
+              },
+            ),
+            if (db.unreadNotificationCount > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 14,
+                    minHeight: 14,
+                  ),
+                  child: Text(
+                    '${db.unreadNotificationCount}',
+                    style: const TextStyle(color: Colors.white, fontSize: 8),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+        // Team selector
+        IconButton(
+          icon: const Icon(Icons.swap_horiz),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const TeamSelectionPage(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDashboardTab(EnhancedTaskDatabase db) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Refresh data
+        await db._refreshData();
+      },
+      child: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          // Welcome message
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 8),
-                  ...db.activeTasks.map((task) {
-                    final isCompletedToday = task.completedDays.any((d) {
-                      final localDate = d.toLocal();
-                      final now = DateTime.now();
-                      return localDate.year == now.year &&
-                          localDate.month == now.month &&
-                          localDate.day == now.day;
-                    });
-
-                    return AnimatedTaskTile(
-                      key: ValueKey(task.id),
-                      text: task.name,
-                      isCompleted: isCompletedToday,
-                      onChanged: (value) {
-                        db.updateTaskCompletion(task.id, value ?? false);
-                      },
-                      editTask: (context) => editTaskBox(context, task),
-                      deleteTask: (context) => deleteTaskBox(context, task),
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  CompletedTasks(
-                    completedTasks: db.completedTasks,
-                    showCompletedTasks: _showCompletedTasks,
-                    onChanged: (task) => (value) {
-                      db.updateTaskCompletion(task.id, value ?? false);
-                    },
-                    editTask: editTaskBox,
-                    deleteTask: deleteTaskBox,
-                    onExpansionChanged: (expanded) {
-                      setState(() {
-                        _showCompletedTasks = expanded;
-                      });
-                    },
+                  Text(
+                    db.selectedTeam != null
+                        ? 'Team: ${db.selectedTeam!.name}'
+                        : 'Personal Workspace',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  // Show message if no tasks
-                  if (db.activeTasks.isEmpty && db.completedTasks.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 80, right: 16, left: 16),
-                      child: Center(
-                        child: Text(
-                          'No tasks found. Please add a new task.',
-                          style: TextStyle(color: Colors.grey, fontSize: 16),
+                  const SizedBox(height: 8),
+                  Text(
+                    _getWelcomeMessage(),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Dashboard stats
+          const DashboardStats(),
+
+          const SizedBox(height: 16),
+
+          // Recent tasks preview
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recent Tasks',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      TextButton(
+                        onPressed: () => _tabController.animateTo(1),
+                        child: const Text('View All'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...db.activeTasks
+                      .take(3)
+                      .map(
+                        (task) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            task.isCompletedToday()
+                                ? Icons.check_circle
+                                : Icons.circle_outlined,
+                            color: task.isCompletedToday()
+                                ? Colors.green
+                                : Theme.of(context).colorScheme.primary,
+                          ),
+                          title: Text(task.name),
+                          subtitle: task.team != null
+                              ? Text('Team: ${task.team!.name}')
+                              : null,
+                          trailing: task.isOverdue
+                              ? const Icon(Icons.warning, color: Colors.orange)
+                              : null,
                         ),
+                      ),
+                  if (db.activeTasks.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text('No active tasks'),
                       ),
                     ),
                 ],
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildTasksTab(EnhancedTaskDatabase db) {
+    return const EnhancedTaskList();
+  }
+
+  Widget _buildAnalyticsTab(EnhancedTaskDatabase db) {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        const HeatMapComponent(),
+        const SizedBox(height: 16),
+
+        // Additional analytics can be added here
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Productivity Insights',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                _buildInsightTile(
+                  'Streak',
+                  '${_calculateCurrentStreak(db.historicalCompletions, db.currentTasks)} days',
+                  Icons.local_fire_department,
+                  Colors.orange,
+                ),
+                _buildInsightTile(
+                  'This Week',
+                  '${_getThisWeekCompletions(db.historicalCompletions, db.currentTasks)} tasks',
+                  Icons.calendar_today,
+                  Colors.blue,
+                ),
+                _buildInsightTile(
+                  'Average per Day',
+                  '${_getAveragePerDay(db.historicalCompletions, db.currentTasks).toStringAsFixed(1)}',
+                  Icons.trending_up,
+                  Colors.green,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInsightTile(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getWelcomeMessage() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning! Ready to tackle your tasks?';
+    if (hour < 17) return 'Good afternoon! Keep up the momentum!';
+    return 'Good evening! Time to wrap up your day.';
+  }
+
+  int _calculateCurrentStreak(List<DateTime> historical, List<Task> current) {
+    final allCompletions = <DateTime>{};
+
+    // Add historical completions
+    allCompletions.addAll(historical);
+
+    // Add current task completions
+    for (final task in current) {
+      allCompletions.addAll(task.completedDays);
+    }
+
+    if (allCompletions.isEmpty) return 0;
+
+    final sortedDates = allCompletions
+        .map((d) => DateTime(d.year, d.month, d.day))
+        .toSet()
+        .toList();
+    sortedDates.sort();
+
+    int streak = 0;
+    final today = DateTime.now();
+    final currentDate = DateTime(today.year, today.month, today.day);
+
+    // Check if today has completions
+    DateTime checkDate = currentDate;
+    if (!sortedDates.contains(checkDate)) {
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    // Count consecutive days backwards
+    while (sortedDates.contains(checkDate)) {
+      streak++;
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    return streak;
+  }
+
+  int _getThisWeekCompletions(List<DateTime> historical, List<Task> current) {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekStartDate = DateTime(
+      weekStart.year,
+      weekStart.month,
+      weekStart.day,
+    );
+
+    int count = 0;
+
+    // Count historical completions
+    count += historical
+        .where(
+          (date) =>
+              date.isAfter(weekStartDate.subtract(const Duration(days: 1))),
+        )
+        .length;
+
+    // Count current task completions
+    for (final task in current) {
+      count += task.completedDays
+          .where(
+            (date) =>
+                date.isAfter(weekStartDate.subtract(const Duration(days: 1))),
+          )
+          .length;
+    }
+
+    return count;
+  }
+
+  double _getAveragePerDay(List<DateTime> historical, List<Task> current) {
+    final allCompletions = <DateTime>[];
+    allCompletions.addAll(historical);
+
+    for (final task in current) {
+      allCompletions.addAll(task.completedDays);
+    }
+
+    if (allCompletions.isEmpty) return 0.0;
+
+    final earliestDate = allCompletions.reduce((a, b) => a.isBefore(b) ? a : b);
+    final daysSinceStart = DateTime.now().difference(earliestDate).inDays + 1;
+
+    return allCompletions.length / daysSinceStart;
+  }
+
+  void _showTaskCreationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => const TaskCreationDialog(),
     );
   }
 }

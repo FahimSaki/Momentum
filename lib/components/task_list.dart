@@ -1,121 +1,324 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/components/animated_task_tile.dart';
+import 'package:momentum/components/task_tile.dart';
 import 'package:momentum/components/completed_tasks.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
 
-class TaskListComponent extends StatefulWidget {
-  final bool showCompletedTasks;
-  final void Function(bool?, Task) checkTaskOnOff;
-  final void Function(BuildContext, Task) editTaskBox;
-  final void Function(BuildContext, Task) deleteTaskBox;
-
-  const TaskListComponent({
-    super.key,
-    required this.showCompletedTasks,
-    required this.checkTaskOnOff,
-    required this.editTaskBox,
-    required this.deleteTaskBox,
-  });
+class EnhancedTaskList extends StatefulWidget {
+  const EnhancedTaskList({super.key});
 
   @override
-  State<TaskListComponent> createState() => _TaskListComponentState();
+  State<EnhancedTaskList> createState() => _EnhancedTaskListState();
 }
 
-class _TaskListComponentState extends State<TaskListComponent> {
-  final Map<String, bool> _removedTasks = {};
-
-  bool isCompletedToday(List<DateTime> completedDays) {
-    final now = DateTime.now();
-    return completedDays.any((d) {
-      final local = d.toLocal();
-      return local.year == now.year &&
-          local.month == now.month &&
-          local.day == now.day;
-    });
-  }
+class _EnhancedTaskListState extends State<EnhancedTaskList> {
+  bool _showCompletedTasks = false;
+  String _filterBy = 'all'; // 'all', 'overdue', 'today', 'upcoming'
+  String _sortBy = 'created'; // 'created', 'due', 'priority', 'name'
 
   @override
   Widget build(BuildContext context) {
-    final taskDatabase = context.watch<TaskDatabase>();
-    final currentTasks = taskDatabase.currentTasks;
+    return Consumer<EnhancedTaskDatabase>(
+      builder: (context, db, _) {
+        final filteredTasks = _filterTasks(db.activeTasks);
+        final sortedTasks = _sortTasks(filteredTasks);
+        final completedTasks = db.completedTasks;
 
-    final uncompletedTasks = currentTasks.where((task) {
-      return !isCompletedToday(task.completedDays) && !task.isArchived;
-    }).toList();
-
-    final completedTasks = currentTasks.where((task) {
-      return isCompletedToday(task.completedDays);
-    }).toList();
-
-    return Column(
-      children: [
-        if (uncompletedTasks.isEmpty && completedTasks.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 80, right: 16, left: 16),
-            child: Text(
-              'No tasks found. Please add a new task.',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          )
-        else
-          ListView.builder(
-            itemCount: uncompletedTasks.length,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemBuilder: (context, index) {
-              final task = uncompletedTasks[index];
-              return AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                child: _removedTasks[task.id] == true
-                    ? const SizedBox.shrink()
-                    : AnimatedTaskTile(
-                        key: ValueKey('uncompleted_${task.id}'),
-                        isCompleted: false,
-                        text: task.name,
-                        onChanged: (value) {
-                          if (value == true) {
-                            setState(() {
-                              _removedTasks[task.id] = true;
-                            });
-                            Future.delayed(
-                              const Duration(milliseconds: 300),
-                              () {
-                                widget.checkTaskOnOff(value, task);
-                              },
-                            );
-                          } else {
-                            widget.checkTaskOnOff(value, task);
-                          }
-                        },
-                        editTask: (context) =>
-                            widget.editTaskBox(context, task),
-                        deleteTask: (context) =>
-                            widget.deleteTaskBox(context, task),
+        return Column(
+          children: [
+            // Filter and sort controls
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _filterBy,
+                      decoration: const InputDecoration(
+                        labelText: 'Filter',
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(),
                       ),
-              );
-            },
-          ),
-        const SizedBox(height: 10),
-        CompletedTasks(
-          completedTasks: completedTasks,
-          showCompletedTasks: widget.showCompletedTasks,
-          onChanged: (task) => (p0) {
-            if (p0 == false) {
-              setState(() {
-                _removedTasks.remove(task.id);
-              });
-            }
-            widget.checkTaskOnOff(p0, task);
-          },
-          editTask: widget.editTaskBox,
-          deleteTask: widget.deleteTaskBox,
-          onExpansionChanged: (expanded) {
-            setState(() {});
-          },
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'all',
+                          child: Text('All Tasks'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'overdue',
+                          child: Text('Overdue'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'today',
+                          child: Text('Due Today'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'upcoming',
+                          child: Text('Upcoming'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _filterBy = value ?? 'all';
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _sortBy,
+                      decoration: const InputDecoration(
+                        labelText: 'Sort',
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'created',
+                          child: Text('Created'),
+                        ),
+                        DropdownMenuItem(value: 'due', child: Text('Due Date')),
+                        DropdownMenuItem(
+                          value: 'priority',
+                          child: Text('Priority'),
+                        ),
+                        DropdownMenuItem(value: 'name', child: Text('Name')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _sortBy = value ?? 'created';
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await db._refreshData();
+                },
+                child: ListView(
+                  children: [
+                    // Active tasks
+                    if (sortedTasks.isEmpty && completedTasks.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 80, right: 16, left: 16),
+                        child: Center(
+                          child: Text(
+                            'No tasks found. Create your first task!',
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                        ),
+                      )
+                    else ...[
+                      ...sortedTasks.map(
+                        (task) => EnhancedTaskTile(
+                          key: ValueKey(task.id),
+                          task: task,
+                          onToggle: (isCompleted) {
+                            db.completeTask(task.id, isCompleted);
+                          },
+                          onEdit: () => _editTaskDialog(context, task, db),
+                          onDelete: () => _deleteTaskDialog(context, task, db),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Completed tasks section
+                      if (completedTasks.isNotEmpty)
+                        Theme(
+                          data: Theme.of(
+                            context,
+                          ).copyWith(dividerColor: Colors.transparent),
+                          child: ExpansionTile(
+                            title: Text(
+                              'Completed Today (${completedTasks.length})',
+                            ),
+                            initiallyExpanded: _showCompletedTasks,
+                            onExpansionChanged: (expanded) {
+                              setState(() {
+                                _showCompletedTasks = expanded;
+                              });
+                            },
+                            children: completedTasks
+                                .map(
+                                  (task) => EnhancedTaskTile(
+                                    key: ValueKey('completed_${task.id}'),
+                                    task: task,
+                                    onToggle: (isCompleted) {
+                                      db.completeTask(task.id, isCompleted);
+                                    },
+                                    onEdit: () =>
+                                        _editTaskDialog(context, task, db),
+                                    onDelete: () =>
+                                        _deleteTaskDialog(context, task, db),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Task> _filterTasks(List<Task> tasks) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    switch (_filterBy) {
+      case 'overdue':
+        return tasks.where((task) => task.isOverdue).toList();
+      case 'today':
+        return tasks
+            .where(
+              (task) =>
+                  task.dueDate != null &&
+                  DateTime(
+                        task.dueDate!.year,
+                        task.dueDate!.month,
+                        task.dueDate!.day,
+                      ) ==
+                      today,
+            )
+            .toList();
+      case 'upcoming':
+        return tasks
+            .where(
+              (task) => task.dueDate != null && task.dueDate!.isAfter(today),
+            )
+            .toList();
+      default:
+        return tasks;
+    }
+  }
+
+  List<Task> _sortTasks(List<Task> tasks) {
+    final sortedTasks = List<Task>.from(tasks);
+
+    switch (_sortBy) {
+      case 'due':
+        sortedTasks.sort((a, b) {
+          if (a.dueDate == null && b.dueDate == null) return 0;
+          if (a.dueDate == null) return 1;
+          if (b.dueDate == null) return -1;
+          return a.dueDate!.compareTo(b.dueDate!);
+        });
+        break;
+      case 'priority':
+        final priorityOrder = {'urgent': 4, 'high': 3, 'medium': 2, 'low': 1};
+        sortedTasks.sort((a, b) {
+          final aPriority = priorityOrder[a.priority] ?? 2;
+          final bPriority = priorityOrder[b.priority] ?? 2;
+          return bPriority.compareTo(aPriority);
+        });
+        break;
+      case 'name':
+        sortedTasks.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      default: // 'created'
+        sortedTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+    }
+
+    return sortedTasks;
+  }
+
+  void _editTaskDialog(
+    BuildContext context,
+    Task task,
+    EnhancedTaskDatabase db,
+  ) {
+    final nameController = TextEditingController(text: task.name);
+    final descriptionController = TextEditingController(
+      text: task.description ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Task'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(labelText: 'Task Name'),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(labelText: 'Description'),
+              maxLines: 2,
+            ),
+          ],
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isNotEmpty) {
+                await db.updateTask(task.id, {
+                  'name': newName,
+                  'description': descriptionController.text.trim(),
+                });
+              }
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteTaskDialog(
+    BuildContext context,
+    Task task,
+    EnhancedTaskDatabase db,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete "${task.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await db.deleteTask(task.id);
+              if (context.mounted) Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
     );
   }
 }
