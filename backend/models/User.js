@@ -42,7 +42,6 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes
-userSchema.index({ email: 1 });
-userSchema.index({ teams: 1 });
+userSchema.index({ teams: 1 }); // ✅ keep this, it's fine
 
 export default mongoose.model('User', userSchema);
