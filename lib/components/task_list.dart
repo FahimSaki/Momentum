@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/task_tile.dart';
-import 'package:momentum/components/completed_tasks.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
@@ -9,7 +8,7 @@ class TaskList extends StatefulWidget {
   const askList({super.key});
 
   @override
-  State<TaskList> createState() => _askListState();
+  State<TaskList> createState() => _TaskListState();
 }
 
 class _TaskListState extends State<TaskList> {

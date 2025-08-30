@@ -478,5 +478,4 @@ class NotificationService {
       rethrow;
     }
   }
-    }
-}
+  

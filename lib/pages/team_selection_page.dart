@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/models/team.dart';
 import 'package:momentum/pages/create_team_page.dart';
 import 'package:momentum/pages/team_invitations_page.dart';
 import 'package:provider/provider.dart';

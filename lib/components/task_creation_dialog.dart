@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
-import 'package:momentum/models/team_member.dart';
 import 'package:provider/provider.dart';
 
 class TaskCreationDialog extends StatefulWidget {
@@ -18,7 +17,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   String _priority = 'medium';
   String _assignmentType = 'individual';
   List<String> _selectedAssignees = [];
-  final List<String> _tags = [];
 
   @override
   void dispose() {
