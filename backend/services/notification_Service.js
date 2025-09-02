@@ -1,17 +1,35 @@
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
-import User from '../models/User.js';
-import Notification from '../models/Notification.js';
 
-// Path to your Firebase service account file
-const serviceAccountPath = path.resolve('momentum-api-fcm-761b4eb73e69.json');
+// Try multiple possible locations for the service account
+const getServiceAccountPath = () => {
+    // 1. Explicit env var path (you can set FIREBASE_SERVICE_ACCOUNT_PATH in Render or locally)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+        return process.env.FIREBASE_SERVICE_ACCOUNT_PATH; // if I set the path in environment variable
+    }
 
-// Initialize Firebase Admin SDK only if credentials are available
+    // 2. Render Secret Files default mount
+    const renderPath = '/etc/secrets/momentum-api-fcm-761b4eb73e69.json';
+    if (fs.existsSync(renderPath)) {
+        return renderPath;
+    }
+
+    // 3. Local development (project root)
+    const localPath = path.resolve('momentum-api-fcm-761b4eb73e69.json');
+    if (fs.existsSync(localPath)) {
+        return localPath;
+    }
+
+    return null; // nothing found
+};
+
 const initializeFirebase = () => {
     if (!admin.apps.length) {
-        if (!fs.existsSync(serviceAccountPath)) {
-            console.warn(`⚠️  Firebase service account file not found at: ${serviceAccountPath}`);
+        const serviceAccountPath = getServiceAccountPath();
+
+        if (!serviceAccountPath) {
+            console.warn('⚠️ Firebase service account file not found in any known location');
             return false;
         }
 
@@ -22,7 +40,7 @@ const initializeFirebase = () => {
                 credential: admin.credential.cert(serviceAccount),
             });
 
-            console.log('✅ Firebase Admin SDK initialized using service account file');
+            console.log(`✅ Firebase Admin SDK initialized using ${serviceAccountPath}`);
             return true;
         } catch (error) {
             console.error('❌ Firebase initialization error:', error.message);
@@ -32,8 +50,8 @@ const initializeFirebase = () => {
     return true;
 };
 
-// Initialize Firebase and store the result
 const isFirebaseInitialized = initializeFirebase();
+
 
 
 // Send notification to a specific user
