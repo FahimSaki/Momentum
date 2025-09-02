@@ -7,7 +7,7 @@ import taskRoutes from './routes/task.js';
 import { authenticateToken } from './middleware/middle_auth.js';
 import teamRoutes from './routes/team.js';
 import notificationRoutes from './routes/notification.js';
-import { startCleanupScheduler, runManualCleanup } from './services/cleanup_scheduler.js';
+import { startCleanupScheduler, runManualCleanup } from './services/cleanup_Scheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -95,6 +95,10 @@ app.post('/manual-cleanup', async (req, res) => {
 // AUTHENTICATED ROUTES
 app.use('/auth', authRoutes);
 app.use('/tasks', authenticateToken, taskRoutes);
+
+// ADD ALIAS ROUTE FOR TASKS-ENHANCED (your frontend is calling this)
+app.use('/tasks-enhanced', authenticateToken, taskRoutes);
+
 app.use('/teams', authenticateToken, teamRoutes);
 app.use('/notifications', authenticateToken, notificationRoutes);
 

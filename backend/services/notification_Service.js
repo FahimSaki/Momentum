@@ -1,6 +1,10 @@
 import admin from 'firebase-admin';
 import fs from 'fs';
 import path from 'path';
+// ADD THESE MISSING IMPORTS
+import User from '../models/User.js';
+import Notification from '../models/Notification.js';
+import Task from '../models/Task.js';
 
 // Try multiple possible locations for the service account
 const getServiceAccountPath = () => {
@@ -51,8 +55,6 @@ const initializeFirebase = () => {
 };
 
 const isFirebaseInitialized = initializeFirebase();
-
-
 
 // Send notification to a specific user
 export const sendNotification = async (userId, notificationData, saveToDb = true) => {

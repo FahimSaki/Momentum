@@ -16,7 +16,7 @@ class TaskService {
     'Content-Type': 'application/json',
   };
 
-  // Create a new task (enhanced with team support)
+  // Fixed createTask method in TaskService class
   Future<Task> createTask({
     required String name,
     String? description,
@@ -28,30 +28,103 @@ class TaskService {
     String assignmentType = 'individual',
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl/tasks-enhanced'),
-        headers: _headers,
-        body: json.encode({
-          'name': name,
-          'description': description,
-          'assignedTo': assignedTo,
-          'teamId': teamId,
-          'priority': priority,
-          'dueDate': dueDate?.toIso8601String(),
-          'tags': tags ?? [],
-          'assignmentType': assignmentType,
-        }),
+      _logger.i(
+        'TaskService.createTask called with: name=$name, teamId=$teamId',
       );
 
-      if (response.statusCode == 201) {
+      // Build request body carefully
+      final Map<String, dynamic> requestBody = {
+        'name': name,
+        'userId': userId, // Add userId to the request
+      };
+
+      // Only add non-null values to avoid backend issues
+      if (description != null && description.isNotEmpty) {
+        requestBody['description'] = description;
+      }
+
+      if (assignedTo != null && assignedTo.isNotEmpty) {
+        requestBody['assignedTo'] = assignedTo;
+      }
+
+      if (teamId != null && teamId.isNotEmpty) {
+        requestBody['teamId'] = teamId;
+      }
+
+      requestBody['priority'] = priority;
+      requestBody['assignmentType'] = assignmentType;
+
+      if (dueDate != null) {
+        requestBody['dueDate'] = dueDate.toIso8601String();
+      }
+
+      if (tags != null) {
+        requestBody['tags'] = tags;
+      }
+
+      _logger.i('Request body: ${json.encode(requestBody)}');
+
+      final response = await http
+          .post(
+            Uri.parse('$apiBaseUrl/tasks'), // Try the basic endpoint first
+            headers: _headers,
+            body: json.encode(requestBody),
+          )
+          .timeout(const Duration(seconds: 15)); // Add timeout
+
+      _logger.i('Response status: ${response.statusCode}');
+      _logger.i('Response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
-        return Task.fromJson(data['task']);
+
+        // Handle different response formats
+        Task task;
+        if (data['task'] != null) {
+          task = Task.fromJson(data['task']);
+        } else if (data is List && data.isNotEmpty) {
+          task = Task.fromJson(data[0]);
+        } else {
+          task = Task.fromJson(data);
+        }
+
+        _logger.i('Task created successfully: ${task.id}');
+        return task;
       } else {
-        _logger.e('Error creating task: ${response.body}');
-        throw Exception('Failed to create task');
+        final errorBody = response.body;
+        _logger.e('Task creation failed: ${response.statusCode} - $errorBody');
+
+        // Try to parse error message from response
+        try {
+          final errorData = json.decode(errorBody);
+          final errorMessage =
+              errorData['message'] ??
+              errorData['error'] ??
+              'Unknown server error';
+          throw Exception(errorMessage);
+        } catch (_) {
+          throw Exception('Server error: ${response.statusCode}');
+        }
       }
     } catch (e, stackTrace) {
-      _logger.e('Error creating task', error: e, stackTrace: stackTrace);
+      _logger.e(
+        'Error in TaskService.createTask',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception(
+          'Request timed out. Please check your connection and try again.',
+        );
+      } else if (e.toString().contains('SocketException')) {
+        throw Exception(
+          'Network error. Please check your internet connection.',
+        );
+      } else if (e.toString().contains('FormatException')) {
+        throw Exception('Invalid server response. Please try again.');
+      }
+
       rethrow;
     }
   }

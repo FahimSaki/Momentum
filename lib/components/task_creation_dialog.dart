@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 
 class TaskCreationDialog extends StatefulWidget {
   const TaskCreationDialog({super.key});
@@ -11,12 +12,14 @@ class TaskCreationDialog extends StatefulWidget {
 }
 
 class _TaskCreationDialogState extends State<TaskCreationDialog> {
+  final Logger _logger = Logger();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   DateTime? _dueDate;
   String _priority = 'medium';
   String _assignmentType = 'individual';
   List<String> _selectedAssignees = [];
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -47,6 +50,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                     labelText: 'Task Name *',
                     border: OutlineInputBorder(),
                   ),
+                  enabled: !_isLoading,
                 ),
                 const SizedBox(height: 16),
 
@@ -58,6 +62,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                     border: OutlineInputBorder(),
                   ),
                   maxLines: 2,
+                  enabled: !_isLoading,
                 ),
                 const SizedBox(height: 16),
 
@@ -74,11 +79,13 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                     DropdownMenuItem(value: 'high', child: Text('High')),
                     DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
                   ],
-                  onChanged: (value) {
-                    setState(() {
-                      _priority = value ?? 'medium';
-                    });
-                  },
+                  onChanged: _isLoading
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _priority = value ?? 'medium';
+                          });
+                        },
                 ),
                 const SizedBox(height: 16),
 
@@ -91,19 +98,23 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                         ? 'Due: ${_dueDate!.toLocal().toString().split(' ')[0]}'
                         : 'Set Due Date',
                   ),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (date != null) {
-                      setState(() {
-                        _dueDate = date;
-                      });
-                    }
-                  },
+                  onTap: _isLoading
+                      ? null
+                      : () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now(),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(
+                              const Duration(days: 365),
+                            ),
+                          );
+                          if (date != null) {
+                            setState(() {
+                              _dueDate = date;
+                            });
+                          }
+                        },
                 ),
 
                 // Team-specific options
@@ -132,14 +143,16 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                         child: Text('Entire Team'),
                       ),
                     ],
-                    onChanged: (value) {
-                      setState(() {
-                        _assignmentType = value ?? 'individual';
-                        if (_assignmentType == 'team') {
-                          _selectedAssignees.clear();
-                        }
-                      });
-                    },
+                    onChanged: _isLoading
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _assignmentType = value ?? 'individual';
+                              if (_assignmentType == 'team') {
+                                _selectedAssignees.clear();
+                              }
+                            });
+                          },
                   ),
                   const SizedBox(height: 16),
 
@@ -152,10 +165,19 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: _isLoading ? null : () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(onPressed: _createTask, child: const Text('Create')),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _createTask,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Create'),
+            ),
           ],
         );
       },
@@ -176,15 +198,17 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
             title: Text(member.user.name),
             subtitle: Text(member.role),
             value: isSelected,
-            onChanged: (bool? value) {
-              setState(() {
-                if (value == true) {
-                  _selectedAssignees.add(member.user.id);
-                } else {
-                  _selectedAssignees.remove(member.user.id);
-                }
-              });
-            },
+            onChanged: _isLoading
+                ? null
+                : (bool? value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedAssignees.add(member.user.id);
+                      } else {
+                        _selectedAssignees.remove(member.user.id);
+                      }
+                    });
+                  },
           );
         }).toList(),
       ),
@@ -200,19 +224,32 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
       return;
     }
 
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      await db.createTask(
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+
+      _logger.i(
+        'Creating task with data: name=$name, priority=$_priority, teamId=${db.selectedTeam?.id}',
+      );
+
+      // Enhanced task creation with better error handling
+      final task = await db.createTask(
         name: name,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
         assignedTo: _selectedAssignees.isEmpty ? null : _selectedAssignees,
+        teamId: db.selectedTeam?.id, // Pass teamId explicitly
         priority: _priority,
         dueDate: _dueDate,
         assignmentType: _assignmentType,
+        tags: [], // Add empty tags list
       );
+
+      _logger.i('Task created successfully: ${task.id}');
 
       if (mounted) {
         Navigator.pop(context);
@@ -220,11 +257,29 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
           const SnackBar(content: Text('Task created successfully')),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e('Error creating task', error: e, stackTrace: stackTrace);
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error creating task: $e')));
+        // Better error message extraction
+        String errorMessage = e.toString();
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating task: $errorMessage'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }

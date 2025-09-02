@@ -289,6 +289,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  // Fixed createTask method in TaskDatabase class
   Future<Task> createTask({
     required String name,
     String? description,
@@ -300,25 +301,71 @@ class TaskDatabase extends ChangeNotifier {
     String assignmentType = 'individual',
   }) async {
     try {
+      logger.i(
+        'TaskDatabase.createTask called with: name=$name, teamId=$teamId, priority=$priority',
+      );
+
+      if (_taskService == null) {
+        logger.e('TaskService is not initialized');
+        throw Exception('Task service not initialized');
+      }
+
+      // Enhanced task creation with proper parameter passing
       final task = await _taskService!.createTask(
         name: name,
         description: description,
         assignedTo: assignedTo,
-        teamId: teamId ?? selectedTeam?.id,
+        teamId: teamId, // This should be passed correctly
         priority: priority,
         dueDate: dueDate,
-        tags: tags,
+        tags: tags ?? [], // Provide empty list as default
         assignmentType: assignmentType,
       );
 
+      logger.i('Task created successfully via service: ${task.id}');
+
+      // Add to local list
       currentTasks.add(task);
       _organizeTasksByType();
+
+      // Refresh data to ensure consistency
+      await _loadTasks();
+
+      logger.i('Local task list updated, notifying listeners');
       notifyListeners();
 
       return task;
     } catch (e, stackTrace) {
-      logger.e('Error creating task', error: e, stackTrace: stackTrace);
-      rethrow;
+      logger.e(
+        'Error in TaskDatabase.createTask',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
+      // Enhanced error handling with more specific messages
+      String errorMessage = e.toString();
+      if (errorMessage.contains('Failed to create task')) {
+        // Backend error
+        throw Exception(
+          'Server error: Could not create task. Please try again.',
+        );
+      } else if (errorMessage.contains('network') ||
+          errorMessage.contains('SocketException')) {
+        // Network error
+        throw Exception(
+          'Network error: Please check your internet connection.',
+        );
+      } else if (errorMessage.contains('timeout')) {
+        // Timeout error
+        throw Exception('Request timeout: Please try again.');
+      } else if (errorMessage.contains('401') ||
+          errorMessage.contains('unauthorized')) {
+        // Auth error
+        throw Exception('Authentication error: Please login again.');
+      } else {
+        // Generic error
+        throw Exception('Failed to create task: $errorMessage');
+      }
     }
   }
 
