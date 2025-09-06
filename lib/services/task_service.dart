@@ -16,7 +16,8 @@ class TaskService {
     'Content-Type': 'application/json',
   };
 
-  // Fixed createTask method in TaskService class
+  // 🔧 ENHANCED: Create task with full team support
+
   Future<Task> createTask({
     required String name,
     String? description,
@@ -32,21 +33,22 @@ class TaskService {
         'TaskService.createTask called with: name=$name, teamId=$teamId',
       );
 
-      // Build request body carefully
+      // Build request body more carefully
       final Map<String, dynamic> requestBody = {
         'name': name,
-        'userId': userId, // Add userId to the request
+        'userId': userId, // Include userId for backend compatibility
       };
 
-      // Only add non-null values to avoid backend issues
-      if (description != null && description.isNotEmpty) {
-        requestBody['description'] = description;
+      // Only add non-null, non-empty values
+      if (description != null && description.trim().isNotEmpty) {
+        requestBody['description'] = description.trim();
       }
 
       if (assignedTo != null && assignedTo.isNotEmpty) {
         requestBody['assignedTo'] = assignedTo;
       }
 
+      // 🔧 FIX: Only include teamId if it's not null and not empty
       if (teamId != null && teamId.isNotEmpty) {
         requestBody['teamId'] = teamId;
       }
@@ -58,53 +60,60 @@ class TaskService {
         requestBody['dueDate'] = dueDate.toIso8601String();
       }
 
-      if (tags != null) {
+      if (tags != null && tags.isNotEmpty) {
         requestBody['tags'] = tags;
       }
 
-      _logger.i('Request body: ${json.encode(requestBody)}');
+      _logger.d('Request body: ${json.encode(requestBody)}');
 
       final response = await http
           .post(
-            Uri.parse('$apiBaseUrl/tasks'), // Try the basic endpoint first
+            Uri.parse('$apiBaseUrl/tasks'),
             headers: _headers,
             body: json.encode(requestBody),
           )
-          .timeout(const Duration(seconds: 15)); // Add timeout
+          .timeout(const Duration(seconds: 15));
 
       _logger.i('Response status: ${response.statusCode}');
-      _logger.i('Response body: ${response.body}');
+      _logger.d('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
 
-        // Handle different response formats
+        // 🔧 FIX: Handle different response formats more robustly
         Task task;
-        if (data['task'] != null) {
-          task = Task.fromJson(data['task']);
+
+        if (data is Map<String, dynamic>) {
+          if (data.containsKey('task')) {
+            // Response format: { "message": "...", "task": {...} }
+            task = Task.fromJson(data['task']);
+          } else {
+            // Response format: { task data directly }
+            task = Task.fromJson(data);
+          }
         } else if (data is List && data.isNotEmpty) {
+          // Response format: [{ task data }]
           task = Task.fromJson(data[0]);
         } else {
-          task = Task.fromJson(data);
+          throw Exception('Unexpected response format from server');
         }
 
         _logger.i('Task created successfully: ${task.id}');
         return task;
       } else {
-        final errorBody = response.body;
-        _logger.e('Task creation failed: ${response.statusCode} - $errorBody');
+        // Enhanced error handling
+        String errorMessage = 'Server error: ${response.statusCode}';
 
-        // Try to parse error message from response
         try {
-          final errorData = json.decode(errorBody);
-          final errorMessage =
-              errorData['message'] ??
-              errorData['error'] ??
-              'Unknown server error';
-          throw Exception(errorMessage);
-        } catch (_) {
-          throw Exception('Server error: ${response.statusCode}');
+          final errorData = json.decode(response.body);
+          errorMessage =
+              errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (e) {
+          _logger.w('Could not parse error response: $e');
         }
+
+        _logger.e('Task creation failed: $errorMessage');
+        throw Exception(errorMessage);
       }
     } catch (e, stackTrace) {
       _logger.e(
@@ -113,40 +122,42 @@ class TaskService {
         stackTrace: stackTrace,
       );
 
+      // 🔧 FIX: Better error categorization
       if (e.toString().contains('TimeoutException')) {
-        throw Exception(
-          'Request timed out. Please check your connection and try again.',
-        );
+        throw Exception('Request timed out - please try again');
       } else if (e.toString().contains('SocketException')) {
-        throw Exception(
-          'Network error. Please check your internet connection.',
-        );
+        throw Exception('Network error - check your connection');
       } else if (e.toString().contains('FormatException')) {
-        throw Exception('Invalid server response. Please try again.');
+        throw Exception('Invalid server response');
+      } else if (e.toString().contains('type ') &&
+          e.toString().contains('is not a subtype')) {
+        throw Exception('Data parsing error - please try again');
       }
 
       rethrow;
     }
   }
 
-  // Get user tasks (personal + team)
-  Future<List<Task>> getUserTasks({String? teamId, String type = 'all'}) async {
+  // Get user tasks (both personal and team)
+  Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
     try {
-      final queryParams = {
+      final queryParams = <String, String>{
         'userId': userId,
-        'type': type,
         if (teamId != null) 'teamId': teamId,
+        if (type != null) 'type': type,
       };
 
       final uri = Uri.parse(
-        '$apiBaseUrl/tasks-enhanced/user',
+        '$apiBaseUrl/tasks/user',
       ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final List data = json.decode(response.body);
-        return data.map((task) => Task.fromJson(task)).toList();
+        final tasks = data.map((task) => Task.fromJson(task)).toList();
+        _logger.i('Loaded ${tasks.length} user tasks');
+        return tasks;
       } else {
         _logger.e('Error fetching user tasks: ${response.body}');
         throw Exception('Failed to fetch tasks');
@@ -163,15 +174,18 @@ class TaskService {
     String status = 'active',
   }) async {
     try {
+      final queryParams = {'status': status};
       final uri = Uri.parse(
-        '$apiBaseUrl/tasks-enhanced/team/$teamId',
-      ).replace(queryParameters: {'status': status});
+        '$apiBaseUrl/tasks/team/$teamId',
+      ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final List data = json.decode(response.body);
-        return data.map((task) => Task.fromJson(task)).toList();
+        final tasks = data.map((task) => Task.fromJson(task)).toList();
+        _logger.i('Loaded ${tasks.length} team tasks');
+        return tasks;
       } else {
         _logger.e('Error fetching team tasks: ${response.body}');
         throw Exception('Failed to fetch team tasks');
@@ -186,14 +200,15 @@ class TaskService {
   Future<Task> completeTask(String taskId, bool isCompleted) async {
     try {
       final response = await http.put(
-        Uri.parse('$apiBaseUrl/tasks-enhanced/$taskId/complete'),
+        Uri.parse('$apiBaseUrl/tasks/$taskId/complete'),
         headers: _headers,
         body: json.encode({'isCompleted': isCompleted}),
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return Task.fromJson(data['task']);
+        final responseData = json.decode(response.body);
+        final taskData = responseData['task'] ?? responseData;
+        return Task.fromJson(taskData);
       } else {
         _logger.e('Error completing task: ${response.body}');
         throw Exception('Failed to complete task');
@@ -208,14 +223,15 @@ class TaskService {
   Future<Task> updateTask(String taskId, Map<String, dynamic> updates) async {
     try {
       final response = await http.put(
-        Uri.parse('$apiBaseUrl/tasks-enhanced/$taskId'),
+        Uri.parse('$apiBaseUrl/tasks/$taskId'),
         headers: _headers,
         body: json.encode(updates),
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return Task.fromJson(data['task']);
+        final responseData = json.decode(response.body);
+        final taskData = responseData['task'] ?? responseData;
+        return Task.fromJson(taskData);
       } else {
         _logger.e('Error updating task: ${response.body}');
         throw Exception('Failed to update task');
@@ -230,7 +246,7 @@ class TaskService {
   Future<void> deleteTask(String taskId) async {
     try {
       final response = await http.delete(
-        Uri.parse('$apiBaseUrl/tasks-enhanced/$taskId'),
+        Uri.parse('$apiBaseUrl/tasks/$taskId'),
         headers: _headers,
       );
 
@@ -247,13 +263,13 @@ class TaskService {
   // Get task history
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
-      final queryParams = {
+      final queryParams = <String, String>{
         'userId': userId,
         if (teamId != null) 'teamId': teamId,
       };
 
       final uri = Uri.parse(
-        '$apiBaseUrl/tasks-enhanced/history',
+        '$apiBaseUrl/tasks/history',
       ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: _headers);
@@ -262,24 +278,29 @@ class TaskService {
         final List data = json.decode(response.body);
         final List<DateTime> allCompletions = [];
 
+        _logger.i('Fetched ${data.length} task history records');
+
         for (final historyItem in data) {
           final List<dynamic> completedDays =
               historyItem['completedDays'] ?? [];
           for (final day in completedDays) {
             try {
-              allCompletions.add(DateTime.parse(day));
+              allCompletions.add(DateTime.parse(day).toLocal());
             } catch (e) {
               _logger.w('Failed to parse date: $day', error: e);
             }
           }
         }
 
+        _logger.i(
+          'Total historical completions loaded: ${allCompletions.length}',
+        );
         return allCompletions;
       } else {
         _logger.w(
           'Error fetching task history (non-critical): ${response.statusCode}',
         );
-        return [];
+        return []; // Return empty list on error
       }
     } catch (e, stackTrace) {
       _logger.w(
@@ -287,18 +308,19 @@ class TaskService {
         error: e,
         stackTrace: stackTrace,
       );
-      return [];
+      return []; // Return empty list on error
     }
   }
 
   // Get dashboard stats
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
-      final queryParams = <String, String>{};
-      if (teamId != null) queryParams['teamId'] = teamId;
+      final queryParams = <String, String>{
+        if (teamId != null) 'teamId': teamId,
+      };
 
       final uri = Uri.parse(
-        '$apiBaseUrl/tasks-enhanced/stats',
+        '$apiBaseUrl/tasks/stats',
       ).replace(queryParameters: queryParams);
 
       final response = await http.get(uri, headers: _headers);
@@ -306,10 +328,10 @@ class TaskService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         return {
-          'totalTasks': data['totalTasks'] ?? 0,
-          'completedToday': data['completedToday'] ?? 0,
-          'overdueTasks': data['overdueTasks'] ?? 0,
-          'upcomingTasks': data['upcomingTasks'] ?? 0,
+          'totalTasks': (data['totalTasks'] ?? 0) as int,
+          'completedToday': (data['completedToday'] ?? 0) as int,
+          'overdueTasks': (data['overdueTasks'] ?? 0) as int,
+          'upcomingTasks': (data['upcomingTasks'] ?? 0) as int,
         };
       } else {
         _logger.e('Error fetching dashboard stats: ${response.body}');

@@ -49,7 +49,7 @@ export const createTask = async (req, res) => {
             name,
             description,
             assignedTo, // Can be array or single userId
-            teamId,
+            teamId,     // 🔧 FIX: Make sure this is properly extracted
             priority = 'medium',
             dueDate,
             tags = [],
@@ -57,6 +57,11 @@ export const createTask = async (req, res) => {
         } = req.body;
 
         const assignerId = req.userId;
+
+        console.log('🔧 CREATE TASK DEBUG:');
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        console.log('Team ID received:', teamId);
+        console.log('Assignment type:', assignmentType);
 
         if (!name || name.trim().length === 0) {
             return res.status(400).json({ message: 'Task name is required' });
@@ -84,11 +89,14 @@ export const createTask = async (req, res) => {
             // Assign to all team members
             const team = await Team.findById(teamId);
             assigneeIds = team.members.map(member => member.user);
+            console.log('Team assignment - assignees:', assigneeIds);
         } else if (assignedTo) {
             assigneeIds = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+            console.log('Individual assignment - assignees:', assigneeIds);
         } else {
             // Self-assignment if no assignee specified
             assigneeIds = [assignerId];
+            console.log('Self assignment - assignee:', assigneeIds);
         }
 
         // Validate assignees exist and are team members (if team task)
@@ -104,16 +112,17 @@ export const createTask = async (req, res) => {
             }
         }
 
+        // 🔧 FIX: Create task with proper team handling
         const task = new Task({
             name: name.trim(),
             description: description?.trim(),
             assignedTo: assigneeIds,
             assignedBy: assignerId,
-            team: teamId,
+            team: teamId, // 🔧 FIX: Ensure team is set correctly
             priority,
             dueDate: dueDate ? new Date(dueDate) : undefined,
             tags,
-            isTeamTask: !!teamId,
+            isTeamTask: !!teamId, // 🔧 FIX: Set team task flag
             assignmentType
         });
 
@@ -126,10 +135,18 @@ export const createTask = async (req, res) => {
             { path: 'team', select: 'name' }
         ]);
 
+        console.log('✅ Task created successfully:', task._id);
+        console.log('Task team ID:', task.team);
+        console.log('Task isTeamTask:', task.isTeamTask);
+
         // Send notifications to assignees (excluding self-assignment)
         const notificationRecipients = assigneeIds.filter(id => id !== assignerId);
         if (notificationRecipients.length > 0) {
-            await sendTaskAssignedNotification(task, req.user, notificationRecipients);
+            try {
+                await sendTaskAssignedNotification(task, req.user, notificationRecipients);
+            } catch (notifError) {
+                console.error('Notification error (non-critical):', notifError);
+            }
         }
 
         res.status(201).json({
@@ -138,7 +155,10 @@ export const createTask = async (req, res) => {
         });
     } catch (err) {
         console.error('Create task error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
+        res.status(500).json({
+            message: 'Server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        });
     }
 };
 

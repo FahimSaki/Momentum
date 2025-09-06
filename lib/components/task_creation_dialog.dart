@@ -231,8 +231,11 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
 
+      // 🔧 FIX: Ensure teamId is passed correctly
+      final teamId = db.selectedTeam?.id;
+
       _logger.i(
-        'Creating task with data: name=$name, priority=$_priority, teamId=${db.selectedTeam?.id}',
+        'Creating task: name=$name, teamId=$teamId, assignmentType=$_assignmentType',
       );
 
       // Enhanced task creation with better error handling
@@ -241,12 +244,14 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        assignedTo: _selectedAssignees.isEmpty ? null : _selectedAssignees,
-        teamId: db.selectedTeam?.id, // Pass teamId explicitly
+        assignedTo: _assignmentType == 'team'
+            ? null // Let backend handle team assignment
+            : (_selectedAssignees.isEmpty ? null : _selectedAssignees),
+        teamId: teamId, // 🔧 FIX: Pass teamId explicitly
         priority: _priority,
         dueDate: _dueDate,
         assignmentType: _assignmentType,
-        tags: [], // Add empty tags list
+        tags: [], // Empty tags list
       );
 
       _logger.i('Task created successfully: ${task.id}');
@@ -265,6 +270,13 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
         String errorMessage = e.toString();
         if (errorMessage.startsWith('Exception: ')) {
           errorMessage = errorMessage.substring(11);
+        }
+
+        // Handle specific error types
+        if (errorMessage.toLowerCase().contains('network')) {
+          errorMessage = 'Network error - check your connection';
+        } else if (errorMessage.toLowerCase().contains('unauthorized')) {
+          errorMessage = 'Session expired - please login again';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(

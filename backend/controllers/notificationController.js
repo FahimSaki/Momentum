@@ -1,3 +1,4 @@
+
 import {
     getUserNotifications,
     markNotificationAsRead,
@@ -5,7 +6,7 @@ import {
     updateFCMToken
 } from '../services/notificationService.js';
 
-// Get user notifications
+// Get user notifications - FIXED RESPONSE FORMAT
 export const getNotifications = async (req, res) => {
     try {
         const userId = req.userId;
@@ -22,10 +23,21 @@ export const getNotifications = async (req, res) => {
             unreadOnly === 'true'
         );
 
-        res.json(result);
+        // 🔧 FIX: Always return array format for consistency
+        // If result has notifications property, return the array
+        // Otherwise return empty array
+        if (result && Array.isArray(result.notifications)) {
+            res.json(result.notifications);
+        } else if (Array.isArray(result)) {
+            res.json(result);
+        } else {
+            console.log('No notifications found, returning empty array');
+            res.json([]);
+        }
     } catch (err) {
         console.error('Get notifications error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
+        // Return empty array instead of error for non-critical feature
+        res.json([]);
     }
 };
 
@@ -58,7 +70,7 @@ export const markAllAsRead = async (req, res) => {
         const result = await markAllNotificationsAsRead(userId);
 
         res.json({
-            message: `${result.modifiedCount} notifications marked as read`
+            message: `${result.modifiedCount || 0} notifications marked as read`
         });
     } catch (err) {
         console.error('Mark all as read error:', err);

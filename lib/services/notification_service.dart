@@ -61,13 +61,37 @@ class NotificationService {
       );
 
       if (response.statusCode == 200) {
-        final List data = json.decode(response.body);
-        return data.map((json) => AppNotification.fromJson(json)).toList();
+        final responseData = json.decode(response.body);
+
+        // 🔧 FIX: Handle different response formats
+        List<dynamic> notificationsList;
+
+        if (responseData is Map<String, dynamic>) {
+          // If response is wrapped in an object with notifications array
+          notificationsList = responseData['notifications'] ?? [];
+          _logger.i(
+            'Parsed notifications from wrapped response: ${notificationsList.length}',
+          );
+        } else if (responseData is List) {
+          // If response is directly an array
+          notificationsList = responseData;
+          _logger.i(
+            'Parsed notifications from direct array: ${notificationsList.length}',
+          );
+        } else {
+          _logger.w('Unexpected response format: $responseData');
+          return [];
+        }
+
+        return notificationsList
+            .map((json) => AppNotification.fromJson(json))
+            .toList();
       } else {
         _logger.e(
           'Error fetching notifications: ${response.statusCode} - ${response.body}',
         );
-        throw Exception('Failed to fetch notifications');
+        // Return empty list instead of throwing exception
+        return [];
       }
     } catch (e, stackTrace) {
       _logger.e(
@@ -75,7 +99,8 @@ class NotificationService {
         error: e,
         stackTrace: stackTrace,
       );
-      rethrow;
+      // Return empty list instead of re-throwing
+      return [];
     }
   }
 

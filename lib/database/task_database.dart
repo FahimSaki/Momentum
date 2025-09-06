@@ -137,6 +137,82 @@ class TaskDatabase extends ChangeNotifier {
     notifyListeners();
   }
 
+  // lib/database/task_database.dart - ENHANCED ERROR HANDLING (partial)
+
+  // Add this method to your TaskDatabase class:
+
+  // Enhanced error handling for data loading
+  Future<void> _loadTasksSafely() async {
+    try {
+      List<Task> tasks = [];
+
+      if (selectedTeam != null) {
+        // Load team tasks
+        tasks = await _taskService!.getTeamTasks(selectedTeam!.id);
+        logger.d('Loaded ${tasks.length} team tasks');
+      } else {
+        // Load all user tasks (personal + team)
+        tasks = await _taskService!.getUserTasks();
+        logger.d('Loaded ${tasks.length} user tasks');
+      }
+
+      currentTasks.clear();
+      currentTasks.addAll(tasks);
+
+      _organizeTasksByType();
+      logger.i('Tasks loaded and organized successfully');
+    } catch (e, stackTrace) {
+      logger.e('Error loading tasks safely', error: e, stackTrace: stackTrace);
+
+      // Don't clear existing tasks on error - keep what we have
+      logger.w(
+        'Keeping existing ${currentTasks.length} tasks due to load error',
+      );
+
+      // Optionally show user-friendly message
+      // You can emit this through a stream or callback to show in UI
+    }
+  }
+
+  // Enhanced notification loading
+  Future<void> _loadNotificationsSafely() async {
+    try {
+      if (_notificationService == null) {
+        logger.w('NotificationService not available');
+        return;
+      }
+
+      final notifs = await _notificationService!.getNotifications();
+      notifications.clear();
+      notifications.addAll(notifs);
+
+      unreadNotificationCount = notifs.where((n) => !n.isRead).length;
+      logger.i(
+        'Loaded ${notifs.length} notifications (${unreadNotificationCount} unread)',
+      );
+    } catch (e, stackTrace) {
+      logger.w(
+        'Error loading notifications (non-critical)',
+        error: e,
+        stackTrace: stackTrace,
+      );
+
+      // For notifications, we can safely ignore errors
+      // and keep existing notifications or empty list
+      unreadNotificationCount = notifications.where((n) => !n.isRead).length;
+    }
+  }
+
+  // Update your existing _loadTasks method to use the safe version:
+  Future<void> _loadTasks() async {
+    await _loadTasksSafely();
+  }
+
+  // Update your existing _loadNotifications method:
+  Future<void> _loadNotifications() async {
+    await _loadNotificationsSafely();
+  }
+
   // Team Management Methods
   Future<void> _loadUserTeams() async {
     try {
@@ -229,29 +305,6 @@ class TaskDatabase extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Task Management Methods
-  Future<void> _loadTasks() async {
-    try {
-      List<Task> tasks = [];
-
-      if (selectedTeam != null) {
-        // Load team tasks
-        tasks = await _taskService!.getTeamTasks(selectedTeam!.id);
-      } else {
-        // Load all user tasks (personal + team)
-        tasks = await _taskService!.getUserTasks();
-      }
-
-      currentTasks.clear();
-      currentTasks.addAll(tasks);
-
-      _organizeTasksByType();
-      logger.d('Loaded ${tasks.length} tasks');
-    } catch (e, stackTrace) {
-      logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
-    }
-  }
-
   void _organizeTasksByType() {
     personalTasks.clear();
     teamTasks.clear();
@@ -290,6 +343,7 @@ class TaskDatabase extends ChangeNotifier {
   }
 
   // Fixed createTask method in TaskDatabase class
+
   Future<Task> createTask({
     required String name,
     String? description,
@@ -310,29 +364,56 @@ class TaskDatabase extends ChangeNotifier {
         throw Exception('Task service not initialized');
       }
 
-      // Enhanced task creation with proper parameter passing
+      // 🔧 FIX: Validate teamId if provided
+      String? validTeamId;
+      if (teamId != null && teamId.isNotEmpty) {
+        // Make sure the team exists in our local data
+        final team = userTeams.firstWhere(
+          (t) => t.id == teamId,
+          orElse: () => throw Exception('Selected team not found'),
+        );
+        validTeamId = team.id;
+        logger.i('Using valid team ID: $validTeamId');
+      }
+
+      // Enhanced task creation with proper parameter validation
       final task = await _taskService!.createTask(
-        name: name,
-        description: description,
+        name: name.trim(),
+        description: description?.trim(),
         assignedTo: assignedTo,
-        teamId: teamId, // This should be passed correctly
+        teamId: validTeamId, // Use validated team ID
         priority: priority,
         dueDate: dueDate,
-        tags: tags ?? [], // Provide empty list as default
+        tags: tags ?? [], // Ensure tags is never null
         assignmentType: assignmentType,
       );
 
       logger.i('Task created successfully via service: ${task.id}');
 
-      // Add to local list
+      // 🔧 FIX: Add to appropriate local list based on team
+      if (task.isTeamTask && validTeamId != null) {
+        teamTasks.add(task);
+        logger.i('Added to team tasks list');
+      } else {
+        personalTasks.add(task);
+        logger.i('Added to personal tasks list');
+      }
+
+      // Add to main current tasks list
       currentTasks.add(task);
+
+      // 🔧 FIX: Reorganize and refresh
       _organizeTasksByType();
 
-      // Refresh data to ensure consistency
-      await _loadTasks();
-
-      logger.i('Local task list updated, notifying listeners');
+      logger.i('Local task lists updated, notifying listeners');
       notifyListeners();
+
+      // 🔧 FIX: Optional refresh to ensure consistency (but don't wait for it)
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _loadTasks().catchError((e) {
+          logger.w('Background task refresh failed (non-critical): $e');
+        });
+      });
 
       return task;
     } catch (e, stackTrace) {
@@ -342,30 +423,29 @@ class TaskDatabase extends ChangeNotifier {
         stackTrace: stackTrace,
       );
 
-      // Enhanced error handling with more specific messages
-      String errorMessage = e.toString();
-      if (errorMessage.contains('Failed to create task')) {
-        // Backend error
-        throw Exception(
-          'Server error: Could not create task. Please try again.',
-        );
-      } else if (errorMessage.contains('network') ||
-          errorMessage.contains('SocketException')) {
-        // Network error
-        throw Exception(
-          'Network error: Please check your internet connection.',
-        );
-      } else if (errorMessage.contains('timeout')) {
-        // Timeout error
-        throw Exception('Request timeout: Please try again.');
-      } else if (errorMessage.contains('401') ||
-          errorMessage.contains('unauthorized')) {
-        // Auth error
-        throw Exception('Authentication error: Please login again.');
+      // 🔧 FIX: Enhanced error handling with user-friendly messages
+      String userMessage;
+
+      if (e.toString().contains('Task service not initialized')) {
+        userMessage = 'App not ready - please restart and try again';
+      } else if (e.toString().contains('Selected team not found')) {
+        userMessage = 'Selected team is no longer available';
+      } else if (e.toString().contains('Network error')) {
+        userMessage = 'Network error - check your connection';
+      } else if (e.toString().contains('timeout')) {
+        userMessage = 'Request timeout - please try again';
+      } else if (e.toString().contains('401') ||
+          e.toString().contains('unauthorized')) {
+        userMessage = 'Session expired - please login again';
+      } else if (e.toString().contains('403') ||
+          e.toString().contains('permission')) {
+        userMessage = 'Permission denied - you may not be a team member';
       } else {
-        // Generic error
-        throw Exception('Failed to create task: $errorMessage');
+        userMessage =
+            'Failed to create task: ${e.toString().replaceFirst('Exception: ', '')}';
       }
+
+      throw Exception(userMessage);
     }
   }
 
@@ -417,26 +497,6 @@ class TaskDatabase extends ChangeNotifier {
     } catch (e, stackTrace) {
       logger.e('Error deleting task', error: e, stackTrace: stackTrace);
       rethrow;
-    }
-  }
-
-  // Notification Management
-  Future<void> _loadNotifications() async {
-    try {
-      final notifs = await _notificationService?.getNotifications() ?? [];
-      notifications.clear();
-      notifications.addAll(notifs);
-
-      unreadNotificationCount = notifs.where((n) => !n.isRead).length;
-      logger.i(
-        'Loaded ${notifs.length} notifications (${unreadNotificationCount} unread)',
-      );
-    } catch (e, stackTrace) {
-      logger.w(
-        'Error loading notifications (non-critical)',
-        error: e,
-        stackTrace: stackTrace,
-      );
     }
   }
 

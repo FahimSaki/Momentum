@@ -9,9 +9,7 @@ import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
-
-// Make sure you have a Task model class imported
-// import 'package:momentum/models/task.dart'; // Uncomment and adjust path as needed
+import 'package:momentum/models/task.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -160,10 +158,9 @@ class _HomePageState extends State<HomePage>
                 child: TabBar(
                   controller: _tabController,
                   labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Theme.of(context).colorScheme.onSurface
-                      .withValues(
-                        alpha: 0.6,
-                      ), // Fixed: withOpacity -> withValues
+                  unselectedLabelColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                   indicatorColor: Theme.of(context).colorScheme.primary,
                   tabs: const [
                     Tab(text: 'Dashboard'),
@@ -277,8 +274,7 @@ class _HomePageState extends State<HomePage>
   Widget _buildDashboardTab(TaskDatabase db) {
     return RefreshIndicator(
       onRefresh: () async {
-        // Fixed: Call refreshData method (assuming it exists)
-        await db.refreshData(); // Changed from _refreshData to refreshData
+        await db.refreshData();
       },
       child: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -300,9 +296,9 @@ class _HomePageState extends State<HomePage>
                   Text(
                     _getWelcomeMessage(),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(
-                        alpha: 0.7,
-                      ), // Fixed: withOpacity -> withValues
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
@@ -387,7 +383,7 @@ class _HomePageState extends State<HomePage>
         const HeatMapComponent(),
         const SizedBox(height: 16),
 
-        // Additional analytics can be added here
+        // Additional analytics
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
@@ -416,9 +412,7 @@ class _HomePageState extends State<HomePage>
                   _getAveragePerDay(
                     db.historicalCompletions,
                     db.currentTasks,
-                  ).toStringAsFixed(
-                    1,
-                  ), // Fixed: Removed unnecessary string interpolation
+                  ).toStringAsFixed(1),
                   Icons.trending_up,
                   Colors.green,
                 ),
@@ -460,40 +454,37 @@ class _HomePageState extends State<HomePage>
     return 'Good evening! Time to wrap up your day.';
   }
 
-  int _calculateCurrentStreak(
-    List<DateTime> historical,
-    List<dynamic> current,
-  ) {
-    // Changed List<Task> to List<dynamic>
+  // ✅ FIXED ANALYTICS METHODS
+
+  int _calculateCurrentStreak(List<DateTime> historical, List<Task> current) {
     final allCompletions = <DateTime>{};
 
-    // Add historical completions
     allCompletions.addAll(historical);
 
-    // Add current task completions
     for (final task in current) {
       allCompletions.addAll(task.completedDays);
     }
 
     if (allCompletions.isEmpty) return 0;
 
-    final sortedDates = allCompletions
-        .map((d) => DateTime(d.year, d.month, d.day))
-        .toSet()
-        .toList();
-    sortedDates.sort();
+    final sortedDates =
+        allCompletions
+            .map((d) {
+              final local = d.toLocal();
+              return DateTime(local.year, local.month, local.day);
+            })
+            .toSet()
+            .toList()
+          ..sort();
 
     int streak = 0;
     final today = DateTime.now();
-    final currentDate = DateTime(today.year, today.month, today.day);
+    var checkDate = DateTime(today.year, today.month, today.day);
 
-    // Check if today has completions
-    DateTime checkDate = currentDate;
     if (!sortedDates.contains(checkDate)) {
       checkDate = checkDate.subtract(const Duration(days: 1));
     }
 
-    // Count consecutive days backwards
     while (sortedDates.contains(checkDate)) {
       streak++;
       checkDate = checkDate.subtract(const Duration(days: 1));
@@ -502,11 +493,7 @@ class _HomePageState extends State<HomePage>
     return streak;
   }
 
-  int _getThisWeekCompletions(
-    List<DateTime> historical,
-    List<dynamic> current,
-  ) {
-    // Changed List<Task> to List<dynamic>
+  int _getThisWeekCompletions(List<DateTime> historical, List<Task> current) {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekStartDate = DateTime(
@@ -517,32 +504,24 @@ class _HomePageState extends State<HomePage>
 
     int count = 0;
 
-    // Count historical completions
-    count += historical
-        .where(
-          (date) =>
-              date.isAfter(weekStartDate.subtract(const Duration(days: 1))),
-        )
-        .length;
+    count += historical.where((date) {
+      final local = date.toLocal();
+      final dayOnly = DateTime(local.year, local.month, local.day);
+      return dayOnly.isAfter(weekStartDate.subtract(const Duration(days: 1)));
+    }).length;
 
-    // Count current task completions
     for (final task in current) {
-      count +=
-          (task.completedDays
-                  .where(
-                    (date) => date.isAfter(
-                      weekStartDate.subtract(const Duration(days: 1)),
-                    ),
-                  )
-                  .length
-              as int);
+      count += task.completedDays.where((date) {
+        final local = date.toLocal();
+        final dayOnly = DateTime(local.year, local.month, local.day);
+        return dayOnly.isAfter(weekStartDate.subtract(const Duration(days: 1)));
+      }).length;
     }
 
     return count;
   }
 
-  double _getAveragePerDay(List<DateTime> historical, List<dynamic> current) {
-    // Changed List<Task> to List<dynamic>
+  double _getAveragePerDay(List<DateTime> historical, List<Task> current) {
     final allCompletions = <DateTime>[];
     allCompletions.addAll(historical);
 
@@ -552,11 +531,18 @@ class _HomePageState extends State<HomePage>
 
     if (allCompletions.isEmpty) return 0.0;
 
-    final earliestDate = allCompletions.reduce((a, b) => a.isBefore(b) ? a : b);
+    DateTime earliestDate = allCompletions.first;
+    for (final date in allCompletions) {
+      if (date.isBefore(earliestDate)) {
+        earliestDate = date;
+      }
+    }
+
     final daysSinceStart = DateTime.now().difference(earliestDate).inDays + 1;
 
-    return allCompletions.length /
-        daysSinceStart; // Returns double automatically
+    if (daysSinceStart <= 0) return 0.0;
+
+    return allCompletions.length / daysSinceStart;
   }
 
   void _showTaskCreationDialog() {

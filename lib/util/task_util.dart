@@ -1,20 +1,20 @@
 import 'package:momentum/models/task.dart';
 
-// Check if a task is completed today in BD time (UTC+6)
+// Check if a task is completed today in local time
 bool isTaskCompletedToday(List<DateTime> completionDays) {
-  final now = DateTime.now().toUtc().add(const Duration(hours: 6));
+  final now = DateTime.now();
   final todayStart = DateTime(now.year, now.month, now.day);
 
-  return completionDays.any((utcDate) {
-    final local = utcDate.toUtc().add(const Duration(hours: 6));
+  return completionDays.any((date) {
+    final local = date.toLocal();
     final completedDate = DateTime(local.year, local.month, local.day);
-    return completedDate.isAtSameMoment(todayStart);
+    return completedDate.isAtSameMomentAs(todayStart);
   });
 }
 
 // Helper extension for date-only comparison
 extension DateTimeComparison on DateTime {
-  bool isAtSameMoment(DateTime other) {
+  bool isAtSameMomentAs(DateTime other) {
     return year == other.year && month == other.month && day == other.day;
   }
 }
@@ -23,36 +23,30 @@ extension DateTimeComparison on DateTime {
 bool shouldShowTask(Task task) {
   if (task.lastCompletedDate == null) return true;
 
-  final now = DateTime.now().toUtc().add(const Duration(hours: 6));
+  final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
 
-  final lastCompleted = task.lastCompletedDate!.toUtc().add(
-    const Duration(hours: 6),
-  );
+  final lastCompleted = task.lastCompletedDate!.toLocal();
   final completed = DateTime(
     lastCompleted.year,
     lastCompleted.month,
     lastCompleted.day,
   );
 
-  return today != completed;
+  return !today.isAtSameMomentAs(completed);
 }
 
-// 🔧 FIXED: Now accepts both current tasks AND historical completions
+// 🔧 FIXED: Proper date filtering and map preparation
 Map<DateTime, int> prepareMapDatasets(
   List<Task> tasks, [
   List<DateTime>? historicalCompletions,
 ]) {
   final Map<DateTime, int> heatMapData = {};
 
-  // Process current tasks (same as before)
+  // Process current tasks
   for (final task in tasks) {
     for (final utcDate in task.completedDays) {
-      final localDate = DateTime(
-        utcDate.year,
-        utcDate.month,
-        utcDate.day,
-      ).toLocal();
+      final localDate = utcDate.toLocal();
       final localMidnight = DateTime(
         localDate.year,
         localDate.month,
@@ -67,14 +61,10 @@ Map<DateTime, int> prepareMapDatasets(
     }
   }
 
-  // 🔧 NEW: Process historical completions from deleted tasks
+  // Process historical completions from deleted tasks
   if (historicalCompletions != null) {
     for (final utcDate in historicalCompletions) {
-      final localDate = DateTime(
-        utcDate.year,
-        utcDate.month,
-        utcDate.day,
-      ).toLocal();
+      final localDate = utcDate.toLocal();
       final localMidnight = DateTime(
         localDate.year,
         localDate.month,
@@ -90,4 +80,41 @@ Map<DateTime, int> prepareMapDatasets(
   }
 
   return heatMapData;
+}
+
+// 🔧 NEW: Safe date filtering helper
+List<DateTime> filterDatesByRange(
+  List<DateTime> dates,
+  DateTime startDate,
+  DateTime endDate,
+) {
+  return dates.where((date) {
+    final localDate = date.toLocal();
+    final dayOnly = DateTime(localDate.year, localDate.month, localDate.day);
+    final startDay = DateTime(startDate.year, startDate.month, startDate.day);
+    final endDay = DateTime(endDate.year, endDate.month, endDate.day);
+
+    return (dayOnly.isAfter(startDay) || dayOnly.isAtSameMomentAs(startDay)) &&
+        (dayOnly.isBefore(endDay) || dayOnly.isAtSameMomentAs(endDay));
+  }).toList();
+}
+
+// 🔧 NEW: Safe completion counting
+int countCompletionsInRange(
+  List<Task> tasks,
+  DateTime startDate,
+  DateTime endDate,
+) {
+  int count = 0;
+
+  for (final task in tasks) {
+    final filteredDays = filterDatesByRange(
+      task.completedDays,
+      startDate,
+      endDate,
+    );
+    count += filteredDays.length;
+  }
+
+  return count;
 }

@@ -56,7 +56,10 @@ class Task {
       assignedBy: json['assignedBy'] != null
           ? User.fromJson(json['assignedBy'])
           : null,
-      team: json['team'] != null ? Team.fromJson(json['team']) : null,
+      // 🔧 FIX: Handle null team safely
+      team: json['team'] != null && json['team'] is Map<String, dynamic>
+          ? Team.fromJson(json['team'])
+          : null,
       priority: json['priority'] ?? 'medium',
       dueDate: json['dueDate'] != null
           ? DateTime.parse(json['dueDate']).toLocal()
