@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:momentum/constants/api_base_url.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,13 +21,16 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$backendUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email, 'password': password}),
+      body: json.encode({
+        'email': email, // ✅ Required for login
+        'password': password, // ✅ Required for login
+        // ❌ NO name field needed for login
+      }),
     );
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
 
-      // Save authentication data
       await _saveAuthData(
         token: data['token'],
         userId: data['user']['_id'],
@@ -48,22 +50,22 @@ class AuthService {
     }
   }
 
-  // Register with email and password
+  // REGISTER - Requires name, email, and password
   static Future<Map<String, dynamic>> register(
     String email,
-    String password, [
-    String? name, // Make name optional with default
-  ]) async {
+    String password,
+    String name, // ✅ Required parameter for registration
+  ) async {
     try {
       _logger.i("Attempting registration for: $email");
 
       final requestBody = {
-        'email': email.trim().toLowerCase(),
-        'password': password,
-        'name': name ?? email.split('@')[0], // Use email prefix as default
+        'email': email.trim().toLowerCase(), // ✅ Required
+        'password': password, // ✅ Required
+        'name': name.trim(), // ✅ Required for registration
       };
 
-      _logger.d("Request body: ${json.encode(requestBody)}");
+      _logger.d("Registration request body: ${json.encode(requestBody)}");
 
       final response = await http
           .post(
@@ -80,13 +82,12 @@ class AuthService {
                 throw Exception('Request timeout - please try again'),
           );
 
-      _logger.i("Response status: ${response.statusCode}");
-      _logger.d("Response body: ${response.body}");
+      _logger.i("Registration response status: ${response.statusCode}");
+      _logger.d("Registration response body: ${response.body}");
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
 
-        // Save authentication data
         await _saveAuthData(
           token: data['token'],
           userId: data['user']['_id'],
@@ -118,17 +119,8 @@ class AuthService {
         _logger.e('Registration failed: $errorMessage');
         throw Exception(errorMessage);
       }
-    } on SocketException catch (e) {
-      _logger.e('Network error during registration: $e');
-      throw Exception('Network error - please check your internet connection');
-    } on TimeoutException catch (e) {
-      _logger.e('Timeout during registration: $e');
-      throw Exception('Request timeout - please try again');
-    } on FormatException catch (e) {
-      _logger.e('JSON parsing error during registration: $e');
-      throw Exception('Server response error - please try again');
     } catch (e) {
-      _logger.e('Unexpected registration error: $e');
+      _logger.e('Registration error: $e');
       rethrow;
     }
   }
