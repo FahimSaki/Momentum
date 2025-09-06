@@ -3,7 +3,7 @@ import {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     updateFCMToken
-} from '../services/notification_Service.js';
+} from '../services/notificationService.js';
 
 // Get user notifications
 export const getNotifications = async (req, res) => {

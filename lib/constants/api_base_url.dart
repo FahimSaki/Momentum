@@ -1,30 +1,26 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, kReleaseMode;
+import 'dart:io' show Platform;
 
 const String apiBaseUrl = kIsWeb
-    ? 'https://momentum-to2e.onrender.com' // Web / production URL
+    ? 'https://momentum-to2e.onrender.com' // Web
     : (kReleaseMode
-          ? 'https://momentum-to2e.onrender.com' // Mobile production URL
-          : 'http://10.0.2.2:10000'); // Android emulator local URL
+          ? 'https://momentum-to2e.onrender.com' // Mobile production
+          : 'http://10.0.2.2:10000'); // Android emulator
 
-// Alternative debug configurations for different scenarios
-const String localApiUrl = 'http://localhost:10000';
-const String androidEmulatorUrl = 'http://10.0.2.2:10000';
-const String iosSimulatorUrl = 'http://127.0.0.1:10000';
-const String productionApiUrl = 'https://momentum-to2e.onrender.com';
-
-// Enhanced URL selection with better debugging
+// Alternative debug configurations
 String getApiBaseUrl() {
   if (kIsWeb) {
-    return productionApiUrl;
+    return 'https://momentum-to2e.onrender.com';
   } else if (kDebugMode) {
-    // For debugging, you can manually switch between these:
-    return androidEmulatorUrl; // Change this for different test environments
-    // return localApiUrl;
-    // return iosSimulatorUrl;
+    // For Android emulator
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:10000'; // Android emulator
+    } else if (Platform.isIOS) {
+      return 'http://127.0.0.1:10000'; // iOS simulator
+    } else {
+      return 'http://localhost:10000'; // Other platforms
+    }
   } else {
-    return productionApiUrl;
+    return 'https://momentum-to2e.onrender.com'; // Production
   }
 }
-
-// Use this function instead of the constant if you need more flexibility
-// In your services, replace apiBaseUrl with getApiBaseUrl()

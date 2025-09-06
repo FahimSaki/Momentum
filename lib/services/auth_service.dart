@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:momentum/constants/api_base_url.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,41 +51,85 @@ class AuthService {
   // Register with email and password
   static Future<Map<String, dynamic>> register(
     String email,
-    String password,
-  ) async {
-    final response = await http.post(
-      Uri.parse('$backendUrl/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email, 'password': password}),
-    );
+    String password, [
+    String? name, // Make name optional with default
+  ]) async {
+    try {
+      _logger.i("Attempting registration for: $email");
 
-    if (response.statusCode == 201) {
-      final data = json.decode(response.body);
-
-      // Save authentication data
-      await _saveAuthData(
-        token: data['token'],
-        userId: data['user']['_id'],
-        userData: data['user'],
-      );
-
-      _logger.i('Registration successful for user: ${data['user']['_id']}');
-
-      return {
-        'success': true,
-        'token': data['token'],
-        'userId': data['user']['_id'],
-        'user': data['user'],
+      final requestBody = {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        'name': name ?? email.split('@')[0], // Use email prefix as default
       };
-    } else {
-      try {
-        final errorData = json.decode(response.body);
-        _logger.e('Registration failed: ${errorData['message']}');
-        throw Exception(errorData['message'] ?? 'Registration failed');
-      } catch (e) {
-        _logger.e('Registration failed with raw body: ${response.body}');
-        throw Exception('Registration failed: ${response.body}');
+
+      _logger.d("Request body: ${json.encode(requestBody)}");
+
+      final response = await http
+          .post(
+            Uri.parse('$backendUrl/auth/register'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: json.encode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () =>
+                throw Exception('Request timeout - please try again'),
+          );
+
+      _logger.i("Response status: ${response.statusCode}");
+      _logger.d("Response body: ${response.body}");
+
+      if (response.statusCode == 201) {
+        final data = json.decode(response.body);
+
+        // Save authentication data
+        await _saveAuthData(
+          token: data['token'],
+          userId: data['user']['_id'],
+          userData: data['user'],
+        );
+
+        _logger.i('Registration successful for user: ${data['user']['_id']}');
+
+        return {
+          'success': true,
+          'token': data['token'],
+          'userId': data['user']['_id'],
+          'user': data['user'],
+          'message': data['message'] ?? 'Registration successful',
+        };
+      } else {
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? 'Registration failed';
+
+          if (errorData['errors'] is List) {
+            errorMessage = (errorData['errors'] as List).join(', ');
+          }
+        } catch (e) {
+          errorMessage = 'Registration failed: ${response.body}';
+        }
+
+        _logger.e('Registration failed: $errorMessage');
+        throw Exception(errorMessage);
       }
+    } on SocketException catch (e) {
+      _logger.e('Network error during registration: $e');
+      throw Exception('Network error - please check your internet connection');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout during registration: $e');
+      throw Exception('Request timeout - please try again');
+    } on FormatException catch (e) {
+      _logger.e('JSON parsing error during registration: $e');
+      throw Exception('Server response error - please try again');
+    } catch (e) {
+      _logger.e('Unexpected registration error: $e');
+      rethrow;
     }
   }
 

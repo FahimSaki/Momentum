@@ -2,44 +2,98 @@ import Team from '../models/Team.js';
 import User from '../models/User.js';
 import TeamInvitation from '../models/TeamInvitation.js';
 import Notification from '../models/Notification.js';
-import { sendNotification } from '../services/notification_Service.js';
+import { sendNotification } from '../services/notificationService.js';
 
 // Create a new team
 export const createTeam = async (req, res) => {
     try {
+        console.log('=== CREATE TEAM DEBUG ===');
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        console.log('User ID:', req.userId);
+        console.log('User object:', req.user ? req.user.name : 'No user object');
+        console.log('========================');
+
         const { name, description } = req.body;
         const userId = req.userId;
 
+        // Enhanced validation
         if (!name || name.trim().length === 0) {
             return res.status(400).json({ message: 'Team name is required' });
         }
 
+        if (name.trim().length > 100) {
+            return res.status(400).json({ message: 'Team name must be less than 100 characters' });
+        }
+
+        // Verify user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Create team with proper default settings
         const team = new Team({
             name: name.trim(),
-            description: description?.trim(),
+            description: description?.trim() || null,
             owner: userId,
             members: [{
                 user: userId,
-                role: 'owner'
-            }]
+                role: 'owner',
+                joinedAt: new Date()
+            }],
+            settings: {
+                allowMemberInvite: false,
+                taskAutoDelete: true,
+                notificationSettings: {
+                    taskAssigned: true,
+                    taskCompleted: true,
+                    memberJoined: true
+                }
+            },
+            isActive: true
         });
 
         await team.save();
+        console.log('Team created with ID:', team._id);
 
         // Update user's teams array
         await User.findByIdAndUpdate(userId, {
-            $push: { teams: team._id }
+            $addToSet: { teams: team._id } // Use $addToSet to prevent duplicates
         });
 
-        await team.populate('members.user', 'name email avatar');
+        console.log('User teams array updated for:', userId);
+
+        // Populate team data for response
+        await team.populate([
+            { path: 'owner', select: 'name email avatar' },
+            { path: 'members.user', select: 'name email avatar' }
+        ]);
 
         res.status(201).json({
             message: 'Team created successfully',
             team
         });
+
     } catch (err) {
         console.error('Create team error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
+
+        // Handle specific MongoDB errors
+        if (err.code === 11000) {
+            return res.status(400).json({ message: 'A team with this name already exists for this user' });
+        }
+
+        if (err.name === 'ValidationError') {
+            const validationErrors = Object.values(err.errors).map(e => e.message);
+            return res.status(400).json({
+                message: 'Validation error',
+                errors: validationErrors
+            });
+        }
+
+        res.status(500).json({
+            message: 'Server error during team creation',
+            error: err.message
+        });
     }
 };
 

@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 import { cleanupOldNotifications, sendDueDateReminders } from './notificationService.js';
-// UPDATE THIS LINE:
-import { runDailyCleanup } from './cleanup_Scheduler.js'; // Changed from cleanup_scheduler.js
+import { runDailyCleanup } from './cleanupScheduler.js';
 
 // Enhanced scheduler service
 export const startEnhancedScheduler = () => {

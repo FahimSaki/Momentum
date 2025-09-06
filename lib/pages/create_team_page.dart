@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 
 class CreateTeamPage extends StatefulWidget {
   const CreateTeamPage({super.key});
@@ -14,6 +15,8 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   bool _isLoading = false;
+
+  final Logger logger = Logger();
 
   @override
   void dispose() {
@@ -136,13 +139,17 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
 
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
+      final teamName = _nameController.text.trim();
+      final teamDescription = _descriptionController.text.trim();
+
+      logger.i('Attempting to create team: $teamName');
 
       final team = await db.createTeam(
-        _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
+        teamName,
+        description: teamDescription.isEmpty ? null : teamDescription,
       );
+
+      logger.i('Team created successfully: ${team.name}');
 
       if (mounted) {
         Navigator.pop(context);
@@ -154,10 +161,33 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
         );
       }
     } catch (e) {
+      logger.e('Error creating team: $e');
+
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error creating team: $e')));
+        String errorMessage = e.toString();
+
+        // Clean up error message
+        if (errorMessage.startsWith('Exception: ')) {
+          errorMessage = errorMessage.substring(11);
+        }
+
+        // Handle specific error types
+        if (errorMessage.toLowerCase().contains('network')) {
+          errorMessage =
+              'Network error - please check your internet connection';
+        } else if (errorMessage.toLowerCase().contains('timeout')) {
+          errorMessage = 'Request timeout - please try again';
+        } else if (errorMessage.toLowerCase().contains('server')) {
+          errorMessage = 'Server error - please try again later';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error creating team: $errorMessage'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     } finally {
       if (mounted) {

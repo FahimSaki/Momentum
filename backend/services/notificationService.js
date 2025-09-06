@@ -295,25 +295,35 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
 
 // Send task assignment notification
 export const sendTaskAssignedNotification = async (taskData, assignerData, assigneeIds) => {
-    const notificationData = {
-        type: 'task_assigned',
-        title: 'New Task Assigned',
-        body: `${assignerData.name} assigned you a task: "${taskData.name}"`,
-        senderId: assignerData._id,
-        taskId: taskData._id,
-        teamId: taskData.team,
-        data: {
-            type: 'task_assigned',
-            taskId: taskData._id.toString(),
-            taskName: taskData.name,
-            assignerName: assignerData.name,
-            teamId: taskData.team?.toString(),
-            dueDate: taskData.dueDate?.toISOString(),
-            priority: taskData.priority
+    try {
+        if (!isFirebaseInitialized) {
+            console.log('⚠️  Firebase not initialized - skipping push notifications');
+            return null;
         }
-    };
 
-    return await sendBulkNotification(assigneeIds, notificationData);
+        const notificationData = {
+            type: 'task_assigned',
+            title: 'New Task Assigned',
+            body: `${assignerData.name} assigned you a task: "${taskData.name}"`,
+            senderId: assignerData._id,
+            taskId: taskData._id,
+            teamId: taskData.team,
+            data: {
+                type: 'task_assigned',
+                taskId: taskData._id.toString(),
+                taskName: taskData.name,
+                assignerName: assignerData.name,
+                teamId: taskData.team?.toString(),
+                dueDate: taskData.dueDate?.toISOString(),
+                priority: taskData.priority
+            }
+        };
+
+        return await sendBulkNotification(assigneeIds, notificationData);
+    } catch (error) {
+        console.error('Send task assigned notification error (non-critical):', error);
+        return null; // Don't fail the main task creation
+    }
 };
 
 // Send task completion notification

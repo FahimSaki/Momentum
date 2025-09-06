@@ -12,18 +12,15 @@ import {
 
 const router = express.Router();
 
-// Task CRUD
-router.post('/', createTask);
-router.get('/user', getUserTasks);
-
-// ADD MISSING ROUTES THAT YOUR FRONTEND IS CALLING
-router.get('/assigned', getUserTasks); // Alias for /user route
-router.get('/history', getTaskHistory); // Move this up
-router.get('/stats', getDashboardStats); // Move this up
-
-router.get('/team/:teamId', getTeamTasks);
-router.put('/:id', updateTask);
-router.put('/:id/complete', completeTask);
-router.delete('/:id', deleteTask);
+// FIX: Make sure all routes are properly defined
+router.post('/', createTask);                    // POST /tasks
+router.get('/user', getUserTasks);               // GET /tasks/user  
+router.get('/assigned', getUserTasks);           // GET /tasks/assigned (alias)
+router.get('/history', getTaskHistory);          // GET /tasks/history
+router.get('/stats', getDashboardStats);         // GET /tasks/stats
+router.get('/team/:teamId', getTeamTasks);       // GET /tasks/team/:teamId
+router.put('/:id', updateTask);                  // PUT /tasks/:id
+router.put('/:id/complete', completeTask);       // PUT /tasks/:id/complete
+router.delete('/:id', deleteTask);               // DELETE /tasks/:id
 
 export default router;

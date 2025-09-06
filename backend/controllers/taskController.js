@@ -3,7 +3,7 @@ import Task from '../models/Task.js';
 import TaskHistory from '../models/TaskHistory.js';
 import Team from '../models/Team.js';
 import User from '../models/User.js';
-import { sendTaskAssignedNotification, sendTaskCompletedNotification } from '../services/notification_Service.js';
+import { sendTaskAssignedNotification, sendTaskCompletedNotification } from '../services/notificationService.js';
 
 // Helper function to save task to history before deletion (enhanced)
 const saveTaskToHistory = async (task) => {

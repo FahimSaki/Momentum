@@ -25,7 +25,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
 
-    // Input validation
+    // Enhanced input validation
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         error = "Email and password cannot be empty.";
@@ -34,8 +34,9 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    // Basic email validation
-    if (!email.contains('@') || !email.contains('.')) {
+    // Better email validation
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
       setState(() {
         error = "Please enter a valid email address.";
         isLoading = false;
@@ -43,7 +44,6 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    // Password length validation
     if (password.length < 6) {
       setState(() {
         error = "Password must be at least 6 characters long.";
@@ -54,10 +54,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
     try {
       _logger.i("🚀 Starting registration for: $email");
-      final result = await AuthService.register(email, password);
+
+      // ADD NAME TO REGISTRATION - this was missing!
+      final name = email.split('@')[0]; // Use email prefix as default name
+      final result = await AuthService.register(email, password, name);
+
       _logger.i("✅ Registration successful! Response: $result");
 
-      // If we reach this point, registration was successful
       if (mounted) {
         // Show success dialog
         await showDialog(
@@ -70,16 +73,13 @@ class _RegisterPageState extends State<RegisterPage> {
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close dialog
-                },
+                onPressed: () => Navigator.of(context).pop(),
                 child: const Text('OK'),
               ),
             ],
           ),
         );
 
-        // Navigate to login page after dialog is closed
         if (mounted) {
           _logger.i("🧭 Navigating to login page...");
           Navigator.pushReplacementNamed(context, '/login');
@@ -90,7 +90,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (mounted) {
         setState(() {
-          // Parse the error message
           String errorMessage = e.toString();
 
           // Remove "Exception: " prefix if present
@@ -102,18 +101,24 @@ class _RegisterPageState extends State<RegisterPage> {
           String lowerError = errorMessage.toLowerCase();
           if (lowerError.contains('email already exists') ||
               lowerError.contains('already registered') ||
+              lowerError.contains('user already exists') ||
               lowerError.contains('duplicate')) {
             error = "An account with this email already exists.";
           } else if (lowerError.contains('network') ||
-              lowerError.contains('connection')) {
-            error = "Network error. Please check your connection.";
+              lowerError.contains('connection') ||
+              lowerError.contains('socket')) {
+            error =
+                "Network error. Please check your connection and try again.";
           } else if (lowerError.contains('timeout')) {
             error = "Request timed out. Please try again.";
           } else if (lowerError.contains('json') ||
-              lowerError.contains('parsing')) {
+              lowerError.contains('parsing') ||
+              lowerError.contains('format')) {
             error = "Server response error. Please try again.";
+          } else if (lowerError.contains('validation')) {
+            error = "Please check your email and password format.";
           } else {
-            error = errorMessage;
+            error = "Registration failed: $errorMessage";
           }
         });
       }

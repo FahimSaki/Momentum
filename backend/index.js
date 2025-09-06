@@ -7,7 +7,7 @@ import taskRoutes from './routes/task.js';
 import { authenticateToken } from './middleware/middle_auth.js';
 import teamRoutes from './routes/team.js';
 import notificationRoutes from './routes/notification.js';
-import { startCleanupScheduler, runManualCleanup } from './services/cleanup_Scheduler.js';
+import { startCleanupScheduler, runManualCleanup } from './services/cleanupScheduler.js';
 
 // Load environment variables
 dotenv.config();
@@ -18,27 +18,41 @@ app.use(express.json());
 // CORS setup: allow production, preview, and local dev frontends
 app.use(cors({
     origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+
         const allowedOrigins = [
             'https://momentum-beryl-nine.vercel.app', // Vercel production
             'http://localhost:10000', // Local backend
-            undefined, // Postman, curl, etc.
+            'http://localhost:3000',  // Local frontend
+            'http://127.0.0.1:3000',  // Alternative localhost
         ];
 
-        // Allow all Vercel preview URLs (e.g., *.vercel.app)
-        if (
-            allowedOrigins.includes(origin) ||
-            (origin && origin.endsWith('.vercel.app'))
-        ) {
+        // Allow all Vercel preview URLs
+        if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
             callback(null, true);
         } else {
-            console.warn(`Blocked CORS origin: ${origin}`);
-            callback(new Error('Not allowed by CORS: ' + origin));
+            console.warn(`CORS origin logged but allowed: ${origin}`);
+            // For mobile apps, allow all origins during development
+            callback(null, true); // Change this to be more permissive
         }
     },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'Accept',
+        'Origin',
+        'X-Requested-With',
+        'Access-Control-Allow-Headers',
+        'Access-Control-Allow-Origin'
+    ],
     credentials: true,
+    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 }));
+
+// Add preflight handling
+app.options('*', cors()); // Enable preflight for all routes
 
 // Connect to MongoDB (cleaned up deprecated options)
 mongoose.connect(process.env.MONGODB_URI)
@@ -91,6 +105,16 @@ app.post('/manual-cleanup', async (req, res) => {
         });
     }
 });
+// Request Logging Middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
+    console.log('---');
+    next();
+});
 
 // AUTHENTICATED ROUTES
 app.use('/auth', authRoutes);
@@ -117,4 +141,30 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log('📅 Automatic task cleanup scheduler is active');
+});
+
+// Request logging endpoint
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+
+    // Don't leak error details in production
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    res.status(err.status || 500).json({
+        message: err.message || 'Internal server error',
+        ...(isDevelopment && {
+            stack: err.stack,
+            error: err
+        })
+    });
+})
+
+// Handle 404s
+app.use('*', (req, res) => {
+    console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
+    res.status(404).json({
+        message: 'Route not found',
+        method: req.method,
+        url: req.originalUrl
+    });
 });

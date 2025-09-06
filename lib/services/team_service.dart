@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:momentum/constants/api_base_url.dart';
@@ -19,21 +22,63 @@ class TeamService {
   // Create a new team
   Future<Team> createTeam(String name, {String? description}) async {
     try {
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl/teams'),
-        headers: _headers,
-        body: json.encode({'name': name, 'description': description}),
-      );
+      _logger.i('Attempting to create team: $name');
+
+      final requestBody = {
+        'name': name.trim(),
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
+      };
+
+      _logger.d('Team creation request body: ${json.encode(requestBody)}');
+
+      final response = await http
+          .post(
+            Uri.parse('$apiBaseUrl/teams'),
+            headers: _headers,
+            body: json.encode(requestBody),
+          )
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () =>
+                throw Exception('Request timeout - please try again'),
+          );
+
+      _logger.i('Team creation response status: ${response.statusCode}');
+      _logger.d('Team creation response body: ${response.body}');
 
       if (response.statusCode == 201) {
         final data = json.decode(response.body);
-        return Team.fromJson(data['team']);
+        final team = Team.fromJson(data['team']);
+        _logger.i('Team created successfully: ${team.id}');
+        return team;
       } else {
-        _logger.e('Error creating team: ${response.body}');
-        throw Exception('Failed to create team: ${response.body}');
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? 'Failed to create team';
+
+          if (errorData['errors'] is List) {
+            errorMessage = (errorData['errors'] as List).join(', ');
+          }
+        } catch (e) {
+          errorMessage = 'Failed to create team: ${response.body}';
+        }
+
+        _logger.e('Team creation failed: $errorMessage');
+        throw Exception(errorMessage);
       }
-    } catch (e, stackTrace) {
-      _logger.e('Error creating team', error: e, stackTrace: stackTrace);
+    } on SocketException catch (e) {
+      _logger.e('Network error during team creation: $e');
+      throw Exception('Network error - please check your internet connection');
+    } on TimeoutException catch (e) {
+      _logger.e('Timeout during team creation: $e');
+      throw Exception('Request timeout - please try again');
+    } on FormatException catch (e) {
+      _logger.e('JSON parsing error during team creation: $e');
+      throw Exception('Server response error - please try again');
+    } catch (e) {
+      _logger.e('Unexpected team creation error: $e');
       rethrow;
     }
   }
