@@ -13,8 +13,8 @@ class TaskList extends StatefulWidget {
 
 class _TaskListState extends State<TaskList> {
   bool _showCompletedTasks = false;
-  String _filterBy = 'all'; // 'all', 'overdue', 'today', 'upcoming'
-  String _sortBy = 'created'; // 'created', 'due', 'priority', 'name'
+  String _filterBy = 'all';
+  String _sortBy = 'created';
 
   @override
   Widget build(BuildContext context) {
@@ -121,17 +121,38 @@ class _TaskListState extends State<TaskList> {
                         ),
                       )
                     else ...[
-                      ...sortedTasks.map(
-                        (task) => TaskTile(
-                          key: ValueKey(task.id),
-                          task: task,
-                          onToggle: (isCompleted) {
-                            db.completeTask(task.id, isCompleted);
-                          },
-                          onEdit: () => _editTaskDialog(context, task, db),
-                          onDelete: () => _deleteTaskDialog(context, task, db),
+                      // Active tasks section
+                      if (sortedTasks.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            'Active Tasks (${sortedTasks.length})',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
+                        ...sortedTasks.map(
+                          (task) => TaskTile(
+                            key: ValueKey(task.id),
+                            task: task,
+                            // 🔧 FIXED: Proper completion handler
+                            onToggle: (isCompleted) async {
+                              try {
+                                await db.completeTask(task.id, isCompleted);
+                              } catch (e) {
+                                // Error handling is now done in TaskTile
+                                rethrow;
+                              }
+                            },
+                            onEdit: () => _editTaskDialog(context, task, db),
+                            onDelete: () =>
+                                _deleteTaskDialog(context, task, db),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 16),
 
@@ -142,8 +163,24 @@ class _TaskListState extends State<TaskList> {
                             context,
                           ).copyWith(dividerColor: Colors.transparent),
                           child: ExpansionTile(
-                            title: Text(
-                              'Completed Today (${completedTasks.length})',
+                            title: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Completed Today (${completedTasks.length})',
+                                ),
+                              ],
+                            ),
+                            subtitle: Text(
+                              completedTasks.length == 1
+                                  ? 'Great job! 1 task completed today.'
+                                  : 'Amazing! ${completedTasks.length} tasks completed today.',
+                              style: TextStyle(color: Colors.green.shade600),
                             ),
                             initiallyExpanded: _showCompletedTasks,
                             onExpansionChanged: (expanded) {
@@ -156,8 +193,16 @@ class _TaskListState extends State<TaskList> {
                                   (task) => TaskTile(
                                     key: ValueKey('completed_${task.id}'),
                                     task: task,
-                                    onToggle: (isCompleted) {
-                                      db.completeTask(task.id, isCompleted);
+                                    // 🔧 FIXED: Proper uncomplete handler
+                                    onToggle: (isCompleted) async {
+                                      try {
+                                        await db.completeTask(
+                                          task.id,
+                                          isCompleted,
+                                        );
+                                      } catch (e) {
+                                        rethrow;
+                                      }
                                     },
                                     onEdit: () =>
                                         _editTaskDialog(context, task, db),
@@ -275,12 +320,27 @@ class _TaskListState extends State<TaskList> {
             onPressed: () async {
               final newName = nameController.text.trim();
               if (newName.isNotEmpty) {
-                await db.updateTask(task.id, {
-                  'name': newName,
-                  'description': descriptionController.text.trim(),
-                });
+                try {
+                  await db.updateTask(task.id, {
+                    'name': newName,
+                    'description': descriptionController.text.trim(),
+                  });
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Task updated successfully'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error updating task: $e')),
+                    );
+                  }
+                }
               }
-              if (context.mounted) Navigator.pop(context);
             },
             child: const Text('Save'),
           ),
@@ -294,7 +354,36 @@ class _TaskListState extends State<TaskList> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Task'),
-        content: Text('Are you sure you want to delete "${task.name}"?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Are you sure you want to delete "${task.name}"?'),
+            const SizedBox(height: 8),
+            if (task.isCompletedToday())
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This task was completed today. Deleting it will move the completion to your history.',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -302,11 +391,30 @@ class _TaskListState extends State<TaskList> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await db.deleteTask(task.id);
-              if (context.mounted) Navigator.pop(context);
+              try {
+                await db.deleteTask(task.id);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error deleting task: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

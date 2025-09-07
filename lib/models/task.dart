@@ -125,25 +125,66 @@ class Task {
     return completedBy.any((completion) => completion.user.id == userId);
   }
 
+  // 🔧 ENHANCED: Better completion checking
   bool isCompletedToday() {
     final now = DateTime.now();
-    return completedDays.any((d) {
-      final local = d.toLocal();
-      return local.year == now.year &&
-          local.month == now.month &&
-          local.day == now.day;
+    final today = DateTime(now.year, now.month, now.day);
+
+    // Check if task is archived and has completion for today
+    if (!isArchived) return false;
+
+    return completedDays.any((completedDate) {
+      final localDate = completedDate.toLocal();
+      final completedDay = DateTime(
+        localDate.year,
+        localDate.month,
+        localDate.day,
+      );
+      return completedDay.isAtSameMomentAs(today);
     });
   }
 
-  bool get isOverdue {
-    if (dueDate == null || isArchived) return false;
-    return DateTime.now().isAfter(dueDate!) && !isCompletedToday();
+  // 🔧 NEW: Check if task is completed by specific user today
+  bool isCompletedByUserToday(String userId) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    return completedBy.any((completion) {
+      if (completion.user.id != userId) return false;
+
+      final completedDate = completion.completedAt.toLocal();
+      final completedDay = DateTime(
+        completedDate.year,
+        completedDate.month,
+        completedDate.day,
+      );
+      return completedDay.isAtSameMomentAs(today);
+    });
   }
 
+  // 🔧 ENHANCED: Better overdue logic
+  bool get isOverdue {
+    if (dueDate == null || isArchived) return false;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+
+    // Task is overdue if due date has passed and it's not completed today
+    return dueDay.isBefore(today) && !isCompletedToday();
+  }
+
+  // 🔧 ENHANCED: Better due soon logic
   bool get isDueSoon {
     if (dueDate == null || isArchived) return false;
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return dueDate!.isBefore(tomorrow) && dueDate!.isAfter(DateTime.now());
+
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
+    final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+    final tomorrowDay = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
+
+    // Task is due soon if due tomorrow and not completed today
+    return dueDay.isAtSameMomentAs(tomorrowDay) && !isCompletedToday();
   }
 
   String get priorityColor {
@@ -159,5 +200,12 @@ class Task {
       default:
         return '#FF9800'; // Default orange
     }
+  }
+}
+
+// 🔧 ADD THIS EXTENSION AT THE END OF THE FILE
+extension DateTimeComparison on DateTime {
+  bool isAtSameMomentAs(DateTime other) {
+    return year == other.year && month == other.month && day == other.day;
   }
 }

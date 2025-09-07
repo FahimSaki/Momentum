@@ -1,3 +1,5 @@
+// lib/services/task_service.dart - FIXED COMPLETION METHOD
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:momentum/constants/api_base_url.dart';
@@ -16,7 +18,134 @@ class TaskService {
     'Content-Type': 'application/json',
   };
 
-  // 🔧 ENHANCED: Create task with full team support
+  // 🔧 FIXED: Complete/uncomplete task with proper backend integration
+  Future<Task> completeTask(String taskId, bool isCompleted) async {
+    try {
+      _logger.i(
+        'Attempting to ${isCompleted ? 'complete' : 'uncomplete'} task: $taskId',
+      );
+
+      final requestBody = {
+        'userId': userId,
+        'isCompleted': isCompleted,
+        'completedAt': DateTime.now()
+            .toIso8601String(), // Send current timestamp
+      };
+
+      _logger.d('Task completion request body: ${json.encode(requestBody)}');
+
+      final response = await http
+          .put(
+            Uri.parse('$apiBaseUrl/tasks/$taskId/complete'),
+            headers: _headers,
+            body: json.encode(requestBody),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      _logger.i('Task completion response status: ${response.statusCode}');
+      _logger.d('Task completion response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+
+        // Handle different response formats from backend
+        Map<String, dynamic> taskData;
+        if (responseData is Map<String, dynamic>) {
+          if (responseData.containsKey('task')) {
+            taskData = responseData['task'];
+          } else if (responseData.containsKey('data')) {
+            taskData = responseData['data'];
+          } else {
+            taskData = responseData;
+          }
+        } else {
+          throw Exception('Unexpected response format from server');
+        }
+
+        final updatedTask = Task.fromJson(taskData);
+        _logger.i(
+          'Task ${isCompleted ? 'completed' : 'uncompleted'} successfully: ${updatedTask.id}',
+        );
+        return updatedTask;
+      } else {
+        String errorMessage =
+            'Failed to ${isCompleted ? 'complete' : 'uncomplete'} task';
+
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage =
+              errorData['message'] ?? errorData['error'] ?? errorMessage;
+        } catch (e) {
+          _logger.w('Could not parse error response: $e');
+        }
+
+        _logger.e('Task completion failed: $errorMessage');
+        throw Exception(errorMessage);
+      }
+    } catch (e, stackTrace) {
+      _logger.e('Error completing task', error: e, stackTrace: stackTrace);
+
+      // Better error handling
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Request timed out - please try again');
+      } else if (e.toString().contains('SocketException')) {
+        throw Exception('Network error - check your connection');
+      }
+
+      rethrow;
+    }
+  }
+
+  // 🔧 ENHANCED: Get user tasks with better filtering
+  Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
+    try {
+      final queryParams = <String, String>{
+        'userId': userId,
+        if (teamId != null) 'teamId': teamId,
+        if (type != null) 'type': type,
+      };
+
+      final uri = Uri.parse(
+        '$apiBaseUrl/tasks/assigned',
+      ).replace(queryParameters: queryParams);
+
+      _logger.d('Fetching tasks from: $uri');
+
+      final response = await http.get(uri, headers: _headers);
+
+      if (response.statusCode == 200) {
+        final responseBody = json.decode(response.body);
+
+        // Handle different response formats
+        List<dynamic> tasksData;
+        if (responseBody is List) {
+          tasksData = responseBody;
+        } else if (responseBody is Map && responseBody.containsKey('tasks')) {
+          tasksData = responseBody['tasks'] ?? [];
+        } else if (responseBody is Map && responseBody.containsKey('data')) {
+          tasksData = responseBody['data'] ?? [];
+        } else {
+          _logger.w('Unexpected response format: $responseBody');
+          tasksData = [];
+        }
+
+        final tasks = tasksData.map((task) => Task.fromJson(task)).toList();
+        _logger.i('Loaded ${tasks.length} user tasks');
+        return tasks;
+      } else {
+        _logger.e(
+          'Error fetching user tasks: ${response.statusCode} - ${response.body}',
+        );
+        throw Exception('Failed to fetch tasks: ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      _logger.e('Error fetching user tasks', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  // Keep all other methods from your original TaskService...
+  // (createTask, getTeamTasks, updateTask, deleteTask, etc.)
 
   Future<Task> createTask({
     required String name,
@@ -33,13 +162,8 @@ class TaskService {
         'TaskService.createTask called with: name=$name, teamId=$teamId',
       );
 
-      // Build request body more carefully
-      final Map<String, dynamic> requestBody = {
-        'name': name,
-        'userId': userId, // Include userId for backend compatibility
-      };
+      final Map<String, dynamic> requestBody = {'name': name, 'userId': userId};
 
-      // Only add non-null, non-empty values
       if (description != null && description.trim().isNotEmpty) {
         requestBody['description'] = description.trim();
       }
@@ -48,7 +172,6 @@ class TaskService {
         requestBody['assignedTo'] = assignedTo;
       }
 
-      // 🔧 FIX: Only include teamId if it's not null and not empty
       if (teamId != null && teamId.isNotEmpty) {
         requestBody['teamId'] = teamId;
       }
@@ -80,19 +203,14 @@ class TaskService {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = json.decode(response.body);
 
-        // 🔧 FIX: Handle different response formats more robustly
         Task task;
-
         if (data is Map<String, dynamic>) {
           if (data.containsKey('task')) {
-            // Response format: { "message": "...", "task": {...} }
             task = Task.fromJson(data['task']);
           } else {
-            // Response format: { task data directly }
             task = Task.fromJson(data);
           }
         } else if (data is List && data.isNotEmpty) {
-          // Response format: [{ task data }]
           task = Task.fromJson(data[0]);
         } else {
           throw Exception('Unexpected response format from server');
@@ -101,7 +219,6 @@ class TaskService {
         _logger.i('Task created successfully: ${task.id}');
         return task;
       } else {
-        // Enhanced error handling
         String errorMessage = 'Server error: ${response.statusCode}';
 
         try {
@@ -122,53 +239,18 @@ class TaskService {
         stackTrace: stackTrace,
       );
 
-      // 🔧 FIX: Better error categorization
       if (e.toString().contains('TimeoutException')) {
         throw Exception('Request timed out - please try again');
       } else if (e.toString().contains('SocketException')) {
         throw Exception('Network error - check your connection');
       } else if (e.toString().contains('FormatException')) {
         throw Exception('Invalid server response');
-      } else if (e.toString().contains('type ') &&
-          e.toString().contains('is not a subtype')) {
-        throw Exception('Data parsing error - please try again');
       }
 
       rethrow;
     }
   }
 
-  // Get user tasks (both personal and team)
-  Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
-    try {
-      final queryParams = <String, String>{
-        'userId': userId,
-        if (teamId != null) 'teamId': teamId,
-        if (type != null) 'type': type,
-      };
-
-      final uri = Uri.parse(
-        '$apiBaseUrl/tasks/user',
-      ).replace(queryParameters: queryParams);
-
-      final response = await http.get(uri, headers: _headers);
-
-      if (response.statusCode == 200) {
-        final List data = json.decode(response.body);
-        final tasks = data.map((task) => Task.fromJson(task)).toList();
-        _logger.i('Loaded ${tasks.length} user tasks');
-        return tasks;
-      } else {
-        _logger.e('Error fetching user tasks: ${response.body}');
-        throw Exception('Failed to fetch tasks');
-      }
-    } catch (e, stackTrace) {
-      _logger.e('Error fetching user tasks', error: e, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  // Get team tasks
   Future<List<Task>> getTeamTasks(
     String teamId, {
     String status = 'active',
@@ -196,30 +278,6 @@ class TaskService {
     }
   }
 
-  // Complete/uncomplete task
-  Future<Task> completeTask(String taskId, bool isCompleted) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$apiBaseUrl/tasks/$taskId/complete'),
-        headers: _headers,
-        body: json.encode({'isCompleted': isCompleted}),
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        final taskData = responseData['task'] ?? responseData;
-        return Task.fromJson(taskData);
-      } else {
-        _logger.e('Error completing task: ${response.body}');
-        throw Exception('Failed to complete task');
-      }
-    } catch (e, stackTrace) {
-      _logger.e('Error completing task', error: e, stackTrace: stackTrace);
-      rethrow;
-    }
-  }
-
-  // Update task
   Future<Task> updateTask(String taskId, Map<String, dynamic> updates) async {
     try {
       final response = await http.put(
@@ -242,7 +300,6 @@ class TaskService {
     }
   }
 
-  // Delete task
   Future<void> deleteTask(String taskId) async {
     try {
       final response = await http.delete(
@@ -260,7 +317,6 @@ class TaskService {
     }
   }
 
-  // Get task history
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
       final queryParams = <String, String>{
@@ -300,7 +356,7 @@ class TaskService {
         _logger.w(
           'Error fetching task history (non-critical): ${response.statusCode}',
         );
-        return []; // Return empty list on error
+        return [];
       }
     } catch (e, stackTrace) {
       _logger.w(
@@ -308,11 +364,10 @@ class TaskService {
         error: e,
         stackTrace: stackTrace,
       );
-      return []; // Return empty list on error
+      return [];
     }
   }
 
-  // Get dashboard stats
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
       final queryParams = <String, String>{

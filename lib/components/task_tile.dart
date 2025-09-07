@@ -4,7 +4,7 @@ import 'package:momentum/models/task.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
-class TaskTile extends StatelessWidget {
+class TaskTile extends StatefulWidget {
   final Task task;
   final Function(bool) onToggle;
   final VoidCallback onEdit;
@@ -19,10 +19,64 @@ class TaskTile extends StatelessWidget {
   });
 
   @override
+  State<TaskTile> createState() => _TaskTileState();
+}
+
+class _TaskTileState extends State<TaskTile> {
+  bool _isLoading = false;
+
+  // 🔧 FIXED: Proper completion handling with loading state
+  Future<void> _handleToggle(bool? newValue) async {
+    if (_isLoading) return; // Prevent multiple simultaneous calls
+
+    final bool shouldComplete = newValue ?? false;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await widget.onToggle(shouldComplete);
+
+      // Show success feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
+            ),
+            backgroundColor: shouldComplete ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isLightMode = !themeProvider.isDarkMode;
-    final isCompleted = task.isCompletedToday();
+    final isCompleted = widget.task.isCompletedToday();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -31,14 +85,14 @@ class TaskTile extends StatelessWidget {
           motion: const StretchMotion(),
           children: [
             SlidableAction(
-              onPressed: (_) => onEdit(),
+              onPressed: (_) => widget.onEdit(),
               backgroundColor: Colors.blue,
               foregroundColor: Colors.white,
               icon: Icons.edit,
               label: 'Edit',
             ),
             SlidableAction(
-              onPressed: (_) => onDelete(),
+              onPressed: (_) => widget.onDelete(),
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
               icon: Icons.delete,
@@ -52,13 +106,24 @@ class TaskTile extends StatelessWidget {
               ? (isLightMode ? Colors.green.shade100 : Colors.green.shade800)
               : Theme.of(context).colorScheme.surface,
           child: ListTile(
-            leading: Checkbox(
-              value: isCompleted,
-              onChanged: (value) => onToggle(value ?? false),
-              activeColor: isLightMode ? Colors.green : Colors.teal,
-            ),
+            leading: _isLoading
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        isLightMode ? Colors.green : Colors.teal,
+                      ),
+                    ),
+                  )
+                : Checkbox(
+                    value: isCompleted,
+                    onChanged: _isLoading ? null : _handleToggle,
+                    activeColor: isLightMode ? Colors.green : Colors.teal,
+                  ),
             title: Text(
-              task.name,
+              widget.task.name,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 decoration: isCompleted ? TextDecoration.lineThrough : null,
@@ -70,9 +135,10 @@ class TaskTile extends StatelessWidget {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (task.description != null && task.description!.isNotEmpty)
+                if (widget.task.description != null &&
+                    widget.task.description!.isNotEmpty)
                   Text(
-                    task.description!,
+                    widget.task.description!,
                     style: TextStyle(
                       color: Theme.of(
                         context,
@@ -89,11 +155,11 @@ class TaskTile extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: _getPriorityColor(task.priority),
+                        color: _getPriorityColor(widget.task.priority),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        task.priority.toUpperCase(),
+                        widget.task.priority.toUpperCase(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -102,33 +168,35 @@ class TaskTile extends StatelessWidget {
                       ),
                     ),
 
-                    if (task.dueDate != null) ...[
+                    if (widget.task.dueDate != null) ...[
                       const SizedBox(width: 8),
                       Icon(
                         Icons.schedule,
                         size: 12,
-                        color: task.isOverdue ? Colors.red : Colors.grey,
+                        color: widget.task.isOverdue ? Colors.red : Colors.grey,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _formatDueDate(task.dueDate!),
+                        _formatDueDate(widget.task.dueDate!),
                         style: TextStyle(
                           fontSize: 12,
-                          color: task.isOverdue ? Colors.red : Colors.grey,
-                          fontWeight: task.isOverdue
+                          color: widget.task.isOverdue
+                              ? Colors.red
+                              : Colors.grey,
+                          fontWeight: widget.task.isOverdue
                               ? FontWeight.bold
                               : FontWeight.normal,
                         ),
                       ),
                     ],
 
-                    if (task.isTeamTask) ...[
+                    if (widget.task.isTeamTask) ...[
                       const SizedBox(width: 8),
                       Icon(Icons.group, size: 12, color: Colors.blue),
-                      if (task.team != null) ...[
+                      if (widget.task.team != null) ...[
                         const SizedBox(width: 2),
                         Text(
-                          task.team!.name,
+                          widget.task.team!.name,
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.blue,
@@ -136,15 +204,32 @@ class TaskTile extends StatelessWidget {
                         ),
                       ],
                     ],
+
+                    // 🔧 NEW: Show completion status indicator
+                    if (isCompleted) ...[
+                      const SizedBox(width: 8),
+                      Icon(Icons.check_circle, size: 12, color: Colors.green),
+                      const SizedBox(width: 2),
+                      Text(
+                        'Completed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
             ),
-            trailing: task.isOverdue
+            trailing: widget.task.isOverdue
                 ? const Icon(Icons.warning, color: Colors.orange)
-                : task.isDueSoon
+                : widget.task.isDueSoon
                 ? const Icon(Icons.access_time, color: Colors.amber)
                 : null,
+            // 🔧 NEW: Make entire tile tappable for completion
+            onTap: _isLoading ? null : () => _handleToggle(!isCompleted),
           ),
         ),
       ),
