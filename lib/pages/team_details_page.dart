@@ -80,7 +80,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.2),
+                          color: Colors.blue.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -133,7 +133,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
             (member) => Card(
               child: ListTile(
                 leading: CircleAvatar(
-                  backgroundColor: Colors.blue.withOpacity(0.2),
+                  backgroundColor: Colors.blue.withValues(alpha: 0.2),
                   child: Text(
                     member.user.initials,
                     style: const TextStyle(
@@ -150,7 +150,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: _getRoleColor(member.role).withOpacity(0.2),
+                    color: _getRoleColor(member.role).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(

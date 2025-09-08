@@ -5,6 +5,7 @@ import 'package:momentum/theme/theme_provider.dart';
 import 'package:momentum/pages/login_page.dart';
 import 'package:momentum/pages/register_page.dart';
 import 'package:momentum/components/task_tile.dart';
+import 'package:momentum/models/task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -180,20 +181,44 @@ class _TestableTaskTile extends StatefulWidget {
 }
 
 class _TestableTaskTileState extends State<_TestableTaskTile> {
-  bool taskCompleted = false;
+  late Task task;
+
+  @override
+  void initState() {
+    super.initState();
+    task = Task(
+      id: '1',
+      name: 'Test Task',
+      completedDays: [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return TaskTile(
-      text: 'Test Task',
-      isCompleted: taskCompleted,
-      onChanged: (value) {
+      task: task,
+      onToggle: (bool value) {
         setState(() {
-          taskCompleted = value ?? false;
+          final today = DateTime.now();
+          final normalizedToday = DateTime(today.year, today.month, today.day);
+
+          if (task.completedDays.contains(normalizedToday)) {
+            task.completedDays.remove(normalizedToday);
+          } else {
+            task.completedDays.add(normalizedToday);
+          }
+
+          task.updatedAt = DateTime.now();
         });
       },
-      editTask: (context) {},
-      deleteTask: (context) {},
+      onEdit: () {
+        // Stub for test
+      },
+      onDelete: () {
+        // Stub for test
+      },
     );
   }
 }

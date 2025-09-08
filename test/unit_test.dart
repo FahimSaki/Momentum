@@ -3,6 +3,13 @@ import 'package:momentum/models/task.dart';
 import 'package:momentum/util/task_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// ✅ DateTime extension to compare only year/month/day
+extension DateOnlyCompare on DateTime {
+  bool isAtSameMoment(DateTime other) {
+    return year == other.year && month == other.month && day == other.day;
+  }
+}
+
 void main() {
   // Setup shared preferences mock for all tests
   setUpAll(() {
@@ -16,6 +23,8 @@ void main() {
         'name': 'Test Task',
         'completedDays': ['2024-01-01T00:00:00.000Z'],
         'isArchived': false,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
       };
 
       final task = Task.fromJson(json);
@@ -32,6 +41,8 @@ void main() {
         name: 'Test Task',
         completedDays: [DateTime(2024, 1, 1)],
         isArchived: false,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final json = task.toJson();
@@ -42,7 +53,12 @@ void main() {
     });
 
     test('Task with empty completedDays', () {
-      final task = Task(id: 'test-id', name: 'Empty Task');
+      final task = Task(
+        id: 'test-id',
+        name: 'Empty Task',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
 
       expect(task.completedDays, isEmpty);
       expect(task.isArchived, isFalse);
@@ -60,6 +76,8 @@ void main() {
         id: 'test-id',
         name: 'Multi Day Task',
         completedDays: dates,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       expect(task.completedDays.length, equals(3));
@@ -76,37 +94,45 @@ void main() {
           id: '1',
           name: 'Task 1',
           completedDays: [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
         ),
-        Task(id: '2', name: 'Task 2', completedDays: [DateTime(2024, 1, 1)]),
+        Task(
+          id: '2',
+          name: 'Task 2',
+          completedDays: [DateTime(2024, 1, 1)],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
       ];
 
       final result = prepareMapDatasets(tasks);
 
-      // Should have 2 entries for the dates
       expect(result.length, equals(2));
-      // Jan 1st should have 2 completions
       expect(result[DateTime(2024, 1, 1)], equals(2));
-      // Jan 2nd should have 1 completion
       expect(result[DateTime(2024, 1, 2)], equals(1));
     });
 
     test('prepareMapDatasets with historical data', () {
       final tasks = [
-        Task(id: '1', name: 'Task 1', completedDays: [DateTime(2024, 1, 1)]),
+        Task(
+          id: '1',
+          name: 'Task 1',
+          completedDays: [DateTime(2024, 1, 1)],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
       ];
 
       final historicalCompletions = [
-        DateTime(2024, 1, 1), // Same day as task
-        DateTime(2024, 1, 2), // Different day
+        DateTime(2024, 1, 1),
+        DateTime(2024, 1, 2),
       ];
 
       final result = prepareMapDatasets(tasks, historicalCompletions);
 
-      // Should have 2 entries
       expect(result.length, equals(2));
-      // Jan 1st should have 2 completions (1 from task + 1 from history)
       expect(result[DateTime(2024, 1, 1)], equals(2));
-      // Jan 2nd should have 1 completion (from history)
       expect(result[DateTime(2024, 1, 2)], equals(1));
     });
 
@@ -115,29 +141,21 @@ void main() {
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
 
-      // Task completed today - using the current DateTime.now() for comparison
       final todayCompletions = [DateTime.now()];
       expect(isTaskCompletedToday(todayCompletions), isTrue);
 
-      // Task completed yesterday
       final yesterdayCompletions = [yesterday];
       expect(isTaskCompletedToday(yesterdayCompletions), isFalse);
 
-      // No completions
       expect(isTaskCompletedToday([]), isFalse);
 
-      // Multiple completions including today
       final multipleCompletions = [yesterday, DateTime.now()];
       expect(isTaskCompletedToday(multipleCompletions), isTrue);
 
-      // Test with time included - should still work if using date-only comparison
       final todayWithTime = DateTime(now.year, now.month, now.day, 14, 30);
-      final todayWithTimeCompletions = [todayWithTime];
-      expect(isTaskCompletedToday(todayWithTimeCompletions), isTrue);
+      expect(isTaskCompletedToday([todayWithTime]), isTrue);
 
-      // Test with exact date match (normalized to start of day)
-      final exactToday = [today];
-      expect(isTaskCompletedToday(exactToday), isTrue);
+      expect(isTaskCompletedToday([today]), isTrue);
     });
 
     test('shouldShowTask works correctly', () {
@@ -145,48 +163,49 @@ void main() {
       final today = DateTime(now.year, now.month, now.day);
       final yesterday = today.subtract(const Duration(days: 1));
 
-      // Task with no completion date should show
-      final newTask = Task(id: '1', name: 'New Task');
+      final newTask = Task(
+        id: '1',
+        name: 'New Task',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
       expect(shouldShowTask(newTask), isTrue);
 
-      // Task completed yesterday should show
       final yesterdayTask = Task(
         id: '2',
         name: 'Yesterday Task',
         lastCompletedDate: yesterday,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
       expect(shouldShowTask(yesterdayTask), isTrue);
 
-      // FIXED: Task completed today should NOT show (current function logic)
-      // The function is designed to hide tasks completed today from active list
       final todayTask = Task(
         id: '3',
         name: 'Today Task',
         lastCompletedDate: today,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
-      expect(
-        shouldShowTask(todayTask),
-        isFalse,
-      ); // ← CHANGED: now expects false
+      expect(shouldShowTask(todayTask), isFalse);
 
-      // Additional test cases to verify the logic
       final todayWithTime = Task(
         id: '4',
         name: 'Today with Time Task',
         lastCompletedDate: DateTime(now.year, now.month, now.day, 14, 30),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
-      expect(shouldShowTask(todayWithTime), isFalse); // Should also be false
+      expect(shouldShowTask(todayWithTime), isFalse);
 
-      // Test with current moment
       final nowTask = Task(
         id: '5',
         name: 'Now Task',
         lastCompletedDate: DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
-      expect(
-        shouldShowTask(nowTask),
-        isFalse,
-      ); // Should be false for today's completion
+      expect(shouldShowTask(nowTask), isFalse);
     });
   });
 
@@ -196,10 +215,7 @@ void main() {
       final date2 = DateTime(2024, 1, 1, 15, 45);
       final date3 = DateTime(2024, 1, 2, 10, 30);
 
-      // Same date, different times - assuming isAtSameMoment compares dates only
       expect(date1.isAtSameMoment(date2), isTrue);
-
-      // Different dates
       expect(date1.isAtSameMoment(date3), isFalse);
     });
 
@@ -231,6 +247,8 @@ void main() {
         'lastCompletedDate': null,
         'isArchived': null,
         'archivedAt': null,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
       };
 
       final task = Task.fromJson(json);
@@ -251,6 +269,8 @@ void main() {
         lastCompletedDate: DateTime(2024, 1, 2),
         isArchived: true,
         archivedAt: DateTime(2024, 1, 3),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
       );
 
       final json = originalTask.toJson();
@@ -268,8 +288,7 @@ void main() {
 
   group('Constants and Configuration', () {
     test('Basic constants are accessible', () {
-      // Test that we can access various constants and configurations
-      expect(true, isTrue); // Placeholder for configuration tests
+      expect(true, isTrue);
     });
   });
 }

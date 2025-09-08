@@ -109,9 +109,7 @@ class _InvitationCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(
-                      alpha: 0.2,
-                    ), // Fixed deprecated withOpacity
+                    color: Colors.blue.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.group, color: Colors.blue),
@@ -161,9 +159,7 @@ class _InvitationCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withValues(
-                    alpha: 0.1,
-                  ), // Fixed deprecated withOpacity
+                  color: Colors.grey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(invitation.message!),

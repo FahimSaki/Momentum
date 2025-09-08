@@ -115,9 +115,7 @@ class _NotificationTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       color: notification.isRead
           ? Theme.of(context).colorScheme.surface
-          : Theme.of(context).colorScheme.primary.withValues(
-              alpha: 0.1,
-            ), // Fix deprecated withOpacity
+          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
       child: ListTile(
         leading: _getNotificationIcon(),
         title: Text(
@@ -198,7 +196,7 @@ class _NotificationTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.2), // Fix deprecated withOpacity
+        color: iconColor.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Icon(iconData, color: iconColor, size: 20),
