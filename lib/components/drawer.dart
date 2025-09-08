@@ -6,7 +6,7 @@ import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
-final logger = Logger();
+final Logger _logger = Logger();
 
 class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
@@ -45,10 +45,10 @@ class MyDrawer extends StatelessWidget {
 
         // Run logout in background
         AuthService.logout().catchError((e) {
-          logger.e('Logout error: $e');
+          _logger.e('Logout error: $e');
         });
       } catch (e) {
-        logger.e('Logout navigation error: $e');
+        _logger.e('Logout navigation error: $e');
       }
     }
   }

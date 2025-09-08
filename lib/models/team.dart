@@ -2,8 +2,11 @@ import 'package:momentum/models/user.dart';
 import 'package:momentum/models/team_member.dart';
 import 'package:momentum/models/team_settings.dart';
 import 'package:momentum/models/notification_settings.dart';
+import 'package:logger/logger.dart';
 
 class Team {
+  static final Logger _logger = Logger();
+
   final String id;
   final String name;
   final String? description;
@@ -27,7 +30,6 @@ class Team {
   });
 
   factory Team.fromJson(Map<String, dynamic> json) {
-    // 🔧 FIX: Add comprehensive null checking
     if (json.isEmpty) {
       throw ArgumentError('Cannot create Team from empty JSON');
     }
@@ -37,11 +39,9 @@ class Team {
         id: json['_id'] ?? json['id'] ?? '',
         name: json['name'] ?? 'Unknown Team',
         description: json['description'],
-        // 🔧 FIX: Handle owner field properly
         owner: json['owner'] != null && json['owner'] is Map<String, dynamic>
             ? User.fromJson(json['owner'])
-            : User.empty(), // Fallback to empty user
-        // 🔧 FIX: Handle members array safely
+            : User.empty(),
         members: json['members'] != null && json['members'] is List
             ? (json['members'] as List<dynamic>)
                   .where((memberJson) => memberJson != null)
@@ -49,7 +49,7 @@ class Team {
                     try {
                       return TeamMember.fromJson(memberJson);
                     } catch (e) {
-                      print('Error parsing team member: $e');
+                      _logger.e('Error parsing team member', error: e);
                       return null;
                     }
                   })
@@ -57,12 +57,10 @@ class Team {
                   .cast<TeamMember>()
                   .toList()
             : [],
-        // 🔧 FIX: Handle settings with default fallback
         settings:
             json['settings'] != null && json['settings'] is Map<String, dynamic>
             ? TeamSettings.fromJson(json['settings'])
             : TeamSettings(notificationSettings: NotificationSettings()),
-        // 🔧 FIX: Handle date parsing with fallbacks
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt']) ?? DateTime.now()
             : DateTime.now(),
@@ -72,9 +70,12 @@ class Team {
         isActive: json['isActive'] ?? true,
       );
     } catch (e, stackTrace) {
-      print('Error creating Team from JSON: $e');
-      print('JSON data: $json');
-      print('Stack trace: $stackTrace');
+      _logger.e(
+        'Error creating Team from JSON',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      _logger.d('JSON data: $json');
       rethrow;
     }
   }
@@ -93,7 +94,6 @@ class Team {
     };
   }
 
-  // Helper methods
   bool isOwner(String userId) => owner.id == userId;
 
   bool isAdmin(String userId) {
