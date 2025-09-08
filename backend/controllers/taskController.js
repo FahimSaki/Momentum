@@ -192,14 +192,40 @@ export const getUserTasks = async (req, res) => {
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar')
             .populate('team', 'name')
+            // 🔧 FIX: Properly populate the completedBy.user field
+            .populate({
+                path: 'completedBy.user',
+                select: 'name email avatar'
+            })
             .sort({ createdAt: -1 });
 
-        res.json(tasks);
+        // 🔧 ADDITIONAL FIX: Clean the data before sending
+        const cleanedTasks = tasks.map(task => {
+            const taskObj = task.toObject();
+
+            // Ensure completedBy has proper user objects
+            if (taskObj.completedBy && taskObj.completedBy.length > 0) {
+                taskObj.completedBy = taskObj.completedBy.map(completion => ({
+                    user: completion.user || {
+                        _id: 'unknown',
+                        name: 'Unknown User',
+                        email: '',
+                        avatar: null
+                    },
+                    completedAt: completion.completedAt
+                }));
+            }
+
+            return taskObj;
+        });
+
+        res.json(cleanedTasks);
     } catch (err) {
         console.error('Get user tasks error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
+
 
 // Get team tasks
 export const getTeamTasks = async (req, res) => {
@@ -233,10 +259,35 @@ export const getTeamTasks = async (req, res) => {
         const tasks = await Task.find(query)
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar')
-            .populate('completedBy.user', 'name email avatar')
+            // 🔧 FIX: Properly populate the completedBy.user field
+            .populate({
+                path: 'completedBy.user',
+                select: 'name email avatar'
+            })
+            .populate('team', 'name')
             .sort({ createdAt: -1 });
 
-        res.json(tasks);
+        // 🔧 ADDITIONAL FIX: Clean the data before sending
+        const cleanedTasks = tasks.map(task => {
+            const taskObj = task.toObject();
+
+            // Ensure completedBy has proper user objects
+            if (taskObj.completedBy && taskObj.completedBy.length > 0) {
+                taskObj.completedBy = taskObj.completedBy.map(completion => ({
+                    user: completion.user || {
+                        _id: 'unknown',
+                        name: 'Unknown User',
+                        email: '',
+                        avatar: null
+                    },
+                    completedAt: completion.completedAt
+                }));
+            }
+
+            return taskObj;
+        });
+
+        res.json(cleanedTasks);
     } catch (err) {
         console.error('Get team tasks error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
@@ -398,11 +449,35 @@ export const completeTask = async (req, res) => {
             await sendTaskCompletedNotification(task, req.user, task.assignedBy._id);
         }
 
-        await task.populate('team', 'name');
+        // 🔧 FIX: Properly populate completedBy before sending response
+        await task.populate([
+            {
+                path: 'completedBy.user',
+                select: 'name email avatar'
+            },
+            {
+                path: 'team',
+                select: 'name'
+            }
+        ]);
+
+        // 🔧 ADDITIONAL FIX: Clean the task object before sending
+        const taskObj = task.toObject();
+        if (taskObj.completedBy && taskObj.completedBy.length > 0) {
+            taskObj.completedBy = taskObj.completedBy.map(completion => ({
+                user: completion.user || {
+                    _id: 'unknown',
+                    name: 'Unknown User',
+                    email: '',
+                    avatar: null
+                },
+                completedAt: completion.completedAt
+            }));
+        }
 
         res.json({
             message: `Task ${isCompleted ? 'completed' : 'unmarked'} successfully`,
-            task
+            task: taskObj
         });
     } catch (err) {
         console.error('Complete task error:', err);
