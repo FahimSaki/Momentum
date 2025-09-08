@@ -9,58 +9,47 @@ class DashboardStats extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TaskDatabase>(
       builder: (context, db, _) {
-        return FutureBuilder<Map<String, int>>(
-          future: db.getDashboardStats(),
-          builder: (context, snapshot) {
-            final stats =
-                snapshot.data ??
-                {
-                  'totalTasks': 0,
-                  'completedToday': 0,
-                  'overdueTasks': 0,
-                  'upcomingTasks': 0,
-                };
+        // Instead of FutureBuilder, calculate stats directly from db
+        final stats = db.calculateDashboardStats();
 
-            return Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Active',
-                    value: '${stats['totalTasks']}',
-                    icon: Icons.assignment,
-                    color: Colors.blue,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Completed',
-                    value: '${stats['completedToday']}',
-                    icon: Icons.check_circle,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Overdue',
-                    value: '${stats['overdueTasks']}',
-                    icon: Icons.warning,
-                    color: Colors.red,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Upcoming',
-                    value: '${stats['upcomingTasks']}',
-                    icon: Icons.schedule,
-                    color: Colors.orange,
-                  ),
-                ),
-              ],
-            );
-          },
+        return Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                title: 'Active',
+                value: '${stats['totalTasks']}',
+                icon: Icons.assignment,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatCard(
+                title: 'Completed',
+                value: '${stats['completedToday']}',
+                icon: Icons.check_circle,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatCard(
+                title: 'Overdue',
+                value: '${stats['overdueTasks']}',
+                icon: Icons.warning,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _StatCard(
+                title: 'Upcoming',
+                value: '${stats['upcomingTasks']}',
+                icon: Icons.schedule,
+                color: Colors.orange,
+              ),
+            ),
+          ],
         );
       },
     );

@@ -695,6 +695,34 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  // ✅ Local, instant stats calculator (reactive in UI)
+  Map<String, int> calculateDashboardStats() {
+    final now = DateTime.now();
+
+    final completedToday = currentTasks.where((task) {
+      return task.isCompletedToday();
+    }).length;
+
+    final overdueTasks = currentTasks.where((task) {
+      return task.dueDate != null &&
+          task.dueDate!.isBefore(now) &&
+          !task.isCompletedToday();
+    }).length;
+
+    final upcomingTasks = currentTasks.where((task) {
+      return task.dueDate != null &&
+          task.dueDate!.isAfter(now) &&
+          !task.isCompletedToday();
+    }).length;
+
+    return {
+      'totalTasks': currentTasks.length,
+      'completedToday': completedToday,
+      'overdueTasks': overdueTasks,
+      'upcomingTasks': upcomingTasks,
+    };
+  }
+
   @override
   void dispose() {
     logger.i('Disposing TaskDatabase');

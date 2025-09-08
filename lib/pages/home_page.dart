@@ -430,31 +430,31 @@ class _HomePageState extends State<HomePage>
     try {
       await db.completeTask(task.id, shouldComplete);
 
-      // Show success feedback
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
-            ),
-            backgroundColor: shouldComplete ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 2),
+      // 🔥 Force refresh so DashboardStats updates right away
+      await db.refreshData();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
           ),
-        );
-      }
+          backgroundColor: shouldComplete ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     } catch (e) {
-      // Show error feedback
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: ${e.toString().replaceFirst('Exception: ', '')}',
           ),
-        );
-      }
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
