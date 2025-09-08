@@ -18,7 +18,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   DateTime? _dueDate;
   String _priority = 'medium';
   String _assignmentType = 'individual';
-  List<String> _selectedAssignees = [];
+  final List<String> _selectedAssignees = [];
   bool _isLoading = false;
 
   @override
@@ -68,7 +68,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
 
                 // Priority
                 DropdownButtonFormField<String>(
-                  value: _priority,
+                  initialValue: _priority,
                   decoration: const InputDecoration(
                     labelText: 'Priority',
                     border: OutlineInputBorder(),
@@ -128,7 +128,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
 
                   // Assignment type
                   DropdownButtonFormField<String>(
-                    value: _assignmentType,
+                    initialValue: _assignmentType,
                     decoration: const InputDecoration(
                       labelText: 'Assignment Type',
                       border: OutlineInputBorder(),

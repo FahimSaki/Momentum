@@ -199,7 +199,7 @@ class TaskDatabase extends ChangeNotifier {
 
       unreadNotificationCount = notifs.where((n) => !n.isRead).length;
       logger.i(
-        'Loaded ${notifs.length} notifications (${unreadNotificationCount} unread)',
+        'Loaded ${notifs.length} notifications ($unreadNotificationCount unread)',
       );
     } catch (e, stackTrace) {
       logger.w(

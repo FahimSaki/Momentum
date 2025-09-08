@@ -5,7 +5,7 @@ import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
 
 class TaskList extends StatefulWidget {
-  const TaskList({Key? key}) : super(key: key);
+  const TaskList({super.key});
 
   @override
   State<TaskList> createState() => _TaskListState();
@@ -33,7 +33,7 @@ class _TaskListState extends State<TaskList> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _filterBy,
+                      initialValue: _filterBy,
                       decoration: const InputDecoration(
                         labelText: 'Filter',
                         contentPadding: EdgeInsets.symmetric(
@@ -70,7 +70,7 @@ class _TaskListState extends State<TaskList> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _sortBy,
+                      initialValue: _sortBy,
                       decoration: const InputDecoration(
                         labelText: 'Sort',
                         contentPadding: EdgeInsets.symmetric(
