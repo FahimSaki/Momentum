@@ -120,8 +120,8 @@ app.use((req, res, next) => {
 app.use('/auth', authRoutes);
 app.use('/tasks', authenticateToken, taskRoutes);
 
-// ADD ALIAS ROUTE FOR TASKS-ENHANCED (your frontend is calling this)
-app.use('/tasks-enhanced', authenticateToken, taskRoutes);
+
+// app.use('/tasks-enhanced', authenticateToken, taskRoutes); // its not calling the old routes
 
 app.use('/teams', authenticateToken, teamRoutes);
 app.use('/notifications', authenticateToken, notificationRoutes);

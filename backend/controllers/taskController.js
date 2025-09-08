@@ -360,6 +360,8 @@ export const completeTask = async (req, res) => {
         const { isCompleted } = req.body;
         const userId = req.userId;
 
+        console.log(`🔧 COMPLETE TASK DEBUG: ${id}, isCompleted: ${isCompleted}, userId: ${userId}`);
+
         const task = await Task.findById(id)
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar');
@@ -379,15 +381,23 @@ export const completeTask = async (req, res) => {
             });
         }
 
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        // 🔧 FIX: Use local date for completion tracking
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        console.log('Today (local):', today);
+        console.log('Current completedDays:', task.completedDays);
 
         if (isCompleted) {
-            // Add completion
+            // Add completion for today
             const alreadyCompletedToday = task.completedDays.some(date => {
                 const completedDate = new Date(date);
-                completedDate.setUTCHours(0, 0, 0, 0);
-                return completedDate.getTime() === today.getTime();
+                const localDate = new Date(
+                    completedDate.getFullYear(),
+                    completedDate.getMonth(),
+                    completedDate.getDate()
+                );
+                return localDate.getTime() === today.getTime();
             });
 
             if (!alreadyCompletedToday) {
@@ -407,46 +417,72 @@ export const completeTask = async (req, res) => {
                         completedAt: new Date()
                     });
                 }
+                console.log('✅ Task marked as completed');
+            } else {
+                console.log('⚠️ Task already completed today');
             }
         } else {
-            // Remove completion
+            // Remove completion for today
+            const beforeLength = task.completedDays.length;
             task.completedDays = task.completedDays.filter(date => {
                 const completedDate = new Date(date);
-                completedDate.setUTCHours(0, 0, 0, 0);
-                return completedDate.getTime() !== today.getTime();
+                const localDate = new Date(
+                    completedDate.getFullYear(),
+                    completedDate.getMonth(),
+                    completedDate.getDate()
+                );
+                return localDate.getTime() !== today.getTime();
             });
 
-            // Remove from completedBy
-            task.completedBy = task.completedBy.filter(c =>
-                c.user.toString() !== userId
-            );
+            console.log(`Removed ${beforeLength - task.completedDays.length} completions for today`);
+
+            // Remove from completedBy for today
+            task.completedBy = task.completedBy.filter(c => {
+                const completionDate = new Date(c.completedAt);
+                const completionDay = new Date(
+                    completionDate.getFullYear(),
+                    completionDate.getMonth(),
+                    completionDate.getDate()
+                );
+                return !(c.user.toString() === userId && completionDay.getTime() === today.getTime());
+            });
 
             // Update archive status
-            const hasCompletionsToday = task.completedDays.some(date => {
-                const completedDate = new Date(date);
-                completedDate.setUTCHours(0, 0, 0, 0);
-                return completedDate.getTime() === today.getTime();
+            const hasOtherCompletionsToday = task.completedBy.some(c => {
+                const completionDate = new Date(c.completedAt);
+                const completionDay = new Date(
+                    completionDate.getFullYear(),
+                    completionDate.getMonth(),
+                    completionDate.getDate()
+                );
+                return completionDay.getTime() === today.getTime();
             });
 
-            if (!hasCompletionsToday) {
+            if (!hasOtherCompletionsToday) {
                 task.isArchived = false;
                 task.archivedAt = null;
             }
 
             if (task.completedDays.length > 0) {
                 task.lastCompletedDate = task.completedDays.reduce((a, b) =>
-                    a > b ? a : b
+                    new Date(a) > new Date(b) ? a : b
                 );
             } else {
                 task.lastCompletedDate = null;
             }
+            console.log('✅ Task unmarked as completed');
         }
 
         await task.save();
+        console.log('💾 Task saved successfully');
 
         // Send notification to assigner if task was completed
         if (isCompleted && task.assignedBy && task.assignedBy._id.toString() !== userId) {
-            await sendTaskCompletedNotification(task, req.user, task.assignedBy._id);
+            try {
+                await sendTaskCompletedNotification(task, req.user, task.assignedBy._id);
+            } catch (notifError) {
+                console.error('Notification error (non-critical):', notifError);
+            }
         }
 
         // 🔧 FIX: Properly populate completedBy before sending response
@@ -461,27 +497,18 @@ export const completeTask = async (req, res) => {
             }
         ]);
 
-        // 🔧 ADDITIONAL FIX: Clean the task object before sending
-        const taskObj = task.toObject();
-        if (taskObj.completedBy && taskObj.completedBy.length > 0) {
-            taskObj.completedBy = taskObj.completedBy.map(completion => ({
-                user: completion.user || {
-                    _id: 'unknown',
-                    name: 'Unknown User',
-                    email: '',
-                    avatar: null
-                },
-                completedAt: completion.completedAt
-            }));
-        }
+        console.log('✅ Task completion response ready');
 
         res.json({
             message: `Task ${isCompleted ? 'completed' : 'unmarked'} successfully`,
-            task: taskObj
+            task: task
         });
     } catch (err) {
         console.error('Complete task error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
+        res.status(500).json({
+            message: 'Server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        });
     }
 };
 

@@ -271,6 +271,9 @@ class _HomePageState extends State<HomePage>
     );
   }
 
+  // In your home_page.dart file, replace the existing _buildDashboardTab method
+  // with this updated version that includes task completion functionality:
+
   Widget _buildDashboardTab(TaskDatabase db) {
     return RefreshIndicator(
       onRefresh: () async {
@@ -313,7 +316,7 @@ class _HomePageState extends State<HomePage>
 
           const SizedBox(height: 16),
 
-          // Recent tasks preview
+          // Recent tasks preview - ✅ FIXED WITH COMPLETION FUNCTIONALITY
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -334,28 +337,12 @@ class _HomePageState extends State<HomePage>
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  // ✅ FIXED: Use interactive task tiles instead of simple ListTiles
                   ...db.activeTasks
                       .take(3)
-                      .map(
-                        (task) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            task.isCompletedToday()
-                                ? Icons.check_circle
-                                : Icons.circle_outlined,
-                            color: task.isCompletedToday()
-                                ? Colors.green
-                                : Theme.of(context).colorScheme.primary,
-                          ),
-                          title: Text(task.name),
-                          subtitle: task.team != null
-                              ? Text('Team: ${task.team!.name}')
-                              : null,
-                          trailing: task.isOverdue
-                              ? const Icon(Icons.warning, color: Colors.orange)
-                              : null,
-                        ),
-                      ),
+                      .map((task) => _buildInteractiveTaskTile(task, db)),
+
                   if (db.activeTasks.isEmpty)
                     const Center(
                       child: Padding(
@@ -370,6 +357,119 @@ class _HomePageState extends State<HomePage>
         ],
       ),
     );
+  }
+
+  // ✅ ADD THIS NEW METHOD to your _HomePageState class:
+  Widget _buildInteractiveTaskTile(Task task, TaskDatabase db) {
+    final isCompleted = task.isCompletedToday();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isCompleted
+              ? Colors.green.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 4,
+          ),
+          leading: GestureDetector(
+            onTap: () => _handleTaskCompletion(task, db, !isCompleted),
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isCompleted ? Colors.green : Colors.grey,
+                  width: 2,
+                ),
+                color: isCompleted ? Colors.green : Colors.transparent,
+              ),
+              child: isCompleted
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  : null,
+            ),
+          ),
+          title: Text(
+            task.name,
+            style: TextStyle(
+              decoration: isCompleted ? TextDecoration.lineThrough : null,
+              color: isCompleted
+                  ? Colors.grey
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          subtitle: task.team != null
+              ? Text('Team: ${task.team!.name}')
+              : task.dueDate != null
+              ? Text(_formatDueDate(task.dueDate!))
+              : null,
+          trailing: task.isOverdue
+              ? const Icon(Icons.warning, color: Colors.orange, size: 20)
+              : task.isDueSoon
+              ? const Icon(Icons.access_time, color: Colors.amber, size: 20)
+              : null,
+          // ✅ Make the entire tile tappable for completion
+          onTap: () => _handleTaskCompletion(task, db, !isCompleted),
+        ),
+      ),
+    );
+  }
+
+  // ✅ ADD THIS NEW METHOD to handle task completion in dashboard:
+  Future<void> _handleTaskCompletion(
+    Task task,
+    TaskDatabase db,
+    bool shouldComplete,
+  ) async {
+    try {
+      await db.completeTask(task.id, shouldComplete);
+
+      // Show success feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
+            ),
+            backgroundColor: shouldComplete ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ ADD THIS HELPER METHOD for due date formatting:
+  String _formatDueDate(DateTime dueDate) {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now).inDays;
+
+    if (difference == 0) return 'Due today';
+    if (difference == 1) return 'Due tomorrow';
+    if (difference == -1) return 'Due yesterday';
+    if (difference < 0) return 'Overdue by ${-difference}d';
+    if (difference <= 7) return 'Due in ${difference}d';
+
+    return 'Due ${dueDate.month}/${dueDate.day}';
   }
 
   Widget _buildTasksTab(TaskDatabase db) {
