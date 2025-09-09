@@ -5,7 +5,7 @@ import 'package:momentum/models/task.dart';
 import 'package:provider/provider.dart';
 
 class TaskList extends StatefulWidget {
-  const TaskList({super.key});
+  const TaskList({Key? key}) : super(key: key);
 
   @override
   State<TaskList> createState() => _TaskListState();

@@ -99,7 +99,7 @@ class User {
     } else {
       final first = names[0].isNotEmpty ? names[0].substring(0, 1) : '';
       final last = names.last.isNotEmpty ? names.last.substring(0, 1) : '';
-      return '$first$last'.toUpperCase();
+      return '${first}${last}'.toUpperCase();
     }
   }
 }
