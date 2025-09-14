@@ -94045,16 +94045,13 @@ gap1(){var s=this.b,r=A.Z(s).i("at<1>")
 s=A.a2(new A.at(s,new A.amy(),r),r.i("m.E"))
 return s},
 Ce(a,b,c){return this.aty(0,b,c)},
-aty(a,b,c){var s=0,r=A.J(t.H),q=1,p=[],o=this,n,m,l,k,j,i
+aty(a,b,c){var s=0,r=A.J(t.H),q=1,p=[],o=this,n,m,l,k,j
 var $async$Ce=A.F(function(d,e){if(d===1){p.push(e)
-s=q}while(true)switch(s){case 0:c=c
-q=3
+s=q}while(true)switch(s){case 0:q=3
 l=o.a
-l.bz("Initializing TaskDatabase with userId: "+A.k(c))
-c=c
+l.bz("Initializing TaskDatabase with userId: "+c)
 o.at=new A.an_(A.iF(),b)
-k=c
-o.ax=new A.amI(A.iF(),b,k)
+o.ax=new A.amI(A.iF(),b,c)
 s=6
 return A.C(A.lO(A.b([o.uF(),o.uE(),o.mT(),o.uD(),o.zs()],t.mo),t.H),$async$Ce)
 case 6:o.cx=!0
@@ -94064,12 +94061,12 @@ q=1
 s=5
 break
 case 3:q=2
-i=p.pop()
-n=A.a_(i)
-m=A.am(i)
+j=p.pop()
+n=A.a_(j)
+m=A.am(j)
 o.a.cP(0,"TaskDatabase initialization failed",n,m)
 o.cx=!1
-throw i
+throw j
 s=5
 break
 case 2:s=1

@@ -18,7 +18,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   DateTime? _dueDate;
   String _priority = 'medium';
   String _assignmentType = 'individual';
-  List<String> _selectedAssignees = [];
+  final List<String> _selectedAssignees = [];
   bool _isLoading = false;
 
   @override

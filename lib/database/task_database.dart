@@ -83,7 +83,7 @@ class TaskDatabase extends ChangeNotifier {
       logger.i('Initializing TaskDatabase with userId: $userId');
 
       jwtToken = jwt;
-      userId = userId;
+      this.userId = userId;
 
       // Initialize services
       _teamService = TeamService(jwtToken: jwt);
