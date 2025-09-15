@@ -49,7 +49,7 @@ void main() {
 
       expect(json['_id'], equals('test-id'));
       expect(json['name'], equals('Test Task'));
-      expect(json['is_archived'], equals(false));
+      expect(json['isArchived'], equals(false));
     });
 
     test('Task with empty completedDays', () {
