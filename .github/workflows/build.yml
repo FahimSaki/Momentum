@@ -224,16 +224,19 @@ jobs:
               flutter build windows --release
               ;;
             ios)
-              echo "🍎 Building iOS app..."
+              echo "🍎 Building iOS app for simulator..."
               if [ -n "$IOS_SIMULATOR_ID" ]; then
-                echo "Building for specific simulator: $IOS_SIMULATOR_ID"
-                if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
-                  flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID" --verbose
-                else
-                  flutter build ios --simulator --no-codesign --verbose
-                fi
+                flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID" > ios_build.log 2>&1
               else
-                flutter build ios --simulator --no-codesign --verbose
+                flutter build ios --simulator --no-codesign > ios_build.log 2>&1
+              fi
+              if [ $? -eq 0 ]; then
+                echo "✅ iOS build successful"
+                tail -5 ios_build.log | grep -E "Building|Finished|Archive|Creating"
+              else
+                echo "❌ iOS build failed. Error details:"
+                cat ios_build.log | grep -v -E "\[[ ]*\+[0-9]+ ms\]|\bArtifact Instance\b|is not required, skipping update" | tail -50
+                exit 1
               fi
               ;;
             macos)
