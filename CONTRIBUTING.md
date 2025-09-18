@@ -2,17 +2,17 @@
 
 Thank you for your interest in contributing to Momentum! This guide will help you get started with development and understand our workflow.
 
-## 🎯 Ways to Contribute
+## Ways to Contribute
 
-- 🐛 **Bug Reports**: Found an issue? Report it with details
-- 💡 **Feature Requests**: Have ideas? We'd love to hear them
-- 📝 **Documentation**: Help improve docs and guides
-- 🔧 **Code Contributions**: Fix bugs, add features, improve performance
-- 🎨 **UI/UX Improvements**: Make the app more user-friendly
-- 🧪 **Testing**: Write tests, test on different platforms
-- 🌍 **Localization**: Help translate the app
+- **Bug Reports**: Found an issue? Report it with details
+- **Feature Requests**: Have ideas? We'd love to hear them
+- **Documentation**: Help improve docs and guides
+- **Code Contributions**: Fix bugs, add features, improve performance
+- **UI/UX Improvements**: Make the app more user-friendly
+- **Testing**: Write tests, test on different platforms
+- **Localization**: Help translate the app
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Fork & Clone
 
@@ -57,7 +57,7 @@ git checkout -b feature/your-feature-name
 # refactor/improve-state-management
 ```
 
-## 🔧 Development Standards
+## Development Standards
 
 ### Code Style
 
@@ -181,7 +181,7 @@ git commit -m "chore: update dependencies to latest versions"
 - `test`: Adding or updating tests
 - `chore`: Maintenance tasks, dependency updates
 
-## 🧪 Testing
+## Testing
 
 ### Running Tests
 
@@ -268,7 +268,7 @@ describe('POST /tasks', () => {
 });
 ```
 
-## 📝 Documentation Standards
+## Documentation Standards
 
 ### Code Documentation
 
@@ -342,7 +342,7 @@ When adding features, update relevant documentation:
 - [API Documentation](docs/API.md) for new endpoints
 - [Architecture Guide](docs/ARCHITECTURE.md) for structural changes
 
-## 🔍 Code Review Process
+## Code Review Process
 
 ### Before Submitting
 
@@ -380,24 +380,24 @@ When adding features, update relevant documentation:
 **PR Description Template**:
 
 ```markdown
-## 📝 Description
+## Description
 Brief description of changes and motivation.
 
-## 🎯 Type of Change
+## Type of Change
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
 - [ ] Documentation update
 
-## 🧪 Testing
+## Testing
 - [ ] Unit tests pass
 - [ ] Integration tests pass
 - [ ] Manual testing completed
 
-## 📸 Screenshots (if applicable)
+## Screenshots (if applicable)
 Add screenshots for UI changes.
 
-## 📋 Checklist
+## Checklist
 - [ ] My code follows the project's style guidelines
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, particularly in hard-to-understand areas
@@ -429,58 +429,58 @@ Add screenshots for UI changes.
 - Tests are meaningful
 - All tests pass
 
-## 🐛 Issue Guidelines
+## Issue Guidelines
 
 ### Bug Reports
 
 Use the bug report template:
 
 ```markdown
-**🐛 Bug Description**
+**Bug Description**
 A clear and concise description of what the bug is.
 
-**🔄 Steps to Reproduce**
+**Steps to Reproduce**
 1. Go to '...'
 2. Click on '....'
 3. Scroll down to '....'
 4. See error
 
-**✅ Expected Behavior**
+**Expected Behavior**
 A clear and concise description of what you expected to happen.
 
-**📱 Environment**
+**Environment**
 - Platform: [e.g., Android, iOS, Web]
 - Version: [e.g., 0.5.1]
 - Device: [e.g., Pixel 6, iPhone 13]
 - OS: [e.g., Android 12, iOS 15]
 
-**📸 Screenshots**
+**Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**📋 Additional Context**
+**Additional Context**
 Add any other context about the problem here.
 ```
 
 ### Feature Requests
 
 ```markdown
-**💡 Feature Request**
+**Feature Request**
 A clear and concise description of what you want to happen.
 
-**🎯 Problem Statement**
+** Problem Statement**
 Is your feature request related to a problem? Please describe.
 
-**💭 Proposed Solution**
+**Proposed Solution**
 Describe the solution you'd like.
 
-**🔀 Alternatives Considered**
+**Alternatives Considered**
 Describe any alternative solutions or features you've considered.
 
-**📋 Additional Context**
+**Additional Context**
 Add any other context or screenshots about the feature request here.
 ```
 
-## 🏷️ Release Process
+## Release Process
 
 ### Version Numbering
 
@@ -506,7 +506,7 @@ We follow [Semantic Versioning](https://semver.org/):
    - [ ] Deploy to production
    - [ ] Update deployment documentation
 
-## 💬 Community Guidelines
+## Community Guidelines
 
 ### Code of Conduct
 
@@ -524,12 +524,12 @@ We follow [Semantic Versioning](https://semver.org/):
 
 ### Getting Help
 
-- 📖 **Documentation**: Start with our comprehensive docs
-- 🐛 **Issues**: Search existing issues before creating new ones
-- 💬 **Discussions**: Ask questions in GitHub Discussions
-- 📧 **Email**: For security issues or private concerns
+- **Documentation**: Start with our comprehensive docs
+- **Issues**: Search existing issues before creating new ones
+- **Discussions**: Ask questions in GitHub Discussions
+- **Email**: For security issues or private concerns
 
-## 🎉 Recognition
+## Recognition
 
 Contributors are recognized in:
 
@@ -543,6 +543,6 @@ Thank you for contributing to Momentum! 🚀
 
 **Questions?**
 
-- 💬 [GitHub Discussions](../../discussions)
-- 📖 [Documentation](docs/)
-- 🐛 [Report Issues](../../issues)
+- [GitHub Discussions](../../discussions)
+- [Documentation](docs/)
+- [Report Issues](../../issues)

@@ -2,7 +2,7 @@
 
 Common issues and solutions for Momentum development and deployment.
 
-## 🔧 Quick Diagnostics
+## Quick Diagnostics
 
 ### Health Check Commands
 
@@ -26,7 +26,7 @@ lsof -i :27017  # MongoDB port
 
 ---
 
-## 🚀 Development Issues
+## Development Issues
 
 ### Flutter Setup Problems
 
@@ -173,7 +173,7 @@ mongo --eval "db.adminCommand('ping')"
 
 ---
 
-## 📱 Mobile Development Issues
+## Mobile Development Issues
 
 ### Android Issues
 
@@ -310,7 +310,7 @@ const String apiBaseUrl = kIsWeb
 
 ---
 
-## 🔐 Authentication Issues
+## Authentication Issues
 
 **❌ Problem**: Login always returns "Invalid credentials"
 
@@ -385,7 +385,7 @@ final token = await storage.read(key: 'jwt_token');
 
 ---
 
-## 🔄 API & Networking Issues
+## API & Networking Issues
 
 **❌ Problem**: API requests timeout or fail intermittently
 
@@ -492,7 +492,7 @@ tail -f backend/logs/combined.log | grep firebase
 
 ---
 
-## 📊 Data & State Management Issues
+## Data & State Management Issues
 
 **❌ Problem**: UI not updating after API calls
 
@@ -622,7 +622,7 @@ Future<Task> completeTask(String taskId, bool isCompleted) async {
 
 ---
 
-## 🏠 Home Widget Issues
+## Home Widget Issues
 
 **❌ Problem**: Android home widget not updating
 
@@ -699,7 +699,7 @@ adb shell am broadcast -a android.appwidget.action.APPWIDGET_UPDATE
 
 ---
 
-## ⏰ Background Services Issues
+## Background Services Issues
 
 **❌ Problem**: Background polling not working
 
@@ -759,7 +759,7 @@ curl -X POST http://localhost:10000/manual-cleanup
 
 ---
 
-## 🚀 Deployment Issues
+## Deployment Issues
 
 ### Render.com Deployment
 
@@ -864,7 +864,7 @@ flutter build web --release --web-renderer html
 
 ---
 
-## 🔍 Debugging Tools & Tips
+## Debugging Tools & Tips
 
 ### Flutter Debugging
 
@@ -967,12 +967,12 @@ HttpOverrides.global = MyHttpOverrides();
 
 ### Resources
 
-- 📖 **Documentation**: [Main README](../README.md)
-- 🏗️ **Architecture**: [Architecture Guide](ARCHITECTURE.md)
-- 📡 **API Reference**: [API Documentation](API.md)
-- 🚀 **Deployment**: [Deployment Guide](DEPLOYMENT.md)
-- 💬 **Community**: [GitHub Discussions](../../discussions)
+- **Documentation**: [Main README](../README.md)
+- **Architecture**: [Architecture Guide](ARCHITECTURE.md)
+- **API Reference**: [API Documentation](API.md)
+- **Deployment**: [Deployment Guide](DEPLOYMENT.md)
+- **Community**: [GitHub Discussions](../../discussions)
 
 ---
 
-**Still having issues?** Don't hesitate to [open an issue](../../issues/new) with detailed information. The community is here to help! 🚀
+**Still having issues?** Don't hesitate to [open an issue](../../issues/new) with detailed information. The community is here to help!

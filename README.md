@@ -27,7 +27,7 @@
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 Get Momentum running in under 5 minutes:
 
@@ -48,9 +48,9 @@ flutter pub get
 flutter run
 ```
 
-> 📖 **Need detailed setup?** See the [Installation Guide](docs/INSTALLATION.md)
+> **Need detailed setup?** See the [Installation Guide](docs/INSTALLATION.md)
 
-## ✨ Key Features
+## Key Features
 
 ### For Users
 
@@ -71,7 +71,7 @@ flutter run
 - **Developer Experience**: Hot reload, comprehensive logging, structured error responses
 - **Extensible**: Well-documented APIs, clear separation of concerns, modular design
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
@@ -83,25 +83,25 @@ flutter run
 | **Background Services** | WorkManager + BackgroundService | Real-time sync and widget updates |
 | **Analytics** | Flutter Heatmap Calendar | Progressive 39-day activity visualization |
 
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [🔧 Installation Guide](docs/INSTALLATION.md) | Complete setup for development & production |
-| [🏗️ Architecture](docs/ARCHITECTURE.md) | System design, data flow, and technical decisions |
-| [📡 API Reference](docs/API.md) | Endpoint documentation with examples |
-| [🚀 Deployment](docs/DEPLOYMENT.md) | Self-hosting, VPS, cloud deployment options |
-| [🐛 Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [⚡ Performance](docs/PERFORMANCE.md) | Optimization tips and monitoring |
-| [🔒 Security](docs/SECURITY.md) | Security features and best practices |
+| [Installation Guide](docs/INSTALLATION.md) | Complete setup for development & production |
+| [Architecture](docs/ARCHITECTURE.md) | System design, data flow, and technical decisions |
+| [API Reference](docs/API.md) | Endpoint documentation with examples |
+| [Deployment](docs/DEPLOYMENT.md) | Self-hosting, VPS, cloud deployment options |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [Performance](docs/PERFORMANCE.md) | Optimization tips and monitoring |
+| [Security](docs/SECURITY.md) | Security features and best practices |
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Whether it's bug fixes, features, or documentation improvements.
 
-- 📖 **[Contributing Guide](CONTRIBUTING.md)** - Development workflow, coding standards
-- 🐛 **[Issue Tracker](../../issues)** - Report bugs or request features  
-- 💬 **[Discussions](../../discussions)** - Ask questions, share ideas
+- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow, coding standards
+- **[Issue Tracker](../../issues)** - Report bugs or request features  
+- **[Discussions](../../discussions)** - Ask questions, share ideas
 
 ### Development Setup
 
@@ -119,16 +119,16 @@ git checkout -b feature/your-feature-name
 # Open a Pull Request with a clear description
 ```
 
-## 🏆 Why Momentum?
+## Why Momentum?
 
-- 🔓 **Own Your Data** - Self-hosted, no vendor lock-in
-- 🎯 **Purpose-Built** - Specifically designed for development teams
-- 🛡️ **Security First** - JWT auth, input validation, secure defaults
-- 🔄 **API-First** - Everything accessible via REST API
-- 📈 **Scalable** - Handles individual users to large teams
-- 🧩 **Extensible** - Clean architecture for custom integrations
+- **Own Your Data** - Self-hosted, no vendor lock-in
+- **Purpose-Built** - Specifically designed for development teams
+- **Security First** - JWT auth, input validation, secure defaults
+- **API-First** - Everything accessible via REST API
+- **Scalable** - Handles individual users to large teams
+- **Extensible** - Clean architecture for custom integrations
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0) with additional terms under section 7**.  
 > See the [LICENSE](LICENSE) file for more details.

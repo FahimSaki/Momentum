@@ -2,7 +2,7 @@
 
 System design, data flow, and technical decisions for Momentum.
 
-## 🏗️ System Overview
+## System Overview
 
 Momentum follows a **client-server architecture** with clean separation between frontend and backend concerns.
 
@@ -22,7 +22,7 @@ Momentum follows a **client-server architecture** with clean separation between 
 └─────────────────┘                 └─────────────────┘                └─────────────────┘
 ```
 
-## 🎯 Design Principles
+## Design Principles
 
 ### 1. **Separation of Concerns**
 
@@ -247,7 +247,7 @@ backend/
 - Consistent query interface
 - Built-in validation and relationships
 
-## 🗄️ Database Design
+## Database Design
 
 ### Schema Overview
 
@@ -332,7 +332,7 @@ backend/
 { teamId: 1 }                   // Team history
 ```
 
-## 🔐 Security Architecture
+## Security Architecture
 
 ### Authentication Flow
 
@@ -389,7 +389,7 @@ backend/
 - Database connection string in environment variables
 - JWT secret in environment variables
 
-## 🔄 Data Flow & State Management
+## Data Flow & State Management
 
 ### Task Creation Flow
 
@@ -442,7 +442,7 @@ backend/
 - Refresh when connection restored
 - Show offline indicator
 
-## 📊 Performance Considerations
+## Performance Considerations
 
 ### Database Optimization
 
@@ -493,7 +493,7 @@ backend/
 - Circuit breaker pattern for external services
 - Graceful degradation for non-critical features
 
-## 🔮 Future Architecture Considerations
+## Future Architecture Considerations
 
 ### Scalability Improvements
 
@@ -540,6 +540,6 @@ backend/
 
 **Related Documentation**:
 
-- 📖 [Installation Guide](INSTALLATION.md)
-- 📡 [API Reference](API.md)
-- 🚀 [Deployment Guide](DEPLOYMENT.md)
+- [Installation Guide](INSTALLATION.md)
+- [API Reference](API.md)
+- [Deployment Guide](DEPLOYMENT.md)

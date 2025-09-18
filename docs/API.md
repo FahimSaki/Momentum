@@ -4,7 +4,7 @@ Complete REST API reference for Momentum backend.
 
 **Base URL**: `https://your-domain.com` or `http://localhost:10000`
 
-## 🔐 Authentication
+## Authentication
 
 All protected endpoints require JWT authentication via `Authorization` header:
 
@@ -16,7 +16,7 @@ Get JWT tokens from login/register endpoints.
 
 ---
 
-## 📝 Authentication Endpoints
+## Authentication Endpoints
 
 ### Register User
 
@@ -133,7 +133,7 @@ Authenticate existing user.
 
 ---
 
-## 🔔 Notification Endpoints
+## Notification Endpoints
 
 All notification endpoints require authentication.
 
@@ -243,7 +243,7 @@ All notification endpoints require authentication.
 
 ---
 
-## 🔧 Utility Endpoints
+## Utility Endpoints
 
 ### Health Check
 
@@ -292,7 +292,7 @@ Trigger manual cleanup of archived tasks.
 
 ---
 
-## 📊 Data Models
+## Data Models
 
 ### User Object
 
@@ -390,7 +390,7 @@ Trigger manual cleanup of archived tasks.
 
 ---
 
-## 🚫 Error Responses
+## Error Responses
 
 ### Standard Error Format
 
@@ -455,7 +455,7 @@ Trigger manual cleanup of archived tasks.
 
 ---
 
-## 📝 Rate Limiting
+## Rate Limiting
 
 Currently no rate limiting is implemented, but consider implementing it for production:
 
@@ -465,7 +465,7 @@ Currently no rate limiting is implemented, but consider implementing it for prod
 
 ---
 
-## 🔧 API Client Examples
+## API Client Examples
 
 ### JavaScript (Fetch)
 
@@ -544,7 +544,7 @@ final taskResponse = await http.post(
 
 ---
 
-## 🔄 Changelog
+## Changelog
 
 ### API Version 1.0
 
@@ -567,9 +567,9 @@ final taskResponse = await http.post(
 
 **Need Help?**
 
-- 🐛 [Report API Issues](../../issues)
-- 💬 [API Questions](../../discussions)
-- 📖 [Back to Main Docs](../README.md) "Logged out successfully"
+- [Report API Issues](../../issues)
+- [API Questions](../../discussions)
+- [Back to Main Docs](../README.md) "Logged out successfully"
 }
 
 ```
@@ -595,7 +595,7 @@ Check if current token is valid.
 
 ---
 
-## ✅ Task Endpoints
+## Task Endpoints
 
 All task endpoints require authentication.
 

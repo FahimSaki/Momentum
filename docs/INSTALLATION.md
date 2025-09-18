@@ -2,7 +2,7 @@
 
 Complete setup instructions for Momentum development and production environments.
 
-## 📋 Prerequisites
+## Prerequisites
 
 ### Required
 
@@ -25,7 +25,7 @@ Complete setup instructions for Momentum development and production environments
 - **OS**: Windows 10+, macOS 10.14+, or Ubuntu 18.04+
 - **Network**: Stable internet connection for package downloads
 
-## 🚀 Quick Development Setup
+## Quick Development Setup
 
 ### 1. Clone Repository
 
@@ -67,7 +67,7 @@ flutter run -d android        # Android
 flutter run -d ios           # iOS (macOS only)
 ```
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 Create `backend/.env` with the following configuration:
 
@@ -101,7 +101,7 @@ CLEANUP_ENABLED=true
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | ❌ | Path to Firebase service account JSON | `/etc/secrets/firebase-key.json` |
 | `CLEANUP_ENABLED` | ❌ | Enable automatic cleanup (default: true) | `true` or `false` |
 
-## 🗄️ Database Setup
+## Database Setup
 
 ### Option A: Local MongoDB
 
@@ -187,7 +187,7 @@ CLEANUP_ENABLED=true
 
 2. **Run**: `flutter run -d windows/macos/linux`
 
-## 🔥 Firebase Setup (Optional)
+## Firebase Setup (Optional)
 
 Firebase is used for push notifications. Skip this section if you don't need push notifications.
 
@@ -213,7 +213,7 @@ Firebase is used for push notifications. Skip this section if you don't need pus
 4. Select your Firebase project
 5. Commit generated files
 
-## 🧪 Verify Installation
+## Verify Installation
 
 ### Backend Health Check
 
@@ -241,7 +241,7 @@ db.users.find()
 # Should connect without errors
 ```
 
-## 🐛 Common Issues
+## Common Issues
 
 ### Backend Issues
 
@@ -318,7 +318,7 @@ String getApiBaseUrl() {
 }
 ```
 
-## 🔄 Development Workflow
+## Development Workflow
 
 ### 1. Start Development Servers
 
@@ -354,7 +354,7 @@ db.users.find().pretty()
 db.tasks.find().pretty()
 ```
 
-## 📦 Production Build
+## Production Build
 
 ### Backend
 
@@ -377,17 +377,17 @@ flutter build ios --release
 flutter build web --release
 ```
 
-## 🚀 Next Steps
+## Next Steps
 
-- 📖 Read the [Architecture Guide](ARCHITECTURE.md) to understand the system design
-- 📡 Check the [API Documentation](API.md) for endpoint details  
-- 🚀 See [Deployment Guide](DEPLOYMENT.md) for production hosting
-- 🐛 Visit [Troubleshooting](TROUBLESHOOTING.md) if you encounter issues
+- Read the [Architecture Guide](ARCHITECTURE.md) to understand the system design
+- Check the [API Documentation](API.md) for endpoint details
+- See [Deployment Guide](DEPLOYMENT.md) for production hosting
+- Visit [Troubleshooting](TROUBLESHOOTING.md) if you encounter issues
 
 ---
 
 **Need Help?**
 
-- 🐛 [Report Issues](../../issues)
-- 💬 [Ask Questions](../../discussions)
-- 📖 [Read Contributing Guide](../CONTRIBUTING.md)
+- [Report Issues](../../issues)
+- [Ask Questions](../../discussions)
+- [Read Contributing Guide](../CONTRIBUTING.md)
