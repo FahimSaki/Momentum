@@ -469,7 +469,7 @@ DEBUG=false
 LOG_LEVEL=warn
 ```
 
-## 📱 Mobile Security
+## Mobile Security
 
 ### Android Security
 
