@@ -57,7 +57,7 @@ Momentum follows a **client-server architecture** with clean separation between 
 - Hot reload in development
 - Automated testing support
 
-## 📱 Frontend Architecture
+## Frontend Architecture
 
 ### Technology Stack
 

@@ -968,7 +968,7 @@ app.use(cors({
 - **Infrastructure**: Secure hosting, network configuration, monitoring
 - **Users**: Strong passwords, device security, awareness of phishing
 
-Stay vigilant, keep learning, and always prioritize security in your development process! 🛡️
+Stay vigilant, keep learning, and always prioritize security in your development process!
 
 ---
 

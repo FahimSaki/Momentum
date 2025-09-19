@@ -823,7 +823,7 @@ All task endpoints require authentication.
 
 ---
 
-## 👥 Team Endpoints
+## Team Endpoints
 
 All team endpoints require authentication.
 

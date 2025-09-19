@@ -1478,7 +1478,7 @@ Future<void> createTask() async {
 
 ---
 
-**Performance is an ongoing process**. Regular monitoring, profiling, and optimization ensure your Momentum deployment stays fast and responsive as it grows! 🚀
+**Performance is an ongoing process**. Regular monitoring, profiling, and optimization ensure your Momentum deployment stays fast and responsive as it grows!
 
 ---
 

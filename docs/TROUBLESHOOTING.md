@@ -930,7 +930,7 @@ class MyHttpOverrides extends HttpOverrides {
 HttpOverrides.global = MyHttpOverrides();
 ```
 
-## 📞 Getting Additional Help
+## Getting Additional Help
 
 ### When to Seek Help
 
