@@ -570,7 +570,6 @@ final taskResponse = await http.post(
 - [Report API Issues](../../issues)
 - [API Questions](../../discussions)
 - [Back to Main Docs](../README.md) "Logged out successfully"
-}
 
 ```
 
