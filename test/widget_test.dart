@@ -51,7 +51,7 @@ void main() {
       expect(
         initialCheckbox.value,
         isFalse,
-      ); // ✅ This should be false for active tasks
+      ); // This should be false for active tasks
 
       // Tap the checkbox (this should complete + archive the task)
       await tester.tap(find.byType(Checkbox));

@@ -48,7 +48,7 @@ class TaskDatabase extends ChangeNotifier {
       List.unmodifiable(_historicalCompletions);
   bool get isInitialized => _isInitialized;
 
-  // 🔧 ENHANCED: Better getters for task states
+  // Better getters for task states
   List<Task> get activeTasks {
     return currentTasks.where((task) {
       // A task is active if it's not archived OR not completed today
@@ -147,7 +147,7 @@ class TaskDatabase extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 🔧 FIXED: Better task loading with error handling
+  // Better task loading with error handling
   Future<void> _loadTasks() async {
     try {
       logger.i('Loading tasks...');
@@ -437,7 +437,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // 🔧 FIXED: Complete task with proper state management
+  // FIXED: Complete task with proper state management
   Future<void> completeTask(String taskId, bool isCompleted) async {
     try {
       logger.i('TaskDatabase.completeTask: $taskId, completed: $isCompleted');
@@ -695,7 +695,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ✅ Local, instant stats calculator (reactive in UI)
+  // Local, instant stats calculator (reactive in UI)
   Map<String, int> calculateDashboardStats() {
     final now = DateTime.now();
 

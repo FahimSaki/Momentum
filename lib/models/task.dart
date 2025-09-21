@@ -56,7 +56,7 @@ class Task {
       assignedBy: json['assignedBy'] != null
           ? User.fromJson(json['assignedBy'])
           : null,
-      // 🔧 FIX: Handle null team safely
+      // Handle null team safely
       team: json['team'] != null && json['team'] is Map<String, dynamic>
           ? Team.fromJson(json['team'])
           : null,
@@ -125,7 +125,7 @@ class Task {
     return completedBy.any((completion) => completion.user.id == userId);
   }
 
-  // 🔧 ENHANCED: Better completion checking
+  // Better completion checking
   bool isCompletedToday() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -144,7 +144,7 @@ class Task {
     });
   }
 
-  // 🔧 NEW: Check if task is completed by specific user today
+  // Check if task is completed by specific user today
   bool isCompletedByUserToday(String userId) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -162,7 +162,7 @@ class Task {
     });
   }
 
-  // 🔧 ENHANCED: Better overdue logic
+  // Better overdue logic
   bool get isOverdue {
     if (dueDate == null || isArchived) return false;
 
@@ -174,7 +174,7 @@ class Task {
     return dueDay.isBefore(today) && !isCompletedToday();
   }
 
-  // 🔧 ENHANCED: Better due soon logic
+  // Better due soon logic
   bool get isDueSoon {
     if (dueDate == null || isArchived) return false;
 
@@ -203,7 +203,6 @@ class Task {
   }
 }
 
-// 🔧 ADD THIS EXTENSION AT THE END OF THE FILE
 extension DateTimeComparison on DateTime {
   bool isAtSameMomentAs(DateTime other) {
     return year == other.year && month == other.month && day == other.day;

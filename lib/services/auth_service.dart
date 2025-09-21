@@ -22,8 +22,8 @@ class AuthService {
       Uri.parse('$backendUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
-        'email': email, // ✅ Required for login
-        'password': password, // ✅ Required for login
+        'email': email,
+        'password': password,
         // ❌ NO name field needed for login
       }),
     );
@@ -54,15 +54,15 @@ class AuthService {
   static Future<Map<String, dynamic>> register(
     String email,
     String password,
-    String name, // ✅ Required parameter for registration
+    String name,
   ) async {
     try {
       _logger.i("Attempting registration for: $email");
 
       final requestBody = {
-        'email': email.trim().toLowerCase(), // ✅ Required
-        'password': password, // ✅ Required
-        'name': name.trim(), // ✅ Required for registration
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        'name': name.trim(),
       };
 
       _logger.d("Registration request body: ${json.encode(requestBody)}");

@@ -231,7 +231,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
 
-      // 🔧 FIX: Ensure teamId is passed correctly
+      // FIX: Ensure teamId is passed correctly
       final teamId = db.selectedTeam?.id;
 
       _logger.i(
@@ -247,7 +247,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
         assignedTo: _assignmentType == 'team'
             ? null // Let backend handle team assignment
             : (_selectedAssignees.isEmpty ? null : _selectedAssignees),
-        teamId: teamId, // 🔧 FIX: Pass teamId explicitly
+        teamId: teamId, // FIX: Pass teamId explicitly
         priority: _priority,
         dueDate: _dueDate,
         assignmentType: _assignmentType,

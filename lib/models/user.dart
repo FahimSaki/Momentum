@@ -1,3 +1,4 @@
+import 'package:momentum/models/profile_visibility.dart';
 import 'package:momentum/models/user_notification_settings.dart';
 
 class User {
@@ -7,10 +8,15 @@ class User {
   final String? avatar;
   final String? bio;
   final String timezone;
-  final List<String> teams;
+  final List teams;
   final UserNotificationSettings notificationSettings;
   final DateTime lastLoginAt;
   final bool isActive;
+
+  // NEW FIELDS - Add these
+  final String inviteId;
+  final bool isPublic;
+  final ProfileVisibility profileVisibility;
 
   User({
     required this.id,
@@ -23,50 +29,44 @@ class User {
     required this.notificationSettings,
     required this.lastLoginAt,
     this.isActive = true,
+    // NEW PARAMETERS
+    required this.inviteId,
+    this.isPublic = true,
+    required this.profileVisibility,
   });
 
-  factory User.fromJson(Map<String, dynamic> json) {
+  factory User.fromJson(Map json) {
     return User(
-      // Handle both _id and id formats from backend
       id: (json['_id'] ?? json['id'] ?? '').toString(),
-
-      // Ensure email is never null
       email: (json['email'] ?? '').toString(),
-
-      // ✅ FIXED: Handle null name values properly
       name: (json['name'] ?? json['email']?.toString().split('@')[0] ?? 'User')
           .toString(),
-
-      // Optional fields can be null
       avatar: json['avatar']?.toString(),
       bio: json['bio']?.toString(),
-
-      // Provide fallback for timezone
       timezone: (json['timezone'] ?? 'UTC').toString(),
-
-      // Handle teams array safely
       teams:
-          (json['teams'] as List<dynamic>?)
+          (json['teams'] as List?)
               ?.map((teamId) => teamId.toString())
-              .where((teamId) => teamId.isNotEmpty) // Filter out empty strings
+              .where((teamId) => teamId.isNotEmpty)
               .toList() ??
           [],
-
-      // Handle notification settings with fallback
       notificationSettings: json['notificationSettings'] != null
           ? UserNotificationSettings.fromJson(json['notificationSettings'])
-          : UserNotificationSettings(), // Use default settings if null
-      // Handle date parsing with fallback
+          : UserNotificationSettings(),
       lastLoginAt: json['lastLoginAt'] != null
           ? DateTime.tryParse(json['lastLoginAt']) ?? DateTime.now()
           : DateTime.now(),
-
-      // Handle boolean with fallback
       isActive: json['isActive'] ?? true,
+      // NEW FIELDS PARSING
+      inviteId: json['inviteId'] ?? '',
+      isPublic: json['isPublic'] ?? true,
+      profileVisibility: json['profileVisibility'] != null
+          ? ProfileVisibility.fromJson(json['profileVisibility'])
+          : ProfileVisibility(),
     );
   }
 
-  Map<String, dynamic> toJson() {
+  Map toJson() {
     return {
       '_id': id,
       'email': email,
@@ -78,6 +78,10 @@ class User {
       'notificationSettings': notificationSettings.toJson(),
       'lastLoginAt': lastLoginAt.toIso8601String(),
       'isActive': isActive,
+      // NEW FIELDS
+      'inviteId': inviteId,
+      'isPublic': isPublic,
+      'profileVisibility': profileVisibility.toJson(),
     };
   }
 
@@ -88,6 +92,8 @@ class User {
       name: '',
       notificationSettings: UserNotificationSettings(),
       lastLoginAt: DateTime.now(),
+      inviteId: '',
+      profileVisibility: ProfileVisibility(),
     );
   }
 

@@ -38,7 +38,7 @@ class MyDrawer extends StatelessWidget {
         // Close the drawer first
         Navigator.of(context).pop();
 
-        // ✅ Navigate immediately (before logout finishes)
+        // Navigate immediately (before logout finishes)
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil('/login', (route) => false);

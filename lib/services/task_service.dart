@@ -18,7 +18,6 @@ class TaskService {
     'Content-Type': 'application/json',
   };
 
-  // 🔧 FIXED: Complete/uncomplete task with proper backend integration
   Future<Task> completeTask(String taskId, bool isCompleted) async {
     try {
       _logger.i(
@@ -96,7 +95,7 @@ class TaskService {
     }
   }
 
-  // 🔧 ENHANCED: Get user tasks with better filtering
+  // Get user tasks with better filtering
   Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
     try {
       final queryParams = <String, String>{

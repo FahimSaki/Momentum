@@ -25,7 +25,7 @@ class TaskTile extends StatefulWidget {
 class _TaskTileState extends State<TaskTile> {
   bool _isLoading = false;
 
-  // 🔧 FIXED: Proper completion handling with loading state
+  // FIXED: Proper completion handling with loading state
   Future<void> _handleToggle(bool? newValue) async {
     if (_isLoading) return; // Prevent multiple simultaneous calls
 
@@ -205,7 +205,7 @@ class _TaskTileState extends State<TaskTile> {
                       ],
                     ],
 
-                    // 🔧 NEW: Show completion status indicator
+                    // Show completion status indicator
                     if (isCompleted) ...[
                       const SizedBox(width: 8),
                       Icon(Icons.check_circle, size: 12, color: Colors.green),
@@ -228,7 +228,7 @@ class _TaskTileState extends State<TaskTile> {
                 : widget.task.isDueSoon
                 ? const Icon(Icons.access_time, color: Colors.amber)
                 : null,
-            // 🔧 NEW: Make entire tile tappable for completion
+            // Make entire tile tappable for completion
             onTap: _isLoading ? null : () => _handleToggle(!isCompleted),
           ),
         ),

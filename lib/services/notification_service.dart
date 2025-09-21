@@ -63,7 +63,7 @@ class NotificationService {
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
 
-        // 🔧 FIX: Handle different response formats
+        // FIX: Handle different response formats
         List<dynamic> notificationsList;
 
         if (responseData is Map<String, dynamic>) {

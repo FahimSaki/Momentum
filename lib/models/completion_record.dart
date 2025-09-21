@@ -1,3 +1,4 @@
+import 'package:momentum/models/profile_visibility.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/models/user_notification_settings.dart';
 
@@ -10,7 +11,7 @@ class CompletionRecord {
   factory CompletionRecord.fromJson(Map<String, dynamic> json) {
     try {
       return CompletionRecord(
-        // 🔧 FIX: Handle both string user IDs and user objects
+        // Handle both string user IDs and user objects
         user: json['user'] is String
             ? User(
                 id: json['user'],
@@ -18,6 +19,8 @@ class CompletionRecord {
                 name: 'Unknown User',
                 notificationSettings: UserNotificationSettings(),
                 lastLoginAt: DateTime.now(),
+                inviteId: '',
+                profileVisibility: ProfileVisibility(),
               )
             : User.fromJson(json['user']),
         completedAt: DateTime.parse(json['completedAt']),
@@ -31,6 +34,8 @@ class CompletionRecord {
           name: 'Unknown User',
           notificationSettings: UserNotificationSettings(),
           lastLoginAt: DateTime.now(),
+          inviteId: '',
+          profileVisibility: ProfileVisibility(),
         ),
         completedAt:
             DateTime.tryParse(json['completedAt']?.toString() ?? '') ??

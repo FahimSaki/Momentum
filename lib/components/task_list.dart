@@ -138,7 +138,7 @@ class _TaskListState extends State<TaskList> {
                           (task) => TaskTile(
                             key: ValueKey(task.id),
                             task: task,
-                            // 🔧 FIXED: Proper completion handler
+                            // FIXED: Proper completion handler
                             onToggle: (isCompleted) async {
                               try {
                                 await db.completeTask(task.id, isCompleted);
@@ -193,7 +193,7 @@ class _TaskListState extends State<TaskList> {
                                   (task) => TaskTile(
                                     key: ValueKey('completed_${task.id}'),
                                     task: task,
-                                    // 🔧 FIXED: Proper uncomplete handler
+                                    // FIXED: Proper uncomplete handler
                                     onToggle: (isCompleted) async {
                                       try {
                                         await db.completeTask(

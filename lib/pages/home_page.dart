@@ -316,7 +316,7 @@ class _HomePageState extends State<HomePage>
 
           const SizedBox(height: 16),
 
-          // Recent tasks preview - ✅ FIXED WITH COMPLETION FUNCTIONALITY
+          // WITH COMPLETION FUNCTIONALITY
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -338,7 +338,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   const SizedBox(height: 12),
 
-                  // ✅ FIXED: Use interactive task tiles instead of simple ListTiles
+                  // Use interactive task tiles instead of simple ListTiles
                   ...db.activeTasks
                       .take(3)
                       .map((task) => _buildInteractiveTaskTile(task, db)),
@@ -359,7 +359,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // ✅ ADD THIS NEW METHOD to your _HomePageState class:
   Widget _buildInteractiveTaskTile(Task task, TaskDatabase db) {
     final isCompleted = task.isCompletedToday();
 
@@ -414,14 +413,14 @@ class _HomePageState extends State<HomePage>
               : task.isDueSoon
               ? const Icon(Icons.access_time, color: Colors.amber, size: 20)
               : null,
-          // ✅ Make the entire tile tappable for completion
+
           onTap: () => _handleTaskCompletion(task, db, !isCompleted),
         ),
       ),
     );
   }
 
-  // ✅ ADD THIS NEW METHOD to handle task completion in dashboard:
+  //  Method to handle task completion in dashboard:
   Future<void> _handleTaskCompletion(
     Task task,
     TaskDatabase db,
@@ -430,7 +429,7 @@ class _HomePageState extends State<HomePage>
     try {
       await db.completeTask(task.id, shouldComplete);
 
-      // 🔥 Force refresh so DashboardStats updates right away
+      // Force refresh so DashboardStats updates right away
       await db.refreshData();
 
       if (!mounted) return;
@@ -458,7 +457,7 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  // ✅ ADD THIS HELPER METHOD for due date formatting:
+  // Helper Method for due date formatting:
   String _formatDueDate(DateTime dueDate) {
     final now = DateTime.now();
     final difference = dueDate.difference(now).inDays;
@@ -554,7 +553,7 @@ class _HomePageState extends State<HomePage>
     return 'Good evening! Time to wrap up your day.';
   }
 
-  // ✅ FIXED ANALYTICS METHODS
+  // ANALYTICS METHODS
 
   int _calculateCurrentStreak(List<DateTime> historical, List<Task> current) {
     final allCompletions = <DateTime>{};

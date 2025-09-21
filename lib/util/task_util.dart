@@ -36,7 +36,7 @@ bool shouldShowTask(Task task) {
   return !today.isAtSameMomentAs(completed);
 }
 
-// 🔧 FIXED: Proper date filtering and map preparation
+// FIXED: Proper date filtering and map preparation
 Map<DateTime, int> prepareMapDatasets(
   List<Task> tasks, [
   List<DateTime>? historicalCompletions,
@@ -82,7 +82,7 @@ Map<DateTime, int> prepareMapDatasets(
   return heatMapData;
 }
 
-// 🔧 NEW: Safe date filtering helper
+// Safe date filtering helper
 List<DateTime> filterDatesByRange(
   List<DateTime> dates,
   DateTime startDate,
@@ -99,7 +99,7 @@ List<DateTime> filterDatesByRange(
   }).toList();
 }
 
-// 🔧 NEW: Safe completion counting
+// Safe completion counting
 int countCompletionsInRange(
   List<Task> tasks,
   DateTime startDate,

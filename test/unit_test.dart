@@ -3,7 +3,7 @@ import 'package:momentum/models/task.dart';
 import 'package:momentum/util/task_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// ✅ DateTime extension to compare only year/month/day
+// DateTime extension to compare only year/month/day
 extension DateOnlyCompare on DateTime {
   bool isAtSameMoment(DateTime other) {
     return year == other.year && month == other.month && day == other.day;

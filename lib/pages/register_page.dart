@@ -13,7 +13,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final nameController = TextEditingController(); // ✅ ADD NAME FIELD
+  final nameController = TextEditingController();
   final Logger _logger = Logger();
   bool isLoading = false;
   String? error;
@@ -26,7 +26,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
-    final name = nameController.text.trim(); // ✅ GET NAME FROM USER INPUT
+    final name = nameController.text.trim();
 
     // Enhanced input validation
     if (email.isEmpty || password.isEmpty || name.isEmpty) {
@@ -66,7 +66,6 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       _logger.i("🚀 Starting registration for: $email with name: $name");
 
-      // ✅ PASS ALL THREE PARAMETERS
       final result = await AuthService.register(email, password, name);
 
       _logger.i("✅ Registration successful! Response: $result");
@@ -142,7 +141,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
-    nameController.dispose(); // ✅ DISPOSE NAME CONTROLLER
+    nameController.dispose();
     super.dispose();
   }
 
@@ -180,7 +179,6 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
               const SizedBox(height: 32),
 
-              // ✅ NAME FIELD - FIRST
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(
