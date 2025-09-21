@@ -9,6 +9,7 @@ import teamRoutes from './routes/team.js';
 import notificationRoutes from './routes/notification.js';
 import { runManualCleanup } from './services/cleanupScheduler.js';
 import { startEnhancedScheduler } from './services/schedulerService.js';
+import userRoutes from './routes/user.js';
 
 // Load environment variables
 dotenv.config();
@@ -60,7 +61,7 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
         console.log('✅ MongoDB connected');
 
-        // 🔧 NEW: Cleanup Scheduler on top of the old scheduler
+        // Cleanup Scheduler on top of the old scheduler
         startEnhancedScheduler();
     })
     .catch(err => console.error('❌ MongoDB connection error:', err));
@@ -125,6 +126,7 @@ app.use('/tasks', authenticateToken, taskRoutes);
 
 app.use('/teams', authenticateToken, teamRoutes);
 app.use('/notifications', authenticateToken, notificationRoutes);
+app.use('/users', authenticateToken, userRoutes);
 
 // Health check (optional, helpful for monitoring)
 app.get('/health', (req, res) => {

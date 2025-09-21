@@ -149,10 +149,11 @@ export const getTeamDetails = async (req, res) => {
 };
 
 // Invite user to team
+
 export const inviteToTeam = async (req, res) => {
     try {
         const { teamId } = req.params;
-        const { email, role = 'member', message } = req.body;
+        const { email, inviteId, role = 'member', message } = req.body; // ADD inviteId
         const inviterId = req.userId;
 
         const team = await Team.findById(teamId);
@@ -179,11 +180,22 @@ export const inviteToTeam = async (req, res) => {
             });
         }
 
-        // Find user by email
-        const invitee = await User.findOne({ email: email.toLowerCase().trim() });
-
-        if (!invitee) {
-            return res.status(404).json({ message: 'User not found' });
+        // 🔧 ENHANCED USER FINDING LOGIC
+        let invitee;
+        if (inviteId) {
+            // Find by invite ID (in-app invitation)
+            invitee = await User.findOne({ inviteId, isPublic: true });
+            if (!invitee) {
+                return res.status(404).json({ message: 'User not found with that invite ID' });
+            }
+        } else if (email) {
+            // Find by email (traditional invitation)
+            invitee = await User.findOne({ email: email.toLowerCase().trim() });
+            if (!invitee) {
+                return res.status(404).json({ message: 'User not found with that email' });
+            }
+        } else {
+            return res.status(400).json({ message: 'Either email or invite ID is required' });
         }
 
         // Check if user is already a member
@@ -195,6 +207,7 @@ export const inviteToTeam = async (req, res) => {
             return res.status(400).json({ message: 'User is already a team member' });
         }
 
+        // ... rest of your existing invitation logic remains the same
         // Check for existing pending invitation
         const existingInvitation = await TeamInvitation.findOne({
             team: teamId,
@@ -238,7 +251,7 @@ export const inviteToTeam = async (req, res) => {
 
         await notification.save();
 
-        // Send push notification
+        // Send push notification (your existing logic)
         await sendNotification(invitee._id, {
             title: 'Team Invitation',
             body: `${req.user.name} invited you to join "${team.name}"`,
