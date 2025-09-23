@@ -5,6 +5,7 @@ import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
+import 'package:momentum/pages/user_profile_page.dart';
 
 final Logger _logger = Logger();
 
@@ -135,6 +136,21 @@ class MyDrawer extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsPage()),
+              );
+            },
+          ),
+
+          // User Profile Tile
+          DrawerTile(
+            title: 'My Profile',
+            leading: const Icon(Icons.account_circle),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserProfilePage(),
+                ),
               );
             },
           ),

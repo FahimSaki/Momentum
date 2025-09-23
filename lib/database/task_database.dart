@@ -256,7 +256,8 @@ class TaskDatabase extends ChangeNotifier {
 
   Future<void> inviteToTeam({
     required String teamId,
-    required String email,
+    String? email,
+    String? inviteId,
     String role = 'member',
     String? message,
   }) async {
@@ -264,6 +265,7 @@ class TaskDatabase extends ChangeNotifier {
       await _teamService!.inviteToTeam(
         teamId: teamId,
         email: email,
+        inviteId: inviteId,
         role: role,
         message: message,
       );

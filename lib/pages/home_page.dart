@@ -10,6 +10,7 @@ import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import 'package:momentum/models/task.dart';
+import 'package:momentum/components/quick_invite_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -271,9 +272,6 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  // In your home_page.dart file, replace the existing _buildDashboardTab method
-  // with this updated version that includes task completion functionality:
-
   Widget _buildDashboardTab(TaskDatabase db) {
     return RefreshIndicator(
       onRefresh: () async {
@@ -308,6 +306,11 @@ class _HomePageState extends State<HomePage>
               ),
             ),
           ),
+
+          const SizedBox(height: 16),
+
+          // Quick Invite Widget
+          const QuickInviteWidget(),
 
           const SizedBox(height: 16),
 

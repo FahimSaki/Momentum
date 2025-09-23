@@ -130,17 +130,31 @@ class TeamService {
   }
 
   // Invite user to team
-  Future<void> inviteToTeam({
+  Future inviteToTeam({
     required String teamId,
-    required String email,
+    String? email,
+    String? inviteId,
     String role = 'member',
     String? message,
   }) async {
     try {
+      final requestBody = {'role': role};
+
+      // Add email or inviteId based on what's provided
+      if (email != null) {
+        requestBody['email'] = email;
+      }
+      if (inviteId != null) {
+        requestBody['inviteId'] = inviteId;
+      }
+      if (message != null) {
+        requestBody['message'] = message;
+      }
+
       final response = await http.post(
         Uri.parse('$apiBaseUrl/teams/$teamId/invite'),
         headers: _headers,
-        body: json.encode({'email': email, 'role': role, 'message': message}),
+        body: json.encode(requestBody),
       );
 
       if (response.statusCode != 200) {

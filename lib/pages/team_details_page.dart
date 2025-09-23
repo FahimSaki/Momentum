@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/task_database.dart';
+
 import 'package:momentum/models/team.dart';
-import 'package:provider/provider.dart';
+import 'package:momentum/pages/user_search_page.dart';
 
 class TeamDetailsPage extends StatefulWidget {
   final Team team;
@@ -182,37 +182,11 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   void _showInviteDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Invite Team Member'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _inviteController,
-              decoration: const InputDecoration(
-                labelText: 'Email Address',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.email),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _inviteController.clear();
-            },
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => _sendInvitation(),
-            child: const Text('Send Invitation'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            UserSearchPage(teamId: widget.team.id, teamName: widget.team.name),
       ),
     );
   }
@@ -234,7 +208,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     );
   }
 
-  Future<void> _sendInvitation() async {
+  /* Future<void> _sendInvitation() async {
     final email = _inviteController.text.trim();
     if (email.isEmpty) return;
 
@@ -259,5 +233,5 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
         ).showSnackBar(SnackBar(content: Text('Error sending invitation: $e')));
       }
     }
-  }
+  }*/
 }
