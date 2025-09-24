@@ -113,3 +113,6 @@ class _QuickInviteWidgetState extends State {
     );
   }
 }
+
+
+// This Widget doesn't have all the function calls
