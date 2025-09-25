@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:momentum/services/user_service.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
+import 'package:logger/logger.dart';
 
 class QuickInviteWidget extends StatefulWidget {
   const QuickInviteWidget({super.key});
 
   @override
-  State createState() => _QuickInviteWidgetState();
+  State<QuickInviteWidget> createState() => _QuickInviteWidgetState();
 }
 
-class _QuickInviteWidgetState extends State {
+class _QuickInviteWidgetState extends State<QuickInviteWidget> {
+  final Logger _logger = Logger();
   String? userInviteId;
   bool _isLoading = true;
 
@@ -21,8 +24,19 @@ class _QuickInviteWidgetState extends State {
   }
 
   void _loadUserInviteId() async {
-    final db = Provider.of(context, listen: false);
-    final userService = UserService(jwtToken: db.jwtToken ?? '');
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+
+    if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+      _logger.e('JWT token is null or empty');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    final userService = UserService(jwtToken: db.jwtToken!);
 
     try {
       final user = await userService.getCurrentUserProfile();
@@ -31,8 +45,14 @@ class _QuickInviteWidgetState extends State {
           userInviteId = user.inviteId;
           _isLoading = false;
         });
+        _logger.i('User invite ID loaded: $userInviteId');
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _logger.e(
+        'Error loading user invite ID',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -83,7 +103,7 @@ class _QuickInviteWidgetState extends State {
                         ),
                       ),
                       Text(
-                        userInviteId ?? 'Loading...',
+                        userInviteId ?? 'Not available',
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 16,

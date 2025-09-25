@@ -1,6 +1,8 @@
+// lib/pages/user_search_page.dart - FIXED VERSION
 import 'package:flutter/material.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/user_service.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -15,7 +17,7 @@ class UserSearchPage extends StatefulWidget {
   });
 
   @override
-  State createState() => _UserSearchPageState();
+  State<UserSearchPage> createState() => _UserSearchPageState();
 }
 
 class _UserSearchPageState extends State<UserSearchPage> {
@@ -25,18 +27,26 @@ class _UserSearchPageState extends State<UserSearchPage> {
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
 
-  List searchResults = [];
+  List<User> searchResults = [];
   bool _isSearching = false;
   bool _showInviteIdSearch = false;
   bool _showEmailInvite = false;
+  bool _isInviting = false;
 
-  late UserService _userService; // Declare as late
+  late UserService _userService;
 
   @override
   void initState() {
     super.initState();
-    final db = Provider.of(context, listen: false);
-    _userService = UserService(jwtToken: db.jwtToken ?? '');
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+
+    if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+      _logger.e('JWT token is null or empty');
+      return;
+    }
+
+    _userService = UserService(jwtToken: db.jwtToken!);
+    _logger.i('UserSearchPage initialized for team: ${widget.teamName}');
   }
 
   @override
@@ -168,7 +178,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
                   : null,
             ),
             onChanged: _performSearch,
-            enabled: !_isSearching,
+            enabled: !_isSearching && !_isInviting,
           ),
         ),
 
@@ -190,6 +200,8 @@ class _UserSearchPageState extends State<UserSearchPage> {
                       Text(
                         _searchController.text.isEmpty
                             ? 'Start typing to search for users'
+                            : _isSearching
+                            ? 'Searching...'
                             : 'No users found',
                         style: TextStyle(
                           color: Colors.grey.shade600,
@@ -207,6 +219,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
                     return _UserSearchTile(
                       user: user,
                       onInvite: () => _inviteUser(user),
+                      isInviting: _isInviting,
                     );
                   },
                 ),
@@ -240,12 +253,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
               border: OutlineInputBorder(),
               hintText: 'e.g., swift-tiger-1234',
             ),
-            onChanged: (value) {
-              // Auto-format invite ID as user types
-              if (value.isNotEmpty && !value.contains('-')) {
-                // You could add auto-formatting logic here
-              }
-            },
+            enabled: !_isInviting,
           ),
 
           const SizedBox(height: 16),
@@ -258,6 +266,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
               hintText: 'Hey! Join our team...',
             ),
             maxLines: 3,
+            enabled: !_isInviting,
           ),
 
           const SizedBox(height: 24),
@@ -265,8 +274,10 @@ class _UserSearchPageState extends State<UserSearchPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _inviteByInviteId,
-              child: const Text('Send Invitation'),
+              onPressed: _isInviting ? null : _inviteByInviteId,
+              child: _isInviting
+                  ? const CircularProgressIndicator()
+                  : const Text('Send Invitation'),
             ),
           ),
         ],
@@ -300,6 +311,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
               hintText: 'friend@example.com',
             ),
             keyboardType: TextInputType.emailAddress,
+            enabled: !_isInviting,
           ),
 
           const SizedBox(height: 16),
@@ -312,6 +324,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
               hintText: 'Hey! Join our team...',
             ),
             maxLines: 3,
+            enabled: !_isInviting,
           ),
 
           const SizedBox(height: 24),
@@ -319,8 +332,10 @@ class _UserSearchPageState extends State<UserSearchPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _inviteByEmail,
-              child: const Text('Send Email Invitation'),
+              onPressed: _isInviting ? null : _inviteByEmail,
+              child: _isInviting
+                  ? const CircularProgressIndicator()
+                  : const Text('Send Email Invitation'),
             ),
           ),
         ],
@@ -342,29 +357,40 @@ class _UserSearchPageState extends State<UserSearchPage> {
     });
 
     try {
+      _logger.i('Searching for users with query: $query');
       final results = await _userService.searchUsers(query);
+      _logger.i('Search returned ${results.length} results');
+
       if (mounted) {
         setState(() {
-          searchResults = results;
+          searchResults = results.cast<User>(); // Ensure proper type
           _isSearching = false;
         });
       }
-    } catch (e) {
-      _logger.e('Error searching users: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error searching users', error: e, stackTrace: stackTrace);
       if (mounted) {
         setState(() {
           _isSearching = false;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Search failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Search failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   void _inviteUser(User user) async {
+    setState(() {
+      _isInviting = true;
+    });
+
     try {
-      final db = Provider.of(context, listen: false);
+      _logger.i('Inviting user: ${user.name} (${user.inviteId})');
+      final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(teamId: widget.teamId, inviteId: user.inviteId);
 
       if (mounted) {
@@ -376,15 +402,21 @@ class _UserSearchPageState extends State<UserSearchPage> {
           ),
         );
       }
-    } catch (e) {
-      _logger.e('Error inviting user: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error inviting user', error: e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send invitation: $e'),
+            content: Text('Failed to send invitation: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInviting = false;
+        });
       }
     }
   }
@@ -399,8 +431,13 @@ class _UserSearchPageState extends State<UserSearchPage> {
       return;
     }
 
+    setState(() {
+      _isInviting = true;
+    });
+
     try {
-      final db = Provider.of(context, listen: false);
+      _logger.i('Inviting by invite ID: $inviteId');
+      final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(
         teamId: widget.teamId,
         inviteId: inviteId,
@@ -418,15 +455,25 @@ class _UserSearchPageState extends State<UserSearchPage> {
           ),
         );
       }
-    } catch (e) {
-      _logger.e('Error inviting by invite ID: $e');
+    } catch (e, stackTrace) {
+      _logger.e(
+        'Error inviting by invite ID',
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send invitation: $e'),
+            content: Text('Failed to send invitation: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInviting = false;
+        });
       }
     }
   }
@@ -441,8 +488,23 @@ class _UserSearchPageState extends State<UserSearchPage> {
       return;
     }
 
+    // Basic email validation
+    final emailRegex = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$');
+
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isInviting = true;
+    });
+
     try {
-      final db = Provider.of(context, listen: false);
+      _logger.i('Inviting by email: $email');
+      final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(
         teamId: widget.teamId,
         email: email,
@@ -460,15 +522,21 @@ class _UserSearchPageState extends State<UserSearchPage> {
           ),
         );
       }
-    } catch (e) {
-      _logger.e('Error inviting by email: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error inviting by email', error: e, stackTrace: stackTrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send invitation: $e'),
+            content: Text('Failed to send invitation: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInviting = false;
+        });
       }
     }
   }
@@ -477,8 +545,13 @@ class _UserSearchPageState extends State<UserSearchPage> {
 class _UserSearchTile extends StatelessWidget {
   final User user;
   final VoidCallback onInvite;
+  final bool isInviting;
 
-  const _UserSearchTile({required this.user, required this.onInvite});
+  const _UserSearchTile({
+    required this.user,
+    required this.onInvite,
+    this.isInviting = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -487,10 +560,10 @@ class _UserSearchTile extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: Colors.blue.withValues(alpha: 0.2),
-          backgroundImage: user.avatar != null
+          backgroundImage: user.avatar != null && user.avatar!.isNotEmpty
               ? NetworkImage(user.avatar!)
               : null,
-          child: user.avatar == null
+          child: user.avatar == null || user.avatar!.isEmpty
               ? Text(
                   user.initials,
                   style: const TextStyle(
@@ -507,7 +580,8 @@ class _UserSearchTile extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (user.profileVisibility.showEmail) Text(user.email),
+            if (user.profileVisibility.showEmail && user.email.isNotEmpty)
+              Text(user.email),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -520,7 +594,9 @@ class _UserSearchTile extends StatelessWidget {
                 style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
               ),
             ),
-            if (user.bio != null && user.profileVisibility.showBio) ...[
+            if (user.bio != null &&
+                user.bio!.isNotEmpty &&
+                user.profileVisibility.showBio) ...[
               const SizedBox(height: 4),
               Text(
                 user.bio!,
@@ -532,16 +608,24 @@ class _UserSearchTile extends StatelessWidget {
           ],
         ),
         trailing: ElevatedButton(
-          onPressed: onInvite,
+          onPressed: isInviting ? null : onInvite,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           ),
-          child: const Text('Invite'),
+          child: isInviting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Invite'),
         ),
-        onTap: () {
-          // Show user details dialog
-          _showUserDetailsDialog(context, user);
-        },
+        onTap: isInviting
+            ? null
+            : () {
+                // Show user details dialog
+                _showUserDetailsDialog(context, user);
+              },
       ),
     );
   }
@@ -555,12 +639,14 @@ class _UserSearchTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (user.profileVisibility.showEmail) ...[
+            if (user.profileVisibility.showEmail && user.email.isNotEmpty) ...[
               Text('📧 ${user.email}'),
               const SizedBox(height: 8),
             ],
             Text('🔖 ID: ${user.inviteId}'),
-            if (user.bio != null && user.profileVisibility.showBio) ...[
+            if (user.bio != null &&
+                user.bio!.isNotEmpty &&
+                user.profileVisibility.showBio) ...[
               const SizedBox(height: 8),
               Text('💬 ${user.bio!}'),
             ],
@@ -572,10 +658,12 @@ class _UserSearchTile extends StatelessWidget {
             child: const Text('Close'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              onInvite();
-            },
+            onPressed: isInviting
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    onInvite();
+                  },
             child: const Text('Send Invite'),
           ),
         ],
