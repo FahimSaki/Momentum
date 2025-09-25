@@ -261,7 +261,7 @@ class _NotificationsPageState extends State<NotificationsPage>
     }
   }
 
-  void _handleNotificationTap(notification, TaskDatabase db) {
+  void _handleNotificationTap(dynamic notification, TaskDatabase db) {
     // Mark as read if not already
     if (!notification.isRead) {
       db.markNotificationAsRead(notification.id);
@@ -494,7 +494,7 @@ class _InvitationCardState extends State<_InvitationCard> {
 }
 
 class _NotificationTile extends StatelessWidget {
-  final notification;
+  final dynamic notification;
   final VoidCallback onTap;
 
   const _NotificationTile({required this.notification, required this.onTap});
