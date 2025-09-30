@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/create_team_page.dart';
 import 'package:momentum/pages/team_invitations_page.dart';
+import 'package:momentum/pages/team_details_page.dart';
 import 'package:provider/provider.dart';
 
 class TeamSelectionPage extends StatefulWidget {
@@ -98,7 +99,7 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                   subtitle: Text('${db.personalTasks.length} tasks'),
                   trailing: db.selectedTeam == null
                       ? const Icon(Icons.check_circle, color: Colors.green)
-                      : null,
+                      : const Icon(Icons.chevron_right),
                   onTap: () {
                     db.selectTeam(null);
                     Navigator.pop(context);
@@ -125,12 +126,41 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                       ),
                       title: Text(team.name),
                       subtitle: Text('${team.members.length} members'),
-                      trailing: db.selectedTeam?.id == team.id
-                          ? const Icon(Icons.check_circle, color: Colors.green)
-                          : null,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (db.selectedTeam?.id == team.id)
+                            const Icon(Icons.check_circle, color: Colors.green),
+
+                          IconButton(
+                            icon: const Icon(Icons.info_outline),
+                            onPressed: () {
+                              // Navigate to team details
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      TeamDetailsPage(team: team),
+                                ),
+                              );
+                            },
+                            tooltip: 'Team Details',
+                          ),
+                        ],
+                      ),
                       onTap: () {
+                        // Quick select team and go back
                         db.selectTeam(team);
                         Navigator.pop(context);
+                      },
+
+                      onLongPress: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TeamDetailsPage(team: team),
+                          ),
+                        );
                       },
                     ),
                   ),

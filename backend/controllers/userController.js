@@ -48,46 +48,52 @@ export const searchUsers = async (req, res) => {
 
         console.log(`🔍 User search: "${query}" by user: ${currentUserId}`);
 
+        // Validate query length
         if (!query || typeof query !== 'string' || query.trim().length < 2) {
             console.log('⚠️ Search query too short or invalid');
-            return res.json([]);
+            return res.json([]); // Return empty array, not error
         }
 
-        const users = await User.searchUsers(query.trim(), parseInt(limit), currentUserId);
+        // Use the static method with proper error handling
+        try {
+            const users = await User.searchUsers(query.trim(), parseInt(limit), currentUserId);
 
-        // Filter results based on privacy settings
-        const filteredUsers = users.map(user => {
-            const userObj = user.toObject();
+            // Filter results based on privacy settings
+            const filteredUsers = users.map(user => {
+                const userObj = user.toObject();
 
-            // Always include name and inviteId for search results
-            const result = {
-                _id: userObj._id,
-                name: userObj.name,
-                inviteId: userObj.inviteId,
-                avatar: userObj.avatar,
-                profileVisibility: userObj.profileVisibility
-            };
+                // Always include name and inviteId for search results
+                const result = {
+                    _id: userObj._id,
+                    name: userObj.name,
+                    inviteId: userObj.inviteId,
+                    avatar: userObj.avatar,
+                    profileVisibility: userObj.profileVisibility
+                };
 
-            // Conditionally include email and bio based on privacy settings
-            if (userObj.profileVisibility?.showEmail) {
-                result.email = userObj.email;
-            }
+                // Conditionally include email and bio based on privacy settings
+                if (userObj.profileVisibility?.showEmail) {
+                    result.email = userObj.email;
+                }
 
-            if (userObj.profileVisibility?.showBio && userObj.bio) {
-                result.bio = userObj.bio;
-            }
+                if (userObj.profileVisibility?.showBio && userObj.bio) {
+                    result.bio = userObj.bio;
+                }
 
-            return result;
-        });
+                return result;
+            });
 
-        console.log(`✅ Search returned ${filteredUsers.length} results`);
-        res.json(filteredUsers);
+            console.log(`✅ Search returned ${filteredUsers.length} results`);
+            res.json(filteredUsers);
+        } catch (searchError) {
+            console.error('Search users static method error:', searchError);
+            // Return empty array instead of error for better UX
+            res.json([]);
+        }
     } catch (error) {
         console.error('Search users error:', error);
-        res.status(500).json({
-            message: 'Search failed',
-            error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-        });
+        // Return empty array instead of 500 error
+        res.json([]);
     }
 };
 
@@ -102,39 +108,42 @@ export const getUserByInviteId = async (req, res) => {
             return res.status(400).json({ message: 'Invalid invite ID provided' });
         }
 
-        const user = await User.findByInviteId(inviteId.trim());
+        // Use the static method with proper error handling
+        try {
+            const user = await User.findByInviteId(inviteId.trim());
 
-        if (!user) {
-            console.log(`❌ User not found with invite ID: ${inviteId}`);
-            return res.status(404).json({ message: 'User not found with that invite ID' });
+            if (!user) {
+                console.log(`❌ User not found with invite ID: ${inviteId}`);
+                return res.status(404).json({ message: 'User not found with that invite ID' });
+            }
+
+            // Filter response based on privacy settings
+            const response = {
+                _id: user._id,
+                name: user.name,
+                inviteId: user.inviteId,
+                avatar: user.avatar,
+                profileVisibility: user.profileVisibility
+            };
+
+            if (user.profileVisibility?.showEmail) {
+                response.email = user.email;
+            }
+
+            if (user.profileVisibility?.showBio && user.bio) {
+                response.bio = user.bio;
+            }
+
+            console.log(`✅ Found user: ${user.name} (${user.inviteId})`);
+            res.json(response);
+        } catch (findError) {
+            console.log(`❌ Error finding user with invite ID: ${inviteId}`, findError);
+            return res.status(404).json({
+                message: findError.message || 'User not found with that invite ID'
+            });
         }
-
-        // Filter response based on privacy settings
-        const response = {
-            _id: user._id,
-            name: user.name,
-            inviteId: user.inviteId,
-            avatar: user.avatar,
-            profileVisibility: user.profileVisibility
-        };
-
-        if (user.profileVisibility?.showEmail) {
-            response.email = user.email;
-        }
-
-        if (user.profileVisibility?.showBio && user.bio) {
-            response.bio = user.bio;
-        }
-
-        console.log(`✅ Found user: ${user.name} (${user.inviteId})`);
-        res.json(response);
     } catch (error) {
         console.error('Get user by invite ID error:', error);
-
-        if (error.message === 'User not found with that invite ID') {
-            return res.status(404).json({ message: error.message });
-        }
-
         res.status(500).json({
             message: 'Server error',
             error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
@@ -200,7 +209,7 @@ export const updatePrivacySettings = async (req, res) => {
     }
 };
 
-// BONUS: Get user stats (teams, tasks, etc.)
+// Get user stats (teams, tasks, etc.)
 export const getUserStats = async (req, res) => {
     try {
         const userId = req.params.userId || req.userId;
@@ -229,7 +238,7 @@ export const getUserStats = async (req, res) => {
     }
 };
 
-// BONUS: Update user profile (name, bio, avatar)
+// Update user profile (name, bio, avatar)
 export const updateUserProfile = async (req, res) => {
     try {
         const { name, bio, avatar } = req.body;

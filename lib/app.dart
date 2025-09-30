@@ -19,7 +19,7 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: themeProvider.themeData,
-          //  FIXED: Always start with splash screen for proper auth flow
+          // Always start with splash screen for proper auth flow
           initialRoute: '/splash',
           routes: {
             '/splash': (context) => const SplashPage(),
