@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/user_service.dart';
+import 'package:momentum/database/task_database.dart'; // ✅ ADD THIS
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -9,14 +10,15 @@ class UserProfilePage extends StatefulWidget {
   const UserProfilePage({super.key});
 
   @override
-  State createState() => _UserProfilePageState();
+  State<UserProfilePage> createState() => _UserProfilePageState();
 }
 
-class _UserProfilePageState extends State {
+class _UserProfilePageState extends State<UserProfilePage> {
   final Logger _logger = Logger();
   User? currentUser;
   UserService? _userService;
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -25,22 +27,43 @@ class _UserProfilePageState extends State {
   }
 
   void _loadUserProfile() async {
-    final db = Provider.of(context, listen: false);
-    _userService = UserService(jwtToken: db.jwtToken ?? '');
-
     try {
+      // Add type parameter
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+
+      // Check if JWT token exists
+      if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+        _logger.e('JWT token is null or empty');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Authentication error. Please login again.';
+          });
+        }
+        return;
+      }
+
+      _userService = UserService(jwtToken: db.jwtToken!);
+      _logger.i(
+        'Loading user profile with token: ${db.jwtToken!.substring(0, 20)}...',
+      );
+
       final user = await _userService!.getCurrentUserProfile();
+
       if (mounted) {
         setState(() {
           currentUser = user;
           _isLoading = false;
+          _errorMessage = null;
         });
+        _logger.i('User profile loaded successfully: ${user.name}');
       }
-    } catch (e) {
-      _logger.e('Error loading user profile: $e');
+    } catch (e, stackTrace) {
+      _logger.e('Error loading user profile', error: e, stackTrace: stackTrace);
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _errorMessage = 'Failed to load profile: ${e.toString()}';
         });
       }
     }
@@ -53,9 +76,61 @@ class _UserProfilePageState extends State {
         title: const Text('My Profile'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          // REFRESH BUTTON
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _errorMessage = null;
+              });
+              _loadUserProfile();
+            },
+          ),
+        ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading your profile...'),
+                ],
+              ),
+            )
+          : _errorMessage != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadUserProfile,
+                    child: const Text('Retry'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      // Navigate to login
+                      Navigator.of(
+                        context,
+                      ).pushNamedAndRemoveUntil('/login', (route) => false);
+                    },
+                    child: const Text('Go to Login'),
+                  ),
+                ],
+              ),
+            )
           : currentUser == null
           ? const Center(child: Text('Failed to load profile'))
           : SingleChildScrollView(
@@ -283,7 +358,7 @@ class _UserProfilePageState extends State {
           profileVisibility: currentUser!.profileVisibility.toJson(),
         );
       } else {
-        return; // Handle other settings if needed
+        return;
       }
 
       if (mounted) {
