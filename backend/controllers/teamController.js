@@ -148,12 +148,13 @@ export const getTeamDetails = async (req, res) => {
     }
 };
 
+
 // Invite user to team
 
 export const inviteToTeam = async (req, res) => {
     try {
         const { teamId } = req.params;
-        const { email, inviteId, role = 'member', message } = req.body; // ADD inviteId
+        const { email, inviteId, role = 'member', message } = req.body;
         const inviterId = req.userId;
 
         const team = await Team.findById(teamId);
@@ -183,13 +184,11 @@ export const inviteToTeam = async (req, res) => {
         // 🔧 ENHANCED USER FINDING LOGIC
         let invitee;
         if (inviteId) {
-            // Find by invite ID (in-app invitation)
             invitee = await User.findOne({ inviteId, isPublic: true });
             if (!invitee) {
                 return res.status(404).json({ message: 'User not found with that invite ID' });
             }
         } else if (email) {
-            // Find by email (traditional invitation)
             invitee = await User.findOne({ email: email.toLowerCase().trim() });
             if (!invitee) {
                 return res.status(404).json({ message: 'User not found with that email' });
@@ -207,31 +206,48 @@ export const inviteToTeam = async (req, res) => {
             return res.status(400).json({ message: 'User is already a team member' });
         }
 
-        // ... rest of your existing invitation logic remains the same
-        // Check for existing pending invitation
+        // Check for ANY existing invitation (not just pending)
         const existingInvitation = await TeamInvitation.findOne({
             team: teamId,
             invitee: invitee._id,
-            status: 'pending'
         });
 
         if (existingInvitation) {
-            return res.status(400).json({
-                message: 'User already has a pending invitation to this team'
-            });
+            // If there's a pending invitation, return error
+            if (existingInvitation.status === 'pending') {
+                return res.status(400).json({
+                    message: 'User already has a pending invitation to this team'
+                });
+            }
+
+            // If invitation was declined/expired, DELETE it and create new one
+            if (existingInvitation.status === 'declined' || existingInvitation.status === 'expired') {
+                console.log(`🔄 Removing old ${existingInvitation.status} invitation for user ${invitee.email}`);
+                await TeamInvitation.deleteOne({ _id: existingInvitation._id });
+                // Continue to create new invitation below
+            }
+
+            // If invitation was accepted, user should already be a member (caught above)
+            if (existingInvitation.status === 'accepted') {
+                return res.status(400).json({
+                    message: 'This invitation was already accepted'
+                });
+            }
         }
 
-        // Create invitation
+        // Create NEW invitation (either fresh or after deleting old one)
         const invitation = new TeamInvitation({
             team: teamId,
             inviter: inviterId,
             invitee: invitee._id,
             email: invitee.email,
             role,
-            message
+            message,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
         });
 
         await invitation.save();
+        console.log(`✅ Invitation created successfully for ${invitee.email}`);
 
         // Create notification for invitee
         const notification = new Notification({
@@ -251,16 +267,20 @@ export const inviteToTeam = async (req, res) => {
 
         await notification.save();
 
-        // Send push notification (your existing logic)
-        await sendNotification(invitee._id, {
-            title: 'Team Invitation',
-            body: `${req.user.name} invited you to join "${team.name}"`,
-            data: {
-                type: 'team_invitation',
-                teamId: teamId,
-                invitationId: invitation._id.toString()
-            }
-        });
+        // Send push notification
+        try {
+            await sendNotification(invitee._id, {
+                title: 'Team Invitation',
+                body: `${req.user.name} invited you to join "${team.name}"`,
+                data: {
+                    type: 'team_invitation',
+                    teamId: teamId,
+                    invitationId: invitation._id.toString()
+                }
+            });
+        } catch (notifError) {
+            console.error('Notification send failed (non-critical):', notifError);
+        }
 
         res.json({
             message: 'Invitation sent successfully',
