@@ -28,7 +28,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final password = passwordController.text.trim();
     final name = nameController.text.trim();
 
-    // Enhanced input validation
+    // input validation
     if (email.isEmpty || password.isEmpty || name.isEmpty) {
       setState(() {
         error = "Please fill in all fields.";

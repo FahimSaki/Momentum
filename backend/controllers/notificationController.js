@@ -23,7 +23,7 @@ export const getNotifications = async (req, res) => {
             unreadOnly === 'true'
         );
 
-        // 🔧 FIX: Always return array format for consistency
+        // Always return array format for consistency
         // If result has notifications property, return the array
         // Otherwise return empty array
         if (result && Array.isArray(result.notifications)) {

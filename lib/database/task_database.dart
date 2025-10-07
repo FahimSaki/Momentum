@@ -185,7 +185,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Enhanced notification loading
+  // notification loading
   Future<void> _loadNotifications() async {
     try {
       if (_notificationService == null) {

@@ -5,7 +5,7 @@ import Team from '../models/Team.js';
 import User from '../models/User.js';
 import { sendTaskAssignedNotification, sendTaskCompletedNotification } from '../services/notificationService.js';
 
-// Helper function to save task to history before deletion (enhanced)
+// Helper function to save task to history before deletion
 const saveTaskToHistory = async (task) => {
     if (task.completedDays?.length > 0) {
         try {
@@ -42,14 +42,14 @@ const saveTaskToHistory = async (task) => {
     }
 };
 
-// Create a new task (enhanced for teams)
+// Create a new task (updated for teams)
 export const createTask = async (req, res) => {
     try {
         const {
             name,
             description,
             assignedTo, // Can be array or single userId
-            teamId,     // 🔧 FIX: Make sure this is properly extracted
+            teamId,     // Make sure this is properly extracted
             priority = 'medium',
             dueDate,
             tags = [],
@@ -112,17 +112,17 @@ export const createTask = async (req, res) => {
             }
         }
 
-        // 🔧 FIX: Create task with proper team handling
+        // Create task with proper team handling
         const task = new Task({
             name: name.trim(),
             description: description?.trim(),
             assignedTo: assigneeIds,
             assignedBy: assignerId,
-            team: teamId, // 🔧 FIX: Ensure team is set correctly
+            team: teamId, // Ensure team is set correctly
             priority,
             dueDate: dueDate ? new Date(dueDate) : undefined,
             tags,
-            isTeamTask: !!teamId, // 🔧 FIX: Set team task flag
+            isTeamTask: !!teamId, // Set team task flag
             assignmentType
         });
 
@@ -162,7 +162,7 @@ export const createTask = async (req, res) => {
     }
 };
 
-// Get tasks for user (enhanced with team tasks)
+// Get tasks for user (updated for teams)
 export const getUserTasks = async (req, res) => {
     try {
         const { userId, teamId, type = 'all' } = req.query;
@@ -192,14 +192,14 @@ export const getUserTasks = async (req, res) => {
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar')
             .populate('team', 'name')
-            // 🔧 FIX: Properly populate the completedBy.user field
+            // Properly populate the completedBy.user field
             .populate({
                 path: 'completedBy.user',
                 select: 'name email avatar'
             })
             .sort({ createdAt: -1 });
 
-        // 🔧 ADDITIONAL FIX: Clean the data before sending
+        // Clean the data before sending
         const cleanedTasks = tasks.map(task => {
             const taskObj = task.toObject();
 
@@ -259,7 +259,7 @@ export const getTeamTasks = async (req, res) => {
         const tasks = await Task.find(query)
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar')
-            // 🔧 FIX: Properly populate the completedBy.user field
+            // Properly populate the completedBy.user field
             .populate({
                 path: 'completedBy.user',
                 select: 'name email avatar'
@@ -267,7 +267,7 @@ export const getTeamTasks = async (req, res) => {
             .populate('team', 'name')
             .sort({ createdAt: -1 });
 
-        // 🔧 ADDITIONAL FIX: Clean the data before sending
+        // Clean the data before sending
         const cleanedTasks = tasks.map(task => {
             const taskObj = task.toObject();
 
@@ -294,7 +294,7 @@ export const getTeamTasks = async (req, res) => {
     }
 };
 
-// Update task (enhanced)
+// Update task (updated for teams)
 export const updateTask = async (req, res) => {
     try {
         const { id } = req.params;
@@ -353,7 +353,7 @@ export const updateTask = async (req, res) => {
     }
 };
 
-// Complete task (enhanced for team tasks)
+// Complete task (updated for team)
 export const completeTask = async (req, res) => {
     try {
         const { id } = req.params;
@@ -381,7 +381,7 @@ export const completeTask = async (req, res) => {
             });
         }
 
-        // 🔧 FIX: Use local date for completion tracking
+        // Use local date for completion tracking
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -485,7 +485,7 @@ export const completeTask = async (req, res) => {
             }
         }
 
-        // 🔧 FIX: Properly populate completedBy before sending response
+        // Properly populate completedBy before sending response
         await task.populate([
             {
                 path: 'completedBy.user',
@@ -512,7 +512,7 @@ export const completeTask = async (req, res) => {
     }
 };
 
-// Delete task (enhanced with permissions)
+// Delete task (with permissions)
 export const deleteTask = async (req, res) => {
     try {
         const { id } = req.params;
@@ -553,7 +553,7 @@ export const deleteTask = async (req, res) => {
     }
 };
 
-// Get task history (enhanced with team support)
+// Get task history (updated with team support)
 export const getTaskHistory = async (req, res) => {
     try {
         const { userId, teamId } = req.query;

@@ -238,7 +238,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
         'Creating task: name=$name, teamId=$teamId, assignmentType=$_assignmentType',
       );
 
-      // Enhanced task creation with better error handling
+      // task creation with better error handling
       final task = await db.createTask(
         name: name,
         description: _descriptionController.text.trim().isEmpty

@@ -2,8 +2,8 @@ import cron from 'node-cron';
 import { cleanupOldNotifications, sendDueDateReminders } from './notificationService.js';
 import { runDailyCleanup } from './cleanupScheduler.js';
 
-// Enhanced scheduler service
-export const startEnhancedScheduler = () => {
+// scheduler service
+export const startScheduler = () => {
     try {
         // Daily cleanup at 12:05 AM UTC (existing)
         cron.schedule('5 0 * * *', async () => {
@@ -23,8 +23,8 @@ export const startEnhancedScheduler = () => {
             await sendDueDateReminders();
         }, { timezone: "UTC" });
 
-        console.log('📅 Enhanced scheduler started with notification and reminder services');
+        console.log('📅 Scheduler started with notification and reminder services');
     } catch (error) {
-        console.error('❌ Error starting enhanced scheduler:', error);
+        console.error('❌ Error starting scheduler:', error);
     }
 };

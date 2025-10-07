@@ -63,7 +63,7 @@ const getServiceAccountPath = () => {
     return null;
 };
 
-// 🔧 ENHANCED FIREBASE INITIALIZATION
+// FIREBASE INITIALIZATION
 let isFirebaseInitialized = false;
 const initializeFirebase = () => {
     if (admin.apps.length > 0) {
@@ -123,7 +123,7 @@ const initializeFirebase = () => {
 // Initialize on module load
 initializeFirebase();
 
-// 🔧 ENHANCED NOTIFICATION SENDING
+// NOTIFICATION SENDING
 export const sendNotification = async (userId, notificationData, saveToDb = true) => {
     try {
         const user = await User.findById(userId);
@@ -140,7 +140,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
 
         let fcmResponse = null;
 
-        // 🔧 ENHANCED FCM SENDING
+        // FCM SENDING
         if (isFirebaseInitialized && user.notificationSettings?.push && user.fcmTokens?.length > 0) {
             try {
                 // Filter valid tokens (active within last 60 days)
@@ -156,7 +156,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
                     const tokens = validTokens.map(t => t.token);
                     console.log(`📱 Sending FCM to ${tokens.length} token(s) for user ${userId}`);
 
-                    // 🔧 ENHANCED MESSAGE FORMAT
+                    // MESSAGE FORMAT
                     const message = {
                         notification: {
                             title: notificationData.title || 'Momentum Notification',
@@ -175,7 +175,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
                                 Object.entries(notificationData.data || {}).map(([k, v]) => [k, String(v)])
                             )
                         },
-                        // 🔧 ANDROID/IOS SPECIFIC CONFIGS
+                        // ANDROID/IOS SPECIFIC CONFIGS
                         android: {
                             notification: {
                                 sound: 'default',
@@ -199,7 +199,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
 
                     fcmResponse = await admin.messaging().sendMulticast(message);
 
-                    // 🔧 ENHANCED ERROR HANDLING
+                    // ERROR HANDLING
                     const invalidTokens = [];
                     fcmResponse.responses.forEach((resp, idx) => {
                         if (!resp.success) {
@@ -239,7 +239,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
             console.log('⚠️ Firebase not initialized - skipping FCM notification');
         }
 
-        // 🔧 SAVE IN-APP NOTIFICATION
+        // SAVE IN-APP NOTIFICATION
         if (saveToDb && user.notificationSettings?.inApp) {
             try {
                 const dbNotification = new Notification({
@@ -275,7 +275,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
     }
 };
 
-// 🔧 ENHANCED FCM TOKEN MANAGEMENT
+// FCM TOKEN MANAGEMENT
 export const updateFCMToken = async (userId, token, platform = 'android') => {
     try {
         const user = await User.findById(userId);
@@ -310,7 +310,7 @@ export const updateFCMToken = async (userId, token, platform = 'android') => {
     }
 };
 
-// 🔧 ENHANCED BULK NOTIFICATION SENDING
+// BULK NOTIFICATION SENDING
 export const sendBulkNotification = async (userIds, notificationData, saveToDb = true) => {
     console.log(`📤 Sending bulk notification to ${userIds.length} users`);
 
@@ -326,7 +326,7 @@ export const sendBulkNotification = async (userIds, notificationData, saveToDb =
     return results;
 };
 
-// 🔧 ENHANCED USER NOTIFICATIONS RETRIEVAL
+// USER NOTIFICATIONS RETRIEVAL
 export const getUserNotifications = async (userId, limit = 50, offset = 0, unreadOnly = false) => {
     try {
         const query = { recipient: userId };
@@ -336,12 +336,15 @@ export const getUserNotifications = async (userId, limit = 50, offset = 0, unrea
 
         const [notifications, totalCount, unreadCount] = await Promise.all([
             Notification.find(query)
+                // Properly populate sender, team, and task
                 .populate('sender', 'name email avatar')
                 .populate('team', 'name')
                 .populate('task', 'name')
+                // Don't populate recipient (it's the current user)
                 .sort({ createdAt: -1 })
                 .limit(limit)
-                .skip(offset),
+                .skip(offset)
+                .lean(), //.lean() for better performance
             Notification.countDocuments(query),
             Notification.countDocuments({ recipient: userId, isRead: false })
         ]);
@@ -360,7 +363,7 @@ export const getUserNotifications = async (userId, limit = 50, offset = 0, unrea
     }
 };
 
-// 🔧 MARK NOTIFICATION AS READ
+// MARK NOTIFICATION AS READ
 export const markNotificationAsRead = async (notificationId, userId) => {
     try {
         const notification = await Notification.findOneAndUpdate(
@@ -383,7 +386,7 @@ export const markNotificationAsRead = async (notificationId, userId) => {
     }
 };
 
-// 🔧 MARK ALL NOTIFICATIONS AS READ
+// MARK ALL NOTIFICATIONS AS READ
 export const markAllNotificationsAsRead = async (userId) => {
     try {
         const result = await Notification.updateMany(
@@ -402,7 +405,7 @@ export const markAllNotificationsAsRead = async (userId) => {
     }
 };
 
-// 🔧 ENHANCED TASK ASSIGNMENT NOTIFICATION
+// TASK ASSIGNMENT NOTIFICATION
 export const sendTaskAssignedNotification = async (taskData, assignerData, assigneeIds) => {
     try {
         if (!isFirebaseInitialized) {
@@ -440,7 +443,7 @@ export const sendTaskAssignedNotification = async (taskData, assignerData, assig
     }
 };
 
-// 🔧 ENHANCED TASK COMPLETION NOTIFICATION
+// TASK COMPLETION NOTIFICATION
 export const sendTaskCompletedNotification = async (taskData, completerData, assignerId) => {
     try {
         const teamName = taskData.team?.name || 'Personal';
@@ -472,7 +475,7 @@ export const sendTaskCompletedNotification = async (taskData, completerData, ass
     }
 };
 
-// 🔧 ENHANCED DUE DATE REMINDERS
+// DUE DATE REMINDERS
 export const sendDueDateReminders = async () => {
     try {
         const tomorrow = new Date();
@@ -541,7 +544,7 @@ export const sendDueDateReminders = async () => {
     }
 };
 
-// 🔧 CLEANUP OLD NOTIFICATIONS
+// CLEANUP OLD NOTIFICATIONS
 export const cleanupOldNotifications = async (daysOld = 30) => {
     try {
         const cutoffDate = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
@@ -559,7 +562,7 @@ export const cleanupOldNotifications = async (daysOld = 30) => {
     }
 };
 
-// 🔧 HEALTH CHECK FOR FIREBASE
+// HEALTH CHECK FOR FIREBASE
 export const checkFirebaseHealth = () => {
     return {
         initialized: isFirebaseInitialized,
@@ -569,7 +572,7 @@ export const checkFirebaseHealth = () => {
     };
 };
 
-console.log('📱 Enhanced Notification Service loaded');
+console.log('📱 Notification Service loaded');
 console.log(`🔥 Firebase status: ${isFirebaseInitialized ? 'Ready' : 'Not initialized'}`);
 
 export default {

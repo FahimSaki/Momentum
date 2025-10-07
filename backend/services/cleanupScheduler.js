@@ -165,7 +165,7 @@ const runDailyCleanup = async () => {
 
         console.log('✅ Daily cleanup completed:', result);
 
-        // 🔧 IMPORTANT: Force garbage collection to prevent memory issues
+        // Force garbage collection to prevent memory issues
         if (global.gc) {
             global.gc();
             console.log('🗑️ Garbage collection triggered');
@@ -175,8 +175,8 @@ const runDailyCleanup = async () => {
 
     } catch (error) {
         console.error('❌ Daily cleanup failed:', error);
-        // 🔧 CRITICAL: Don't re-throw the error - just log it
-        // Re-throwing could crash the server
+        // CRITICAL: Don't re-throw the error - just log it
+        // Re-throwing crashes the server
         return {
             error: error.message,
             timestamp: now.toISOString(),

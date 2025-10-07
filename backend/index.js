@@ -8,7 +8,7 @@ import { authenticateToken } from './middleware/middle_auth.js';
 import teamRoutes from './routes/team.js';
 import notificationRoutes from './routes/notification.js';
 import { runManualCleanup } from './services/cleanupScheduler.js';
-import { startEnhancedScheduler } from './services/schedulerService.js';
+import { startScheduler } from './services/schedulerService.js';
 import userRoutes from './routes/user.js';
 
 // Load environment variables
@@ -62,7 +62,7 @@ mongoose.connect(process.env.MONGODB_URI)
         console.log('✅ MongoDB connected');
 
         // Cleanup Scheduler on top of the old scheduler
-        startEnhancedScheduler();
+        startScheduler();
     })
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
@@ -120,10 +120,6 @@ app.use((req, res, next) => {
 // AUTHENTICATED ROUTES
 app.use('/auth', authRoutes);
 app.use('/tasks', authenticateToken, taskRoutes);
-
-
-// app.use('/tasks-enhanced', authenticateToken, taskRoutes);
-
 app.use('/teams', authenticateToken, teamRoutes);
 app.use('/notifications', authenticateToken, notificationRoutes);
 app.use('/users', authenticateToken, userRoutes);

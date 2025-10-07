@@ -239,7 +239,7 @@ class AuthService {
     }
   }
 
-  // Validate token with server (enhanced with better error handling)
+  // Validate token with server
   static Future<bool> validateToken() async {
     try {
       final authData = await getStoredAuthData();

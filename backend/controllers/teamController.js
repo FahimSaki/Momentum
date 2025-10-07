@@ -16,7 +16,7 @@ export const createTeam = async (req, res) => {
         const { name, description } = req.body;
         const userId = req.userId;
 
-        // Enhanced validation
+        // validation
         if (!name || name.trim().length === 0) {
             return res.status(400).json({ message: 'Team name is required' });
         }
@@ -181,7 +181,7 @@ export const inviteToTeam = async (req, res) => {
             });
         }
 
-        // 🔧 ENHANCED USER FINDING LOGIC
+        // USER FINDING LOGIC
         let invitee;
         if (inviteId) {
             invitee = await User.findOne({ inviteId, isPublic: true });
@@ -382,9 +382,14 @@ export const getPendingInvitations = async (req, res) => {
             status: 'pending',
             expiresAt: { $gt: new Date() }
         })
+            // Properly populate all fields
             .populate('team', 'name description')
             .populate('inviter', 'name email avatar')
-            .sort({ createdAt: -1 });
+            // Don't populate invitee (it's the current user)
+            .sort({ createdAt: -1 })
+            .lean(); // Add .lean() for better performance
+
+        console.log(`📋 Found ${invitations.length} pending invitations for user ${userId}`);
 
         res.json(invitations);
     } catch (err) {

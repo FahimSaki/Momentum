@@ -4,7 +4,7 @@ const taskSchema = new mongoose.Schema({
     name: { type: String, required: true },
     description: { type: String },
 
-    // Enhanced assignment system
+    // assignment system
     assignedTo: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Changed to array for multiple assignees
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     team: { type: mongoose.Schema.Types.ObjectId, ref: 'Team' }, // NEW: Link to team
@@ -14,7 +14,7 @@ const taskSchema = new mongoose.Schema({
     dueDate: { type: Date }, // NEW: Due date for team tasks
     tags: [{ type: String, trim: true }], // NEW: Tags for organization
 
-    // Completion tracking (enhanced)
+    // Completion tracking (updated for team tasks)
     completedDays: [{ type: Date }],
     completedBy: [{ // NEW: Track who completed it
         user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

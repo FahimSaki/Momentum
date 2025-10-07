@@ -64,7 +64,7 @@ userSchema.index({ teams: 1 });
 // Remove this line since inviteId already has unique: true in schema definition
 // userSchema.index({ inviteId: 1 }, { unique: true, sparse: true });
 
-// ENHANCED HELPER FUNCTION with better uniqueness checking
+// HELPER FUNCTION with better uniqueness checking
 function generateUniqueInviteId() {
     const adjectives = [
         'swift', 'brave', 'wise', 'calm', 'bold', 'quick', 'smart', 'cool', 'neat', 'fast',
@@ -82,7 +82,7 @@ function generateUniqueInviteId() {
     return `${adjective}-${noun}-${numbers}`;
 }
 
-// ENHANCED pre-save middleware with better error handling
+// pre-save middleware with better error handling
 userSchema.pre('save', async function (next) {
     // Only generate inviteId if it doesn't exist
     if (!this.inviteId) {
@@ -131,13 +131,13 @@ userSchema.pre('save', async function (next) {
     next();
 });
 
-// ENHANCED post-save middleware for logging
+// post-save middleware for logging
 userSchema.post('save', function (doc, next) {
     console.log(`✅ User saved: ${doc.email} with invite ID: ${doc.inviteId}`);
     next();
 });
 
-// ENHANCED error handling for duplicate keys
+// error handling for duplicate keys
 userSchema.post('save', function (error, doc, next) {
     if (error.name === 'MongoError' && error.code === 11000) {
         if (error.message.includes('inviteId')) {

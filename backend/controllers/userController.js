@@ -40,7 +40,7 @@ export const getUserProfile = async (req, res) => {
     }
 };
 
-// Search users for team invitations with enhanced filtering
+// Search users for team invitations with filtering
 export const searchUsers = async (req, res) => {
     try {
         const { query, limit = 20 } = req.query;
@@ -97,7 +97,7 @@ export const searchUsers = async (req, res) => {
     }
 };
 
-// Get user by invite ID with enhanced error handling
+// Get user by invite ID with error handling
 export const getUserByInviteId = async (req, res) => {
     try {
         const { inviteId } = req.params;
@@ -151,7 +151,7 @@ export const getUserByInviteId = async (req, res) => {
     }
 };
 
-// Update privacy settings with enhanced validation
+// Update privacy settings with validation
 export const updatePrivacySettings = async (req, res) => {
     try {
         const { isPublic, profileVisibility } = req.body;
