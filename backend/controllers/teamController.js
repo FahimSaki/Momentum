@@ -377,24 +377,63 @@ export const getPendingInvitations = async (req, res) => {
     try {
         const userId = req.userId;
 
+        console.log(`📋 Getting pending invitations for user: ${userId}`);
+
         const invitations = await TeamInvitation.find({
             invitee: userId,
             status: 'pending',
             expiresAt: { $gt: new Date() }
         })
-            // Properly populate all fields
             .populate('team', 'name description')
             .populate('inviter', 'name email avatar')
-            // Don't populate invitee (it's the current user)
             .sort({ createdAt: -1 })
-            .lean(); // Add .lean() for better performance
+            .lean();
 
-        console.log(`📋 Found ${invitations.length} pending invitations for user ${userId}`);
+        console.log(`📋 Found ${invitations.length} pending invitations`);
 
-        res.json(invitations);
+        // CRITICAL : Clean each invitation to ensure proper structure
+        const cleanedInvitations = invitations.map(invitation => {
+            return {
+                _id: invitation._id,
+                status: invitation.status,
+                role: invitation.role || 'member',
+                message: invitation.message || '',
+                expiresAt: invitation.expiresAt,
+                createdAt: invitation.createdAt,
+                // Ensure team is an object, not a string
+                team: invitation.team ? {
+                    _id: invitation.team._id || invitation.team,
+                    name: invitation.team.name || 'Unknown Team',
+                    description: invitation.team.description || ''
+                } : {
+                    _id: 'unknown',
+                    name: 'Unknown Team',
+                    description: ''
+                },
+                // Ensure inviter is an object, not a string
+                inviter: invitation.inviter ? {
+                    _id: invitation.inviter._id || invitation.inviter,
+                    name: invitation.inviter.name || 'Unknown User',
+                    email: invitation.inviter.email || '',
+                    avatar: invitation.inviter.avatar || null
+                } : {
+                    _id: 'unknown',
+                    name: 'Unknown User',
+                    email: '',
+                    avatar: null
+                },
+                // Include invitee ID (don't populate - it's the current user)
+                invitee: invitation.invitee
+            };
+        });
+
+        console.log(`✅ Returning ${cleanedInvitations.length} cleaned invitations`);
+        res.json(cleanedInvitations);
+
     } catch (err) {
-        console.error('Get pending invitations error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
+        console.error('❌ Get pending invitations error:', err);
+        // Return empty array instead of error
+        res.json([]);
     }
 };
 

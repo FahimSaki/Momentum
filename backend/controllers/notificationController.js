@@ -1,3 +1,4 @@
+// backend/controllers/notificationController.js - FIXED VERSION
 
 import {
     getUserNotifications,
@@ -16,6 +17,8 @@ export const getNotifications = async (req, res) => {
             unreadOnly = false
         } = req.query;
 
+        console.log(`📬 Getting notifications for user: ${userId}`);
+
         const result = await getUserNotifications(
             userId,
             parseInt(limit),
@@ -23,19 +26,58 @@ export const getNotifications = async (req, res) => {
             unreadOnly === 'true'
         );
 
-        // Always return array format for consistency
-        // If result has notifications property, return the array
-        // Otherwise return empty array
-        if (result && Array.isArray(result.notifications)) {
-            res.json(result.notifications);
-        } else if (Array.isArray(result)) {
-            res.json(result);
-        } else {
-            console.log('No notifications found, returning empty array');
-            res.json([]);
+        console.log('📦 Notification service returned:', typeof result);
+
+        // CRITICAL FIX: Always ensure we return a flat array
+        let notificationsArray = [];
+
+        if (result && typeof result === 'object') {
+            if (Array.isArray(result)) {
+                // Service returned array directly
+                notificationsArray = result;
+            } else if (result.notifications && Array.isArray(result.notifications)) {
+                // Service returned object with notifications property
+                notificationsArray = result.notifications;
+            }
         }
+
+        // Clean the notifications to ensure proper structure
+        const cleanedNotifications = notificationsArray.map(notification => {
+            const cleaned = {
+                _id: notification._id,
+                recipient: notification.recipient,
+                type: notification.type || 'general',
+                title: notification.title || '',
+                message: notification.message || '',
+                isRead: notification.isRead || false,
+                createdAt: notification.createdAt,
+                readAt: notification.readAt || null,
+                data: notification.data || {},
+                // Properly handle populated fields
+                sender: notification.sender ? {
+                    _id: notification.sender._id || notification.sender,
+                    name: notification.sender.name || 'Unknown',
+                    email: notification.sender.email || '',
+                    avatar: notification.sender.avatar || null
+                } : null,
+                team: notification.team ? {
+                    _id: notification.team._id || notification.team,
+                    name: notification.team.name || 'Unknown Team'
+                } : null,
+                task: notification.task ? {
+                    _id: notification.task._id || notification.task,
+                    name: notification.task.name || 'Unknown Task'
+                } : null
+            };
+
+            return cleaned;
+        });
+
+        console.log(`✅ Returning ${cleanedNotifications.length} cleaned notifications`);
+        res.json(cleanedNotifications);
+
     } catch (err) {
-        console.error('Get notifications error:', err);
+        console.error('❌ Get notifications error:', err);
         // Return empty array instead of error for non-critical feature
         res.json([]);
     }

@@ -23,7 +23,7 @@ export const startScheduler = () => {
             await sendDueDateReminders();
         }, { timezone: "UTC" });
 
-        console.log('📅 Scheduler started with notification and reminder services');
+        console.log('📅 Scheduler started with auto cleanup, notification and reminder services');
     } catch (error) {
         console.error('❌ Error starting scheduler:', error);
     }
