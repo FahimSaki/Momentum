@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/create_team_page.dart';
+import 'package:momentum/pages/home_page.dart';
+import 'package:momentum/pages/team_home_page.dart';
 import 'package:momentum/pages/team_invitations_page.dart';
 import 'package:momentum/pages/team_details_page.dart';
 import 'package:provider/provider.dart';
@@ -102,7 +104,13 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                       : const Icon(Icons.chevron_right),
                   onTap: () {
                     db.selectTeam(null);
-                    Navigator.pop(context);
+
+                    // Go back to home page for personal tasks
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HomePage()),
+                      (route) => false, // Remove all previous routes
+                    );
                   },
                 ),
               ),
@@ -149,9 +157,15 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                         ],
                       ),
                       onTap: () {
-                        // Quick select team and go back
                         db.selectTeam(team);
-                        Navigator.pop(context);
+
+                        // Navigate to team home page
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => TeamHomePage(team: team),
+                          ),
+                        );
                       },
 
                       onLongPress: () {

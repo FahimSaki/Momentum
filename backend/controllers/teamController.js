@@ -1,611 +1,612 @@
+import Task from '../models/Task.js';
+import TaskHistory from '../models/TaskHistory.js';
 import Team from '../models/Team.js';
 import User from '../models/User.js';
-import TeamInvitation from '../models/TeamInvitation.js';
-import Notification from '../models/Notification.js';
-import { sendNotification } from '../services/notificationService.js';
+import { sendTaskAssignedNotification, sendTaskCompletedNotification } from '../services/notificationService.js';
 
-// Create a new team
-export const createTeam = async (req, res) => {
-    try {
-        console.log('=== CREATE TEAM DEBUG ===');
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
-        console.log('User ID:', req.userId);
-        console.log('User object:', req.user ? req.user.name : 'No user object');
-        console.log('========================');
+// PERMISSION HELPER FUNCTIONS
+const canUserCreateTask = (team, userId) => {
+    if (!team) return true; // Personal tasks allowed
+    const member = team.members.find(m => m.user.toString() === userId);
+    if (!member) return false;
+    return ['owner', 'admin'].includes(member.role);
+};
 
-        const { name, description } = req.body;
-        const userId = req.userId;
+const canUserEditTask = (task, team, userId) => {
+    // Owner/admin can edit all tasks
+    if (team) {
+        const member = team.members.find(m => m.user.toString() === userId);
+        if (member && ['owner', 'admin'].includes(member.role)) return true;
+    }
 
-        // validation
-        if (!name || name.trim().length === 0) {
-            return res.status(400).json({ message: 'Team name is required' });
-        }
+    // Task creator can edit their own tasks
+    if (task.assignedBy?.toString() === userId) return true;
 
-        if (name.trim().length > 100) {
-            return res.status(400).json({ message: 'Team name must be less than 100 characters' });
-        }
+    // Members cannot edit tasks
+    return false;
+};
 
-        // Verify user exists
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found' });
-        }
+const canUserDeleteTask = (task, team, userId) => {
+    // Owner/admin can delete all tasks
+    if (team) {
+        const member = team.members.find(m => m.user.toString() === userId);
+        if (member && ['owner', 'admin'].includes(member.role)) return true;
+    }
 
-        // Create team with proper default settings
-        const team = new Team({
-            name: name.trim(),
-            description: description?.trim() || null,
-            owner: userId,
-            members: [{
-                user: userId,
-                role: 'owner',
-                joinedAt: new Date()
-            }],
-            settings: {
-                allowMemberInvite: false,
-                taskAutoDelete: true,
-                notificationSettings: {
-                    taskAssigned: true,
-                    taskCompleted: true,
-                    memberJoined: true
+    // Task creator can delete their own tasks
+    if (task.assignedBy?.toString() === userId) return true;
+
+    return false;
+};
+
+// Helper function to save task to history before deletion
+const saveTaskToHistory = async (task) => {
+    if (task.completedDays?.length > 0) {
+        try {
+            const assigneeIds = task.assignedTo && task.assignedTo.length > 0
+                ? task.assignedTo
+                : [task.assignedTo].filter(Boolean);
+
+            for (const assigneeId of assigneeIds) {
+                const existingHistory = await TaskHistory.findOne({
+                    userId: assigneeId,
+                    taskName: task.name
+                });
+
+                if (existingHistory) {
+                    const allDays = [...existingHistory.completedDays, ...task.completedDays];
+                    const uniqueDays = [...new Set(allDays.map(d => d.toISOString()))].map(d => new Date(d));
+                    existingHistory.completedDays = uniqueDays;
+                    await existingHistory.save();
+                } else {
+                    await TaskHistory.create({
+                        userId: assigneeId,
+                        completedDays: task.completedDays,
+                        taskName: task.name,
+                        teamId: task.team
+                    });
                 }
-            },
-            isActive: true
+            }
+            console.log(`Saved task "${task.name}" to history for ${assigneeIds.length} users`);
+        } catch (error) {
+            console.error(`Error saving task "${task.name}" to history:`, error);
+        }
+    }
+};
+
+// Create a new task - WITH PERMISSION CHECK
+export const createTask = async (req, res) => {
+    try {
+        const {
+            name,
+            description,
+            assignedTo,
+            teamId,
+            priority = 'medium',
+            dueDate,
+            tags = [],
+            assignmentType = 'individual'
+        } = req.body;
+
+        const assignerId = req.userId;
+
+        console.log('🔧 CREATE TASK DEBUG:');
+        console.log('Request body:', JSON.stringify(req.body, null, 2));
+        console.log('Team ID received:', teamId);
+        console.log('Assignment type:', assignmentType);
+
+        if (!name || name.trim().length === 0) {
+            return res.status(400).json({ message: 'Task name is required' });
+        }
+
+        // PERMISSION CHECK: Verify team membership and permissions
+        let team = null;
+        if (teamId) {
+            team = await Team.findById(teamId);
+            if (!team) {
+                return res.status(404).json({ message: 'Team not found' });
+            }
+
+            // Check if user can create tasks
+            if (!canUserCreateTask(team, assignerId)) {
+                return res.status(403).json({
+                    message: 'Only team owners and admins can create tasks. Members can only complete tasks assigned to them.'
+                });
+            }
+        }
+
+        // Process assignees
+        let assigneeIds = [];
+        if (assignmentType === 'team' && teamId) {
+            assigneeIds = team.members.map(member => member.user);
+            console.log('Team assignment - assignees:', assigneeIds);
+        } else if (assignedTo) {
+            assigneeIds = Array.isArray(assignedTo) ? assignedTo : [assignedTo];
+            console.log('Individual assignment - assignees:', assigneeIds);
+        } else {
+            assigneeIds = [assignerId];
+            console.log('Self assignment - assignee:', assigneeIds);
+        }
+
+        // Validate assignees exist and are team members (if team task)
+        if (teamId) {
+            const teamMemberIds = team.members.map(m => m.user.toString());
+            const invalidAssignees = assigneeIds.filter(id => !teamMemberIds.includes(id));
+
+            if (invalidAssignees.length > 0) {
+                return res.status(400).json({
+                    message: 'Some assignees are not members of the team'
+                });
+            }
+        }
+
+        // Create task
+        const task = new Task({
+            name: name.trim(),
+            description: description?.trim(),
+            assignedTo: assigneeIds,
+            assignedBy: assignerId,
+            team: teamId,
+            priority,
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            tags,
+            isTeamTask: !!teamId,
+            assignmentType
         });
 
-        await team.save();
-        console.log('Team created with ID:', team._id);
+        await task.save();
 
-        // Update user's teams array
-        await User.findByIdAndUpdate(userId, {
-            $addToSet: { teams: team._id } // Use $addToSet to prevent duplicates
-        });
-
-        console.log('User teams array updated for:', userId);
-
-        // Populate team data for response
-        await team.populate([
-            { path: 'owner', select: 'name email avatar' },
-            { path: 'members.user', select: 'name email avatar' }
+        // Populate task data for response
+        await task.populate([
+            { path: 'assignedTo', select: 'name email avatar' },
+            { path: 'assignedBy', select: 'name email avatar' },
+            { path: 'team', select: 'name' }
         ]);
 
+        console.log('✅ Task created successfully:', task._id);
+
+        // Send notifications to assignees (excluding self-assignment)
+        const notificationRecipients = assigneeIds.filter(id => id !== assignerId);
+        if (notificationRecipients.length > 0) {
+            try {
+                await sendTaskAssignedNotification(task, req.user, notificationRecipients);
+            } catch (notifError) {
+                console.error('Notification error (non-critical):', notifError);
+            }
+        }
+
         res.status(201).json({
-            message: 'Team created successfully',
-            team
+            message: 'Task created successfully',
+            task
         });
-
     } catch (err) {
-        console.error('Create team error:', err);
-
-        // Handle specific MongoDB errors
-        if (err.code === 11000) {
-            return res.status(400).json({ message: 'A team with this name already exists for this user' });
-        }
-
-        if (err.name === 'ValidationError') {
-            const validationErrors = Object.values(err.errors).map(e => e.message);
-            return res.status(400).json({
-                message: 'Validation error',
-                errors: validationErrors
-            });
-        }
-
+        console.error('Create task error:', err);
         res.status(500).json({
-            message: 'Server error during team creation',
-            error: err.message
+            message: 'Server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
         });
     }
 };
 
-// Get user's teams
-export const getUserTeams = async (req, res) => {
+// Update task - WITH PERMISSION CHECK
+export const updateTask = async (req, res) => {
     try {
+        const { id } = req.params;
+        const updates = req.body;
         const userId = req.userId;
 
-        const teams = await Team.find({
-            'members.user': userId,
-            isActive: true
-        })
-            .populate('owner', 'name email avatar')
-            .populate('members.user', 'name email avatar')
-            .sort({ createdAt: -1 });
+        const task = await Task.findById(id).populate('team');
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
 
-        res.json(teams);
+        // Get team for permission check
+        let team = null;
+        if (task.team) {
+            team = await Team.findById(task.team._id);
+        }
+
+        // PERMISSION CHECK
+        if (!canUserEditTask(task, team, userId)) {
+            return res.status(403).json({
+                message: 'You do not have permission to edit this task. Only task creators and team admins can edit tasks.'
+            });
+        }
+
+        const updatedTask = await Task.findByIdAndUpdate(id, updates, { new: true })
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate('team', 'name');
+
+        res.json({
+            message: 'Task updated successfully',
+            task: updatedTask
+        });
     } catch (err) {
-        console.error('Get user teams error:', err);
+        console.error('Update task error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// Get team details
-export const getTeamDetails = async (req, res) => {
+// Complete task - MEMBERS CAN DO THIS
+export const completeTask = async (req, res) => {
     try {
-        const { teamId } = req.params;
+        const { id } = req.params;
+        const { isCompleted } = req.body;
         const userId = req.userId;
 
-        const team = await Team.findById(teamId)
-            .populate('owner', 'name email avatar')
-            .populate('members.user', 'name email avatar')
-            .populate('members.invitedBy', 'name email');
+        console.log(`🔧 COMPLETE TASK DEBUG: ${id}, isCompleted: ${isCompleted}, userId: ${userId}`);
 
+        const task = await Task.findById(id)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar');
+
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        // Check if user is assigned to this task
+        const isAssignee = task.assignedTo.some(assignee =>
+            assignee._id.toString() === userId
+        );
+
+        if (!isAssignee) {
+            return res.status(403).json({
+                message: 'You can only complete tasks assigned to you'
+            });
+        }
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        if (isCompleted) {
+            const alreadyCompletedToday = task.completedDays.some(date => {
+                const completedDate = new Date(date);
+                const localDate = new Date(
+                    completedDate.getFullYear(),
+                    completedDate.getMonth(),
+                    completedDate.getDate()
+                );
+                return localDate.getTime() === today.getTime();
+            });
+
+            if (!alreadyCompletedToday) {
+                task.completedDays.push(today);
+                task.lastCompletedDate = today;
+                task.isArchived = true;
+                task.archivedAt = new Date();
+
+                const existingCompletion = task.completedBy.find(c =>
+                    c.user.toString() === userId
+                );
+
+                if (!existingCompletion) {
+                    task.completedBy.push({
+                        user: userId,
+                        completedAt: new Date()
+                    });
+                }
+                console.log('✅ Task marked as completed');
+            }
+        } else {
+            const beforeLength = task.completedDays.length;
+            task.completedDays = task.completedDays.filter(date => {
+                const completedDate = new Date(date);
+                const localDate = new Date(
+                    completedDate.getFullYear(),
+                    completedDate.getMonth(),
+                    completedDate.getDate()
+                );
+                return localDate.getTime() !== today.getTime();
+            });
+
+            task.completedBy = task.completedBy.filter(c => {
+                const completionDate = new Date(c.completedAt);
+                const completionDay = new Date(
+                    completionDate.getFullYear(),
+                    completionDate.getMonth(),
+                    completionDate.getDate()
+                );
+                return !(c.user.toString() === userId && completionDay.getTime() === today.getTime());
+            });
+
+            const hasOtherCompletionsToday = task.completedBy.some(c => {
+                const completionDate = new Date(c.completedAt);
+                const completionDay = new Date(
+                    completionDate.getFullYear(),
+                    completionDate.getMonth(),
+                    completionDate.getDate()
+                );
+                return completionDay.getTime() === today.getTime();
+            });
+
+            if (!hasOtherCompletionsToday) {
+                task.isArchived = false;
+                task.archivedAt = null;
+            }
+
+            if (task.completedDays.length > 0) {
+                task.lastCompletedDate = task.completedDays.reduce((a, b) =>
+                    new Date(a) > new Date(b) ? a : b
+                );
+            } else {
+                task.lastCompletedDate = null;
+            }
+        }
+
+        await task.save();
+
+        if (isCompleted && task.assignedBy && task.assignedBy._id.toString() !== userId) {
+            try {
+                await sendTaskCompletedNotification(task, req.user, task.assignedBy._id);
+            } catch (notifError) {
+                console.error('Notification error (non-critical):', notifError);
+            }
+        }
+
+        await task.populate([
+            { path: 'completedBy.user', select: 'name email avatar' },
+            { path: 'team', select: 'name' }
+        ]);
+
+        res.json({
+            message: `Task ${isCompleted ? 'completed' : 'unmarked'} successfully`,
+            task: task
+        });
+    } catch (err) {
+        console.error('Complete task error:', err);
+        res.status(500).json({
+            message: 'Server error',
+            error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        });
+    }
+};
+
+// Delete task - WITH PERMISSION CHECK
+export const deleteTask = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.userId;
+
+        const task = await Task.findById(id);
+        if (!task) {
+            return res.status(404).json({ message: 'Task not found' });
+        }
+
+        // Get team for permission check
+        let team = null;
+        if (task.team) {
+            team = await Team.findById(task.team);
+        }
+
+        // PERMISSION CHECK
+        if (!canUserDeleteTask(task, team, userId)) {
+            return res.status(403).json({
+                message: 'You do not have permission to delete this task. Only task creators and team admins can delete tasks.'
+            });
+        }
+
+        await saveTaskToHistory(task);
+        await task.deleteOne();
+
+        res.json({
+            message: 'Task deleted successfully and preserved in history'
+        });
+    } catch (err) {
+        console.error('Delete task error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+// Get user tasks (existing code - no changes needed)
+export const getUserTasks = async (req, res) => {
+    try {
+        const { userId, teamId, type = 'all' } = req.query;
+        const requesterId = req.userId;
+
+        let query = {};
+
+        if (type === 'personal') {
+            query = {
+                assignedTo: userId || requesterId,
+                team: { $exists: false }
+            };
+        } else if (type === 'team' && teamId) {
+            query = {
+                team: teamId,
+                assignedTo: userId || requesterId
+            };
+        } else {
+            query = {
+                assignedTo: userId || requesterId
+            };
+        }
+
+        const tasks = await Task.find(query)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate('team', 'name')
+            .populate({
+                path: 'completedBy.user',
+                select: 'name email avatar'
+            })
+            .sort({ createdAt: -1 });
+
+        const cleanedTasks = tasks.map(task => {
+            const taskObj = task.toObject();
+            if (taskObj.completedBy && taskObj.completedBy.length > 0) {
+                taskObj.completedBy = taskObj.completedBy.map(completion => ({
+                    user: completion.user || {
+                        _id: 'unknown',
+                        name: 'Unknown User',
+                        email: '',
+                        avatar: null
+                    },
+                    completedAt: completion.completedAt
+                }));
+            }
+            return taskObj;
+        });
+
+        res.json(cleanedTasks);
+    } catch (err) {
+        console.error('Get user tasks error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+// Get team tasks (existing code - no changes needed)
+export const getTeamTasks = async (req, res) => {
+    try {
+        const { teamId } = req.params;
+        const { status = 'active' } = req.query;
+        const userId = req.userId;
+
+        const team = await Team.findById(teamId);
         if (!team) {
             return res.status(404).json({ message: 'Team not found' });
         }
 
-        // Check if user is a member
         const isMember = team.members.some(member =>
-            member.user._id.toString() === userId
+            member.user.toString() === userId
         );
 
         if (!isMember) {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        res.json(team);
-    } catch (err) {
-        console.error('Get team details error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-};
+        let query = { team: teamId };
 
-
-// Invite user to team
-
-export const inviteToTeam = async (req, res) => {
-    try {
-        const { teamId } = req.params;
-        const { email, inviteId, role = 'member', message } = req.body;
-        const inviterId = req.userId;
-
-        const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
+        if (status === 'active') {
+            query.isArchived = false;
+        } else if (status === 'archived') {
+            query.isArchived = true;
         }
 
-        // Check if inviter has permission
-        const inviterMember = team.members.find(m =>
-            m.user.toString() === inviterId
-        );
+        const tasks = await Task.find(query)
+            .populate('assignedTo', 'name email avatar')
+            .populate('assignedBy', 'name email avatar')
+            .populate({
+                path: 'completedBy.user',
+                select: 'name email avatar'
+            })
+            .populate('team', 'name')
+            .sort({ createdAt: -1 });
 
-        if (!inviterMember) {
-            return res.status(403).json({ message: 'You are not a team member' });
-        }
-
-        const canInvite = inviterMember.role === 'owner' ||
-            inviterMember.role === 'admin' ||
-            team.settings.allowMemberInvite;
-
-        if (!canInvite) {
-            return res.status(403).json({
-                message: 'You do not have permission to invite members'
-            });
-        }
-
-        // USER FINDING LOGIC
-        let invitee;
-        if (inviteId) {
-            invitee = await User.findOne({ inviteId, isPublic: true });
-            if (!invitee) {
-                return res.status(404).json({ message: 'User not found with that invite ID' });
-            }
-        } else if (email) {
-            invitee = await User.findOne({ email: email.toLowerCase().trim() });
-            if (!invitee) {
-                return res.status(404).json({ message: 'User not found with that email' });
-            }
-        } else {
-            return res.status(400).json({ message: 'Either email or invite ID is required' });
-        }
-
-        // Check if user is already a member
-        const isAlreadyMember = team.members.some(m =>
-            m.user.toString() === invitee._id.toString()
-        );
-
-        if (isAlreadyMember) {
-            return res.status(400).json({ message: 'User is already a team member' });
-        }
-
-        // Check for ANY existing invitation (not just pending)
-        const existingInvitation = await TeamInvitation.findOne({
-            team: teamId,
-            invitee: invitee._id,
-        });
-
-        if (existingInvitation) {
-            // If there's a pending invitation, return error
-            if (existingInvitation.status === 'pending') {
-                return res.status(400).json({
-                    message: 'User already has a pending invitation to this team'
-                });
-            }
-
-            // If invitation was declined/expired, DELETE it and create new one
-            if (existingInvitation.status === 'declined' || existingInvitation.status === 'expired') {
-                console.log(`🔄 Removing old ${existingInvitation.status} invitation for user ${invitee.email}`);
-                await TeamInvitation.deleteOne({ _id: existingInvitation._id });
-                // Continue to create new invitation below
-            }
-
-            // If invitation was accepted, user should already be a member (caught above)
-            if (existingInvitation.status === 'accepted') {
-                return res.status(400).json({
-                    message: 'This invitation was already accepted'
-                });
-            }
-        }
-
-        // Create NEW invitation (either fresh or after deleting old one)
-        const invitation = new TeamInvitation({
-            team: teamId,
-            inviter: inviterId,
-            invitee: invitee._id,
-            email: invitee.email,
-            role,
-            message,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-        });
-
-        await invitation.save();
-        console.log(`✅ Invitation created successfully for ${invitee.email}`);
-
-        // Create notification for invitee
-        const notification = new Notification({
-            recipient: invitee._id,
-            sender: inviterId,
-            team: teamId,
-            type: 'team_invitation',
-            title: 'Team Invitation',
-            message: `You've been invited to join "${team.name}"`,
-            data: {
-                teamId,
-                invitationId: invitation._id,
-                teamName: team.name,
-                inviterName: req.user.name
-            }
-        });
-
-        await notification.save();
-
-        // Send push notification
-        try {
-            await sendNotification(invitee._id, {
-                title: 'Team Invitation',
-                body: `${req.user.name} invited you to join "${team.name}"`,
-                data: {
-                    type: 'team_invitation',
-                    teamId: teamId,
-                    invitationId: invitation._id.toString()
-                }
-            });
-        } catch (notifError) {
-            console.error('Notification send failed (non-critical):', notifError);
-        }
-
-        res.json({
-            message: 'Invitation sent successfully',
-            invitation
-        });
-    } catch (err) {
-        console.error('Invite to team error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-};
-
-// Respond to team invitation
-export const respondToInvitation = async (req, res) => {
-    try {
-        const { invitationId } = req.params;
-        const { response } = req.body; // 'accepted' or 'declined'
-        const userId = req.userId;
-
-        const invitation = await TeamInvitation.findById(invitationId)
-            .populate('team')
-            .populate('inviter', 'name email');
-
-        if (!invitation) {
-            return res.status(404).json({ message: 'Invitation not found' });
-        }
-
-        if (invitation.invitee.toString() !== userId) {
-            return res.status(403).json({ message: 'This invitation is not for you' });
-        }
-
-        if (invitation.status !== 'pending') {
-            return res.status(400).json({
-                message: `Invitation already ${invitation.status}`
-            });
-        }
-
-        if (invitation.expiresAt < new Date()) {
-            invitation.status = 'expired';
-            await invitation.save();
-            return res.status(400).json({ message: 'Invitation has expired' });
-        }
-
-        invitation.status = response;
-        await invitation.save();
-
-        if (response === 'accepted') {
-            // Add user to team
-            const team = await Team.findById(invitation.team._id);
-            team.members.push({
-                user: userId,
-                role: invitation.role,
-                invitedBy: invitation.inviter
-            });
-            await team.save();
-
-            // Add team to user's teams array
-            await User.findByIdAndUpdate(userId, {
-                $push: { teams: team._id }
-            });
-
-            // Notify team members about new member
-            const memberNotifications = team.members
-                .filter(m => m.user.toString() !== userId)
-                .map(member => ({
-                    recipient: member.user,
-                    sender: userId,
-                    team: team._id,
-                    type: 'team_member_joined',
-                    title: 'New Team Member',
-                    message: `${req.user.name} joined the team "${team.name}"`,
-                    data: {
-                        teamId: team._id,
-                        newMemberName: req.user.name
-                    }
+        const cleanedTasks = tasks.map(task => {
+            const taskObj = task.toObject();
+            if (taskObj.completedBy && taskObj.completedBy.length > 0) {
+                taskObj.completedBy = taskObj.completedBy.map(completion => ({
+                    user: completion.user || {
+                        _id: 'unknown',
+                        name: 'Unknown User',
+                        email: '',
+                        avatar: null
+                    },
+                    completedAt: completion.completedAt
                 }));
-
-            if (memberNotifications.length > 0) {
-                await Notification.insertMany(memberNotifications);
             }
-        }
-
-        res.json({
-            message: `Invitation ${response} successfully`,
-            invitation
+            return taskObj;
         });
+
+        res.json(cleanedTasks);
     } catch (err) {
-        console.error('Respond to invitation error:', err);
+        console.error('Get team tasks error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
 
-// Get user's pending invitations
-export const getPendingInvitations = async (req, res) => {
+// Other existing functions remain unchanged
+export const getTaskHistory = async (req, res) => {
     try {
+        const { userId, teamId } = req.query;
+        const requesterId = req.userId;
+
+        let query = {};
+
+        if (teamId) {
+            const team = await Team.findById(teamId);
+            if (!team) {
+                return res.status(404).json({ message: 'Team not found' });
+            }
+
+            const isMember = team.members.some(member =>
+                member.user.toString() === requesterId
+            );
+
+            if (!isMember) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+
+            query.teamId = teamId;
+        } else {
+            query.userId = userId || requesterId;
+        }
+
+        const history = await TaskHistory.find(query)
+            .populate('userId', 'name email avatar')
+            .populate('teamId', 'name')
+            .sort({ createdAt: -1 });
+
+        res.json(history);
+    } catch (err) {
+        console.error('Get task history error:', err);
+        res.status(500).json({ message: 'Server error', error: err.message });
+    }
+};
+
+export const getDashboardStats = async (req, res) => {
+    try {
+        const { teamId } = req.query;
         const userId = req.userId;
 
-        console.log(`📋 Getting pending invitations for user: ${userId}`);
+        let query = { assignedTo: userId };
+        if (teamId) {
+            query.team = teamId;
+        }
 
-        const invitations = await TeamInvitation.find({
-            invitee: userId,
-            status: 'pending',
-            expiresAt: { $gt: new Date() }
-        })
-            .populate('team', 'name description')
-            .populate('inviter', 'name email avatar')
-            .sort({ createdAt: -1 })
-            .lean();
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
 
-        console.log(`📋 Found ${invitations.length} pending invitations`);
-
-        // CRITICAL : Clean each invitation to ensure proper structure
-        const cleanedInvitations = invitations.map(invitation => {
-            return {
-                _id: invitation._id,
-                status: invitation.status,
-                role: invitation.role || 'member',
-                message: invitation.message || '',
-                expiresAt: invitation.expiresAt,
-                createdAt: invitation.createdAt,
-                // Ensure team is an object, not a string
-                team: invitation.team ? {
-                    _id: invitation.team._id || invitation.team,
-                    name: invitation.team.name || 'Unknown Team',
-                    description: invitation.team.description || ''
-                } : {
-                    _id: 'unknown',
-                    name: 'Unknown Team',
-                    description: ''
+        const [
+            totalTasks,
+            completedToday,
+            overdueTasks,
+            upcomingTasks
+        ] = await Promise.all([
+            Task.countDocuments({ ...query, isArchived: false }),
+            Task.countDocuments({
+                ...query,
+                completedDays: {
+                    $elemMatch: {
+                        $gte: today,
+                        $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
+                    }
+                }
+            }),
+            Task.countDocuments({
+                ...query,
+                dueDate: { $lt: today },
+                isArchived: false
+            }),
+            Task.countDocuments({
+                ...query,
+                dueDate: {
+                    $gte: today,
+                    $lte: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
                 },
-                // Ensure inviter is an object, not a string
-                inviter: invitation.inviter ? {
-                    _id: invitation.inviter._id || invitation.inviter,
-                    name: invitation.inviter.name || 'Unknown User',
-                    email: invitation.inviter.email || '',
-                    avatar: invitation.inviter.avatar || null
-                } : {
-                    _id: 'unknown',
-                    name: 'Unknown User',
-                    email: '',
-                    avatar: null
-                },
-                // Include invitee ID (don't populate - it's the current user)
-                invitee: invitation.invitee
-            };
-        });
-
-        console.log(`✅ Returning ${cleanedInvitations.length} cleaned invitations`);
-        res.json(cleanedInvitations);
-
-    } catch (err) {
-        console.error('❌ Get pending invitations error:', err);
-        // Return empty array instead of error
-        res.json([]);
-    }
-};
-
-// Update team settings
-export const updateTeamSettings = async (req, res) => {
-    try {
-        const { teamId } = req.params;
-        const { settings } = req.body;
-        const userId = req.userId;
-
-        const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
-        }
-
-        // Check if user is owner or admin
-        const member = team.members.find(m => m.user.toString() === userId);
-        if (!member || !['owner', 'admin'].includes(member.role)) {
-            return res.status(403).json({
-                message: 'Only team owners and admins can update settings'
-            });
-        }
-
-        team.settings = { ...team.settings, ...settings };
-        await team.save();
+                isArchived: false
+            })
+        ]);
 
         res.json({
-            message: 'Team settings updated successfully',
-            team
+            totalTasks,
+            completedToday,
+            overdueTasks,
+            upcomingTasks
         });
     } catch (err) {
-        console.error('Update team settings error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-};
-
-// Remove team member
-export const removeTeamMember = async (req, res) => {
-    try {
-        const { teamId, memberId } = req.params;
-        const userId = req.userId;
-
-        const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
-        }
-
-        // Check permissions
-        const currentMember = team.members.find(m =>
-            m.user.toString() === userId
-        );
-
-        if (!currentMember) {
-            return res.status(403).json({ message: 'You are not a team member' });
-        }
-
-        const targetMember = team.members.find(m =>
-            m.user.toString() === memberId
-        );
-
-        if (!targetMember) {
-            return res.status(404).json({ message: 'Member not found in team' });
-        }
-
-        // Owner cannot be removed
-        if (targetMember.role === 'owner') {
-            return res.status(400).json({ message: 'Cannot remove team owner' });
-        }
-
-        // Check if user has permission to remove this member
-        const canRemove = currentMember.role === 'owner' ||
-            (currentMember.role === 'admin' && targetMember.role !== 'admin') ||
-            (currentMember.user.toString() === memberId); // Self-removal
-
-        if (!canRemove) {
-            return res.status(403).json({
-                message: 'You do not have permission to remove this member'
-            });
-        }
-
-        // Remove member from team
-        team.members = team.members.filter(m =>
-            m.user.toString() !== memberId
-        );
-        await team.save();
-
-        // Remove team from user's teams array
-        await User.findByIdAndUpdate(memberId, {
-            $pull: { teams: teamId }
-        });
-
-        res.json({
-            message: 'Member removed successfully'
-        });
-    } catch (err) {
-        console.error('Remove team member error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-};
-
-// Leave team (self-removal)
-export const leaveTeam = async (req, res) => {
-    try {
-        const { teamId } = req.params;
-        const userId = req.userId;
-
-        const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
-        }
-
-        const member = team.members.find(m => m.user.toString() === userId);
-        if (!member) {
-            return res.status(400).json({ message: 'You are not a member of this team' });
-        }
-
-        if (member.role === 'owner') {
-            return res.status(400).json({
-                message: 'Team owner cannot leave. Transfer ownership first or delete the team.'
-            });
-        }
-
-        // Remove user from team
-        team.members = team.members.filter(m => m.user.toString() !== userId);
-        await team.save();
-
-        // Remove team from user's teams array
-        await User.findByIdAndUpdate(userId, {
-            $pull: { teams: teamId }
-        });
-
-        res.json({
-            message: 'Left team successfully'
-        });
-    } catch (err) {
-        console.error('Leave team error:', err);
-        res.status(500).json({ message: 'Server error', error: err.message });
-    }
-};
-
-// Delete team (owner only)
-export const deleteTeam = async (req, res) => {
-    try {
-        const { teamId } = req.params;
-        const userId = req.userId;
-
-        const team = await Team.findById(teamId);
-        if (!team) {
-            return res.status(404).json({ message: 'Team not found' });
-        }
-
-        if (team.owner.toString() !== userId) {
-            return res.status(403).json({
-                message: 'Only team owner can delete the team'
-            });
-        }
-
-        // Remove team from all members' teams arrays
-        await User.updateMany(
-            { teams: teamId },
-            { $pull: { teams: teamId } }
-        );
-
-        // Mark team as inactive instead of deleting (for data integrity)
-        team.isActive = false;
-        await team.save();
-
-        res.json({
-            message: 'Team deleted successfully'
-        });
-    } catch (err) {
-        console.error('Delete team error:', err);
+        console.error('Get dashboard stats error:', err);
         res.status(500).json({ message: 'Server error', error: err.message });
     }
 };
