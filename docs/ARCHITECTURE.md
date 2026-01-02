@@ -157,34 +157,6 @@ lib/
 - **Scheduling**: node-cron
 - **Push Notifications**: Firebase Admin SDK
 
-### Directory Structure
-
-```
-backend/
-├── controllers/        # Request handlers
-│   ├── authController.js
-│   ├── taskController.js
-│   ├── teamController.js
-│   └── notificationController.js
-├── models/            # Database schemas
-│   ├── User.js
-│   ├── Task.js
-│   ├── Team.js
-│   └── Notification.js
-├── services/          # Business logic
-│   ├── notificationService.js
-│   ├── cleanupScheduler.js
-│   └── schedulerService.js
-├── middleware/        # Request middleware
-│   └── middle_auth.js
-├── routes/           # API routes
-│   ├── auth.js
-│   ├── task.js
-│   ├── team.js
-│   └── notification.js
-└── index.js          # Application entry point
-```
-
 ### Request Flow
 
 ```
