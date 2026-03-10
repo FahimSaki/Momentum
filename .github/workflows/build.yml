@@ -3,9 +3,9 @@ name: Build and Release
 on:
   push:
     branches:
-      - '**'
+      - "**"
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
   pull_request:
     branches:
@@ -19,8 +19,8 @@ permissions:
   security-events: write
 
 env:
-  FLUTTER_VERSION: '3.35.2'
-  JAVA_VERSION: '17'
+  FLUTTER_VERSION: "3.41.4"
+  JAVA_VERSION: "17"
 
 jobs:
   code-quality:
@@ -34,7 +34,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Cache Flutter Pub
@@ -129,14 +129,14 @@ jobs:
         if: matrix.platform == 'android'
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: "zulu"
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: "stable"
           cache: true
 
       - name: Cache Flutter Pub
