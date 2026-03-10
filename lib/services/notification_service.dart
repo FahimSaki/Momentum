@@ -168,9 +168,9 @@ class NotificationService {
         'type': type,
         'title': title,
         'message': message,
-        if (teamId != null) 'teamId': teamId,
-        if (taskId != null) 'taskId': taskId,
-        if (data != null) 'data': data,
+        'teamId': ?teamId,
+        'taskId': ?taskId,
+        'data': ?data,
       };
 
       final response = await http.post(

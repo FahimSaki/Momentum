@@ -100,8 +100,8 @@ class TaskService {
     try {
       final queryParams = <String, String>{
         'userId': userId,
-        if (teamId != null) 'teamId': teamId,
-        if (type != null) 'type': type,
+        'teamId': ?teamId,
+        'type': ?type,
       };
 
       final uri = Uri.parse(
@@ -318,10 +318,7 @@ class TaskService {
 
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
-      final queryParams = <String, String>{
-        'userId': userId,
-        if (teamId != null) 'teamId': teamId,
-      };
+      final queryParams = <String, String>{'userId': userId, 'teamId': ?teamId};
 
       final uri = Uri.parse(
         '$apiBaseUrl/tasks/history',
@@ -369,9 +366,7 @@ class TaskService {
 
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
-      final queryParams = <String, String>{
-        if (teamId != null) 'teamId': teamId,
-      };
+      final queryParams = <String, String>{'teamId': ?teamId};
 
       final uri = Uri.parse(
         '$apiBaseUrl/tasks/stats',
