@@ -27,19 +27,19 @@ jobs:
   code-quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.3.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: "stable"
           cache: true
 
       - name: Cache Flutter Pub
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: ~/.pub-cache
           key: flutter-pub-${{ hashFiles('**/pubspec.yaml') }}
@@ -124,24 +124,24 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
 
       - name: Setup Java
         if: matrix.platform == 'android'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v4.2.0
         with:
           distribution: "zulu"
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v2.3.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: "stable"
           cache: true
 
       - name: Cache Flutter Pub
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: ~/.pub-cache
           key: flutter-pub-${{ hashFiles('**/pubspec.yaml') }}
@@ -150,7 +150,7 @@ jobs:
 
       - name: Cache Gradle
         if: matrix.platform == 'android'
-        uses: actions/cache@v4
+        uses: actions/cache@v4.2.0
         with:
           path: |
             ~/.gradle/caches
@@ -280,7 +280,7 @@ jobs:
           esac
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: momentum-${{ matrix.platform }}-${{ github.sha }}
           path: releases/
@@ -291,9 +291,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.8
         with:
           path: artifacts/
       - name: Prepare Release Files
@@ -328,7 +328,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Web Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v4.1.8
         with:
           name: momentum-web-${{ github.sha }}
           path: web-build/
