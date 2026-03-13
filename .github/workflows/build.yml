@@ -32,9 +32,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2.21.0
+        uses: flutter-actions/setup-flutter@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          version: ${{ env.FLUTTER_VERSION }}
           channel: "stable"
           cache: true
 
@@ -134,9 +134,9 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: Setup Flutter
-        uses: subosito/flutter-action@v2.21.0
+        uses: flutter-actions/setup-flutter@v4
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          version: ${{ env.FLUTTER_VERSION }}
           channel: "stable"
           cache: true
 
