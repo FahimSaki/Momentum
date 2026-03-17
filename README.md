@@ -76,7 +76,7 @@ flutter run
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | **Frontend** | Flutter 3.41+ | Cross-platform UI with Provider state management |
-| **Backend** | Node.js 24.14(LTS) + Express | RESTful API with automated cleanup scheduler |
+| **Backend** | Node.js 24.14 (LTS) + Express | RESTful API with automated cleanup scheduler |
 | **Database** | MongoDB + Mongoose | Document storage with intelligent indexing |
 | **Authentication** | JWT + bcrypt | Secure auth with FlutterSecureStorage |
 | **Notifications** | Firebase FCM | Cross-platform push notifications |
