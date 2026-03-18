@@ -26,7 +26,7 @@
     <application android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:label="Momentum" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- Widget receiver -->
-        <receiver android:name=".MomentumHomeWidget" android:exported="false">
+        <receiver android:name=".MomentumHomeWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -64,6 +64,7 @@
                 <data android:scheme="package"/>
             </intent-filter>
         </receiver>
+
 
         <!-- Flutter tool metadata -->
         <meta-data android:name="flutterEmbedding" android:value="2" />
