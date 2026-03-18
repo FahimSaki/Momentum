@@ -254,6 +254,15 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  Future<Team> getTeamDetails(String teamId) async {
+    try {
+      return await _teamService!.getTeamDetails(teamId);
+    } catch (e, stackTrace) {
+      logger.e('Error fetching team details', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
   Future<void> inviteToTeam({
     required String teamId,
     String? email,

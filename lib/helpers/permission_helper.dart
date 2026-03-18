@@ -32,6 +32,9 @@ class PermissionHelper {
 
   // Get user's role in team
   static String getUserRole(Team team, String userId) {
+    // Check if user is the team owner first
+    if (team.owner.id == userId) return 'owner';
+
     final member = team.getMember(userId);
     return member?.role ?? 'member';
   }

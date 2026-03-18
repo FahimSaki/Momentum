@@ -40,29 +40,27 @@ class _TeamHomePageState extends State<TeamHomePage> {
         throw Exception('User not authenticated');
       }
 
-      // Get user's role and permissions
-      _userRole = PermissionHelper.getUserRole(widget.team, db.userId!);
+      // Fetch fresh team data so members list is fully populated
+      final freshTeam = await db.getTeamDetails(widget.team.id);
+
+      // Get user's role and permissions from fresh data
+      _userRole = PermissionHelper.getUserRole(freshTeam, db.userId!);
       _permissions = TeamPermissions.forRole(_userRole);
 
       _logger.i('User role in team: $_userRole');
-      _logger.d(
-        'Permissions: canCreateTasks=${_permissions.canCreateTasks}, canCompleteTasks=${_permissions.canCompleteTasks}',
-      );
 
       // Select the team to load its tasks
-      db.selectTeam(widget.team);
+      db.selectTeam(freshTeam);
 
       setState(() {
         _isLoading = false;
       });
     } catch (e, stackTrace) {
       _logger.e('Error loading team data', error: e, stackTrace: stackTrace);
-
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
-
         ErrorHandler.showError(context, e, title: 'Failed to load team');
       }
     }
