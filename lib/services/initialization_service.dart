@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+// import 'package:home_widget/home_widget.dart';
 import 'package:momentum/services/notification_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -12,14 +13,13 @@ class InitializationService {
     WidgetsFlutterBinding.ensureInitialized();
 
     if (!kIsWeb) {
-      // Mobile → restore JWT from secure storage
+      // await HomeWidget.setAppGroupId('group.com.example.momentum');
+
       final savedToken = await _secureStorage.read(key: 'jwt');
       if (savedToken != null) {
         await _notificationService.init(jwtToken: savedToken);
       }
     } else {
-      // Web → JWT is handled by httpOnly cookie automatically
-      // Just initialize without token here
       await _notificationService.init(jwtToken: null);
     }
   }

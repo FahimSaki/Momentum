@@ -10,23 +10,21 @@ class WidgetService {
     if (kIsWeb) return;
 
     try {
-      final List<String> widgetData = [];
       final now = DateTime.now();
-      for (int i = 0; i < 35; i++) {
-        final date = now.subtract(Duration(days: 34 - i));
-        int completedCount = 0;
-        for (final task in tasks) {
-          if (task.completedDays.any((d) {
-            final local = d.toLocal();
-            return local.year == date.year &&
-                local.month == date.month &&
-                local.day == date.day;
-          })) {
-            completedCount++;
-          }
+
+      // Build completions map
+      final Map<String, int> completionsByDate = {};
+      for (final task in tasks) {
+        for (final d in task.completedDays) {
+          final local = d.toLocal();
+          final key =
+              '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+          completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
         }
-        widgetData.add(completedCount.toString());
       }
+
+      final widgetData = _buildWidgetData(completionsByDate, now);
+
       await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
       await HomeWidget.updateWidget(
         name: 'MomentumHomeWidget',
@@ -39,38 +37,42 @@ class WidgetService {
 
   Future<void> updateWidgetWithHistoricalData(
     List<DateTime> historicalCompletions,
-    List<Task> currentTasks,
+    List<Task> tasks,
   ) async {
     if (kIsWeb) return;
 
     try {
-      final List<String> widgetData = [];
       final now = DateTime.now();
 
-      // Combine current task data with historical data
+      // Combine all completions
       final Set<DateTime> allCompletions = <DateTime>{};
-
-      // Add current task completions
-      for (final task in currentTasks) {
+      for (final task in tasks) {
         allCompletions.addAll(task.completedDays);
       }
-
-      // Add historical completions (from deleted tasks)
       allCompletions.addAll(historicalCompletions);
 
-      for (int i = 0; i < 35; i++) {
-        final date = now.subtract(Duration(days: 34 - i));
-        int completedCount = 0;
+      // Build completions map keyed by date string
+      final Map<String, int> completionsByDate = {};
+      for (final completion in allCompletions) {
+        final local = completion.toLocal();
+        final key =
+            '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+        completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
+      }
 
-        for (final completion in allCompletions) {
-          final local = completion.toLocal();
-          if (local.year == date.year &&
-              local.month == date.month &&
-              local.day == date.day) {
-            completedCount++;
-          }
-        }
-        widgetData.add(completedCount.toString());
+      // Try last 35 days ending today
+      DateTime endDate = now;
+      List<String> widgetData = _buildWidgetData(completionsByDate, endDate);
+
+      // Fall back to last active period
+      final bool allZeros = widgetData.every((v) => v == '0');
+      if (allZeros && allCompletions.isNotEmpty) {
+        final mostRecent = allCompletions
+            .map((d) => d.toLocal())
+            .reduce((a, b) => a.isAfter(b) ? a : b);
+
+        endDate = DateTime(mostRecent.year, mostRecent.month, mostRecent.day);
+        widgetData = _buildWidgetData(completionsByDate, endDate);
       }
 
       await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
@@ -85,5 +87,20 @@ class WidgetService {
         stackTrace: stackTrace,
       );
     }
+  }
+
+  // Builds 35 data points ending at endDate
+  List<String> _buildWidgetData(
+    Map<String, int> completionsByDate,
+    DateTime endDate,
+  ) {
+    final List<String> widgetData = [];
+    for (int i = 0; i < 35; i++) {
+      final date = endDate.subtract(Duration(days: 34 - i));
+      final key =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      widgetData.add((completionsByDate[key] ?? 0).toString());
+    }
+    return widgetData;
   }
 }
