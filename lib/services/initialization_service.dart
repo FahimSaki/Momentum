@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-// import 'package:home_widget/home_widget.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:momentum/services/notification_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -13,7 +13,7 @@ class InitializationService {
     WidgetsFlutterBinding.ensureInitialized();
 
     if (!kIsWeb) {
-      // await HomeWidget.setAppGroupId('group.com.example.momentum');
+      await HomeWidget.setAppGroupId('group.com.example.momentum');
 
       final savedToken = await _secureStorage.read(key: 'jwt');
       if (savedToken != null) {

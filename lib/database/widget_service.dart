@@ -6,30 +6,26 @@ import 'package:logger/logger.dart';
 class WidgetService {
   final Logger _logger = Logger();
 
+  // App Group ID - set this once at app start
+  static const String _appGroupId = 'group.com.example.momentum';
+  static const String _androidWidgetName = 'MomentumHomeWidget';
+  static const String _heatmapKey = 'heatmap_data';
+
   Future<void> updateWidget(List<Task> tasks) async {
     if (kIsWeb) return;
 
     try {
-      final now = DateTime.now();
-
-      // Build completions map
+      await HomeWidget.setAppGroupId(_appGroupId);
       final Map<String, int> completionsByDate = {};
       for (final task in tasks) {
         for (final d in task.completedDays) {
           final local = d.toLocal();
-          final key =
-              '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+          final key = _dateKey(local);
           completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
         }
       }
 
-      final widgetData = _buildWidgetData(completionsByDate, now);
-
-      await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
-      await HomeWidget.updateWidget(
-        name: 'MomentumHomeWidget',
-        androidName: 'MomentumHomeWidget',
-      );
+      await _saveAndUpdate(completionsByDate, DateTime.now());
     } catch (e, stackTrace) {
       _logger.e('Error updating widget', error: e, stackTrace: stackTrace);
     }
@@ -42,44 +38,45 @@ class WidgetService {
     if (kIsWeb) return;
 
     try {
-      final now = DateTime.now();
-
-      // Combine all completions
-      final Set<DateTime> allCompletions = <DateTime>{};
-      for (final task in tasks) {
-        allCompletions.addAll(task.completedDays);
-      }
-      allCompletions.addAll(historicalCompletions);
-
-      // Build completions map keyed by date string
       final Map<String, int> completionsByDate = {};
-      for (final completion in allCompletions) {
-        final local = completion.toLocal();
-        final key =
-            '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+
+      // Process current tasks
+      for (final task in tasks) {
+        for (final d in task.completedDays) {
+          final local = d.toLocal();
+          final key = _dateKey(local);
+          completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
+        }
+      }
+
+      // Process historical completions
+      for (final d in historicalCompletions) {
+        final local = d.toLocal();
+        final key = _dateKey(local);
         completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
       }
 
-      // Try last 35 days ending today
-      DateTime endDate = now;
-      List<String> widgetData = _buildWidgetData(completionsByDate, endDate);
+      DateTime endDate = DateTime.now();
 
-      // Fall back to last active period
-      final bool allZeros = widgetData.every((v) => v == '0');
-      if (allZeros && allCompletions.isNotEmpty) {
-        final mostRecent = allCompletions
-            .map((d) => d.toLocal())
-            .reduce((a, b) => a.isAfter(b) ? a : b);
+      // If no data for last 35 days, try to show the most recent active period
+      final recentData = _buildWidgetData(completionsByDate, endDate);
+      final allZeros = recentData.every((v) => v == 0);
 
-        endDate = DateTime(mostRecent.year, mostRecent.month, mostRecent.day);
-        widgetData = _buildWidgetData(completionsByDate, endDate);
+      if (allZeros && completionsByDate.isNotEmpty) {
+        // Find the most recent date with completions
+        final allDates = completionsByDate.keys.map((k) {
+          final parts = k.split('-');
+          return DateTime(
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+            int.parse(parts[2]),
+          );
+        }).toList()..sort();
+
+        endDate = allDates.last;
       }
 
-      await HomeWidget.saveWidgetData('heatmap_data', widgetData.join(','));
-      await HomeWidget.updateWidget(
-        name: 'MomentumHomeWidget',
-        androidName: 'MomentumHomeWidget',
-      );
+      await _saveAndUpdate(completionsByDate, endDate);
     } catch (e, stackTrace) {
       _logger.e(
         'Error updating widget with historical data',
@@ -89,18 +86,52 @@ class WidgetService {
     }
   }
 
-  // Builds 35 data points ending at endDate
-  List<String> _buildWidgetData(
+  Future<void> _saveAndUpdate(
+    Map<String, int> completionsByDate,
+    DateTime endDate,
+  ) async {
+    final widgetData = _buildWidgetData(completionsByDate, endDate);
+    final dataString = widgetData.join(',');
+
+    _logger.d('Saving widget data: $dataString');
+
+    // Save the data first and AWAIT it fully before updating
+    final saved = await HomeWidget.saveWidgetData<String>(
+      _heatmapKey,
+      dataString,
+    );
+    _logger.d('Widget data saved: $saved');
+
+    // Small delay to ensure data is flushed to SharedPreferences
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    // Now trigger the widget update
+    await HomeWidget.updateWidget(
+      name: _androidWidgetName,
+      androidName: _androidWidgetName,
+      iOSName: _androidWidgetName,
+      qualifiedAndroidName: 'com.example.momentum.$_androidWidgetName',
+    );
+
+    _logger.i(
+      'Widget updated with ${widgetData.where((v) => v > 0).length} active days',
+    );
+  }
+
+  List<int> _buildWidgetData(
     Map<String, int> completionsByDate,
     DateTime endDate,
   ) {
-    final List<String> widgetData = [];
-    for (int i = 0; i < 35; i++) {
-      final date = endDate.subtract(Duration(days: 34 - i));
-      final key =
-          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-      widgetData.add((completionsByDate[key] ?? 0).toString());
+    final List<int> widgetData = [];
+    for (int i = 34; i >= 0; i--) {
+      final date = endDate.subtract(Duration(days: i));
+      final key = _dateKey(date);
+      widgetData.add(completionsByDate[key] ?? 0);
     }
     return widgetData;
+  }
+
+  String _dateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }
