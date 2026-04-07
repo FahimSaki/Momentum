@@ -40,7 +40,7 @@ class MomentumHomeWidget : AppWidgetProvider() {
         if (!hasData) {
             views.setTextViewText(R.id.widget_title, "No tasks tracked yet")
         } else {
-            views.setTextViewText(R.id.widget_title, "Task Tracker")
+            views.setTextViewText(R.id.widget_title, "Momentum")
         }
 
         // Draw the heatmap as a bitmap - this is the reliable approach for widgets
