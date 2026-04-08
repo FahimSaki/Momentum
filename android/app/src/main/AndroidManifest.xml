@@ -2,7 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools" package="com.example.momentum">
 
-    <!-- Required to query activities that can process text -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
@@ -64,7 +63,6 @@
                 <data android:scheme="package"/>
             </intent-filter>
         </receiver>
-
 
         <!-- Flutter tool metadata -->
         <meta-data android:name="flutterEmbedding" android:value="2" />

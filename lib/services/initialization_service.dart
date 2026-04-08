@@ -8,12 +8,15 @@ class InitializationService {
   static final NotificationService _notificationService = NotificationService();
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
+  static const String _appGroupId = 'group.com.example.momentum';
+
   /// Run this at app startup
   static Future<void> initialize() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     if (!kIsWeb) {
-      await HomeWidget.setAppGroupId('group.com.example.momentum');
+      // Set app group ID first — must happen before any widget read/write
+      await HomeWidget.setAppGroupId(_appGroupId);
 
       final savedToken = await _secureStorage.read(key: 'jwt');
       if (savedToken != null) {
@@ -27,12 +30,10 @@ class InitializationService {
   /// Save JWT after login
   static Future<void> saveJwt(String jwtToken) async {
     if (!kIsWeb) {
-      // Mobile → persist securely
       await _secureStorage.write(key: 'jwt', value: jwtToken);
       await _notificationService.init(jwtToken: jwtToken);
-    } else {
-      // Web → rely on secure cookie set by backend
     }
+    // Web: rely on secure cookie set by backend
   }
 
   /// Clear JWT on logout
