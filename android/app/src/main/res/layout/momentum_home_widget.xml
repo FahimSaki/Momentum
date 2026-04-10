@@ -1,8 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="8dp" android:background="@drawable/widget_background">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp" android:background="@drawable/widget_background">
 
-    <TextView android:id="@+id/widget_title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:layout_marginBottom="6dp" android:text="Momentum" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
+    <!-- Header Row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="8dp">
 
-    <ImageView android:id="@+id/widget_heatmap_image" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitXY" android:adjustViewBounds="true" />
+        <TextView android:id="@+id/widget_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Momentum" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" />
+
+        <!-- Open App Button -->
+        <TextView android:id="@+id/widget_open_app" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Open ›" android:textColor="#80FFFFFF" android:textSize="12sp" android:paddingStart="8dp" android:paddingEnd="4dp" />
+    </LinearLayout>
+
+    <!-- Task count summary -->
+    <TextView android:id="@+id/widget_task_summary" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0 tasks today" android:textColor="#B0FFFFFF" android:textSize="11sp" android:layout_marginBottom="6dp" />
+
+    <!-- Divider -->
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#33FFFFFF" android:layout_marginBottom="6dp" />
+
+    <!-- Task 1 -->
+    <LinearLayout android:id="@+id/widget_task_row_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp" android:visibility="gone">
+
+        <TextView android:id="@+id/widget_task_check_1" android:layout_width="20dp" android:layout_height="20dp" android:text="○" android:textColor="#66FF99" android:textSize="14sp" android:gravity="center" />
+
+        <TextView android:id="@+id/widget_task_name_1" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Task 2 -->
+    <LinearLayout android:id="@+id/widget_task_row_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp" android:visibility="gone">
+
+        <TextView android:id="@+id/widget_task_check_2" android:layout_width="20dp" android:layout_height="20dp" android:text="○" android:textColor="#66FF99" android:textSize="14sp" android:gravity="center" />
+
+        <TextView android:id="@+id/widget_task_name_2" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Task 3 -->
+    <LinearLayout android:id="@+id/widget_task_row_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp" android:visibility="gone">
+
+        <TextView android:id="@+id/widget_task_check_3" android:layout_width="20dp" android:layout_height="20dp" android:text="○" android:textColor="#66FF99" android:textSize="14sp" android:gravity="center" />
+
+        <TextView android:id="@+id/widget_task_name_3" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:textColor="#FFFFFF" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- "More tasks" overflow label -->
+    <TextView android:id="@+id/widget_more_tasks" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textColor="#80FFFFFF" android:textSize="11sp" android:layout_marginBottom="4dp" android:visibility="gone" />
+
+    <!-- Empty state -->
+    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🎉 All done for today!" android:textColor="#80FFFFFF" android:textSize="12sp" android:gravity="center" android:layout_marginTop="4dp" android:visibility="gone" />
+
+    <!-- Spacer -->
+    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+
+    <!-- Heatmap strip at bottom -->
+    <ImageView android:id="@+id/widget_heatmap_image" android:layout_width="match_parent" android:layout_height="24dp" android:scaleType="fitXY" android:adjustViewBounds="true" />
 
 </LinearLayout>

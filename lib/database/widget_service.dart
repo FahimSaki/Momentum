@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:momentum/models/task.dart';
@@ -6,30 +7,12 @@ import 'package:logger/logger.dart';
 class WidgetService {
   final Logger _logger = Logger();
 
-  // App Group ID - set this once at app start
   static const String _appGroupId = 'group.com.example.momentum';
-  static const String _androidWidgetName = 'MomentumHomeWidget';
+  static const String _androidWidget = 'MomentumHomeWidget';
   static const String _heatmapKey = 'heatmap_data';
+  static const String _tasksKey = 'widget_tasks';
 
-  Future<void> updateWidget(List<Task> tasks) async {
-    if (kIsWeb) return;
-
-    try {
-      await HomeWidget.setAppGroupId(_appGroupId);
-      final Map<String, int> completionsByDate = {};
-      for (final task in tasks) {
-        for (final d in task.completedDays) {
-          final local = d.toLocal();
-          final key = _dateKey(local);
-          completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
-        }
-      }
-
-      await _saveAndUpdate(completionsByDate, DateTime.now());
-    } catch (e, stackTrace) {
-      _logger.e('Error updating widget', error: e, stackTrace: stackTrace);
-    }
-  }
+  // ── Public API
 
   Future<void> updateWidgetWithHistoricalData(
     List<DateTime> historicalCompletions,
@@ -38,100 +21,98 @@ class WidgetService {
     if (kIsWeb) return;
 
     try {
+      await HomeWidget.setAppGroupId(_appGroupId);
+
+      // Build heatmap data
       final Map<String, int> completionsByDate = {};
 
-      // Process current tasks
       for (final task in tasks) {
         for (final d in task.completedDays) {
-          final local = d.toLocal();
-          final key = _dateKey(local);
+          final key = _dateKey(d.toLocal());
           completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
         }
       }
-
-      // Process historical completions
       for (final d in historicalCompletions) {
-        final local = d.toLocal();
-        final key = _dateKey(local);
+        final key = _dateKey(d.toLocal());
         completionsByDate[key] = (completionsByDate[key] ?? 0) + 1;
       }
 
       DateTime endDate = DateTime.now();
 
-      // If no data for last 35 days, try to show the most recent active period
-      final recentData = _buildWidgetData(completionsByDate, endDate);
-      final allZeros = recentData.every((v) => v == 0);
-
-      if (allZeros && completionsByDate.isNotEmpty) {
-        // Find the most recent date with completions
-        final allDates = completionsByDate.keys.map((k) {
-          final parts = k.split('-');
-          return DateTime(
-            int.parse(parts[0]),
-            int.parse(parts[1]),
-            int.parse(parts[2]),
-          );
+      // If the last 35 days are empty, slide the window to the last active day
+      final recentData = _buildHeatmapList(completionsByDate, endDate);
+      if (recentData.every((v) => v == 0) && completionsByDate.isNotEmpty) {
+        final sorted = completionsByDate.keys.map((k) {
+          final p = k.split('-');
+          return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
         }).toList()..sort();
-
-        endDate = allDates.last;
+        endDate = sorted.last;
       }
 
-      await _saveAndUpdate(completionsByDate, endDate);
-    } catch (e, stackTrace) {
-      _logger.e(
-        'Error updating widget with historical data',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      // Build task JSON for the widget (active first, max 10 entries)
+      final taskJson = _buildTaskJson(tasks);
+
+      await _saveAndRefresh(completionsByDate, endDate, taskJson);
+    } catch (e, st) {
+      _logger.e('Error updating widget', error: e, stackTrace: st);
     }
   }
 
-  Future<void> _saveAndUpdate(
+  // ── Helpers
+
+  /// Produces a JSON array of up to 10 tasks: active ones first, then done.
+  String _buildTaskJson(List<Task> tasks) {
+    final active = tasks.where((t) => !t.isCompletedToday()).toList();
+    final completed = tasks.where((t) => t.isCompletedToday()).toList();
+
+    // Show active first, then completed, cap at 10 total
+    final display = [...active, ...completed].take(10);
+
+    final list = display
+        .map((t) => {'name': t.name, 'completed': t.isCompletedToday()})
+        .toList();
+
+    return jsonEncode(list);
+  }
+
+  Future<void> _saveAndRefresh(
     Map<String, int> completionsByDate,
     DateTime endDate,
+    String taskJson,
   ) async {
-    final widgetData = _buildWidgetData(completionsByDate, endDate);
-    final dataString = widgetData.join(',');
+    final heatmapList = _buildHeatmapList(completionsByDate, endDate);
+    final heatmapStr = heatmapList.join(',');
 
-    _logger.d('Saving widget data: $dataString');
+    _logger.d('Saving heatmap: $heatmapStr');
+    _logger.d('Saving tasks: $taskJson');
 
-    // Save the data first and AWAIT it fully before updating
-    final saved = await HomeWidget.saveWidgetData<String>(
-      _heatmapKey,
-      dataString,
-    );
-    _logger.d('Widget data saved: $saved');
+    await HomeWidget.saveWidgetData<String>(_heatmapKey, heatmapStr);
+    await HomeWidget.saveWidgetData<String>(_tasksKey, taskJson);
 
-    // Small delay to ensure data is flushed to SharedPreferences
-    await Future.delayed(const Duration(milliseconds: 100));
+    // Short delay to let SharedPreferences flush
+    await Future.delayed(const Duration(milliseconds: 120));
 
-    // Now trigger the widget update
     await HomeWidget.updateWidget(
-      name: _androidWidgetName,
-      androidName: _androidWidgetName,
-      iOSName: _androidWidgetName,
-      qualifiedAndroidName: 'com.example.momentum.$_androidWidgetName',
+      name: _androidWidget,
+      androidName: _androidWidget,
+      iOSName: _androidWidget,
+      qualifiedAndroidName: 'com.example.momentum.$_androidWidget',
     );
 
     _logger.i(
-      'Widget updated with ${widgetData.where((v) => v > 0).length} active days',
+      'Widget refreshed — '
+      '${heatmapList.where((v) => v > 0).length} active heatmap days, '
+      '${taskJson.isNotEmpty ? "tasks saved" : "no tasks"}',
     );
   }
 
-  List<int> _buildWidgetData(
-    Map<String, int> completionsByDate,
-    DateTime endDate,
-  ) {
-    final List<int> widgetData = [];
-    for (int i = 34; i >= 0; i--) {
-      final date = endDate.subtract(Duration(days: i));
-      final key = _dateKey(date);
-      widgetData.add(completionsByDate[key] ?? 0);
-    }
-    return widgetData;
+  List<int> _buildHeatmapList(Map<String, int> data, DateTime endDate) {
+    return List.generate(35, (i) {
+      final date = endDate.subtract(Duration(days: 34 - i));
+      return data[_dateKey(date)] ?? 0;
+    });
   }
 
-  String _dateKey(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
+  String _dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }
