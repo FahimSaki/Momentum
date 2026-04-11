@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_permissions.dart';
@@ -475,16 +476,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
     // Import and show your existing TaskCreationDialog
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Create Task'),
-        content: const Text('Task creation dialog implementation here'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+      builder: (context) => const TaskCreationDialog(),
     );
   }
 

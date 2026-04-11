@@ -98,11 +98,9 @@ class TaskService {
   // Get user tasks with better filtering
   Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
     try {
-      final queryParams = <String, String>{
-        'userId': userId,
-        'teamId': ?teamId,
-        'type': ?type,
-      };
+      final queryParams = <String, String>{'userId': userId};
+      if (teamId != null) queryParams['teamId'] = teamId;
+      if (type != null) queryParams['type'] = type;
 
       final uri = Uri.parse(
         '$apiBaseUrl/tasks/assigned',

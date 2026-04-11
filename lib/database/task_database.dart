@@ -49,19 +49,10 @@ class TaskDatabase extends ChangeNotifier {
   bool get isInitialized => _isInitialized;
 
   // Better getters for task states
-  List<Task> get activeTasks {
-    return currentTasks.where((task) {
-      // A task is active if it's not archived OR not completed today
-      return !task.isArchived || !task.isCompletedToday();
-    }).toList();
-  }
-
-  List<Task> get completedTasks {
-    return currentTasks.where((task) {
-      // A task is in completed list if it's archived AND completed today
-      return task.isArchived && task.isCompletedToday();
-    }).toList();
-  }
+  List<Task> get activeTasks =>
+      currentTasks.where((t) => !t.isCompletedToday()).toList();
+  List<Task> get completedTasks =>
+      currentTasks.where((t) => t.isCompletedToday()).toList();
 
   TaskDatabase() {
     if (!kIsWeb) {
@@ -309,8 +300,8 @@ class TaskDatabase extends ChangeNotifier {
   void selectTeam(Team? team) {
     selectedTeam = team;
     currentView = team != null ? 'team' : 'personal';
-    _filterCurrentTasks();
     notifyListeners();
+    _loadTasks();
   }
 
   void _organizeTasksByType() {
@@ -328,10 +319,6 @@ class TaskDatabase extends ChangeNotifier {
     logger.d(
       'Organized tasks: ${personalTasks.length} personal, ${teamTasks.length} team',
     );
-  }
-
-  void _filterCurrentTasks() {
-    notifyListeners();
   }
 
   Future<void> _loadHistoricalCompletions() async {

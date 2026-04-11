@@ -19,26 +19,40 @@ dns.setServers(['8.8.8.8', '8.8.4.4']);
 const app = express();
 app.use(express.json());
 
-// CORS setup: allow production, preview, and local dev frontends
+/* ================================
+   REQUEST LOGGING MIDDLEWARE
+================================ */
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+    }
+
+    console.log('---');
+    next();
+});
+
+/* ================================
+   CORS CONFIG
+================================ */
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
 
         const allowedOrigins = [
-            'https://momentum-beryl-nine.vercel.app', // Vercel production
-            'http://localhost:10000', // Local backend
-            'http://localhost:3000',  // Local frontend
-            'http://127.0.0.1:3000',  // Alternative localhost
+            'https://momentum-beryl-nine.vercel.app',
+            'http://localhost:10000',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
         ];
 
-        // Allow all Vercel preview URLs
         if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
             callback(null, true);
         } else {
-            console.warn(`CORS origin logged but allowed: ${origin}`);
-            // For mobile apps, allow all origins during development
-            callback(null, true); // Change this to be more permissive
+            console.warn(`CORS origin allowed (dev mode): ${origin}`);
+            callback(null, true);
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -52,30 +66,32 @@ app.use(cors({
         'Access-Control-Allow-Origin'
     ],
     credentials: true,
-    optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+    optionsSuccessStatus: 200
 }));
 
-// Add preflight handling
-app.options('*', cors()); // Enable preflight for all routes
+app.options('*', cors());
 
-// Connect to MongoDB (cleaned up deprecated options)
+/* ================================
+   DATABASE CONNECTION
+================================ */
 mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000, // Wait 10s before failing
+    serverSelectionTimeoutMS: 10000,
 })
     .then(() => {
         console.log('✅ MongoDB connected');
-
-        // Cleanup Scheduler on top of the old scheduler
         startScheduler();
     })
     .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Public wake-up endpoint
+/* ================================
+   PUBLIC ROUTES
+================================ */
 app.get('/wake-up', (req, res) => {
     const now = new Date();
     console.log('⏰ Wake-up ping received at:', now.toISOString());
+
     res.status(200).json({
         message: 'Server is awake',
         timestamp: now.toISOString(),
@@ -83,11 +99,10 @@ app.get('/wake-up', (req, res) => {
     });
 });
 
-// Public cleanup endpoint  
 app.post('/manual-cleanup', async (req, res) => {
     try {
         const startTime = new Date();
-        console.log('🔧 Manual cleanup triggered by external cron service at:', startTime.toISOString());
+        console.log('🔧 Manual cleanup triggered:', startTime.toISOString());
 
         await runManualCleanup();
 
@@ -101,10 +116,11 @@ app.post('/manual-cleanup', async (req, res) => {
             triggered_by: 'external_cron'
         };
 
-        console.log('✅ Manual cleanup response:', response);
+        console.log('✅ Cleanup done:', response);
         res.status(200).json(response);
     } catch (error) {
         console.error('❌ Manual cleanup failed:', error);
+
         res.status(500).json({
             message: 'Manual cleanup failed',
             error: error.message,
@@ -112,45 +128,33 @@ app.post('/manual-cleanup', async (req, res) => {
         });
     }
 });
-// Request Logging Middleware
-app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    console.log('Headers:', JSON.stringify(req.headers, null, 2));
-    if (req.body && Object.keys(req.body).length > 0) {
-        console.log('Body:', JSON.stringify(req.body, null, 2));
-    }
-    console.log('---');
-    next();
-});
 
-// AUTHENTICATED ROUTES
+/* ================================
+   AUTHENTICATED ROUTES
+================================ */
 app.use('/auth', authRoutes);
 app.use('/tasks', authenticateToken, taskRoutes);
 app.use('/teams', authenticateToken, teamRoutes);
 app.use('/notifications', authenticateToken, notificationRoutes);
 app.use('/users', authenticateToken, userRoutes);
 
-// Health check (optional, helpful for monitoring)
+/* ================================
+   HEALTH CHECK
+================================ */
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
 });
 
-// Root endpoint
 app.get('/', (req, res) => {
     res.send('Momentum backend API running');
 });
 
-// Start server
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-});
-
-// Request logging endpoint
+/* ================================
+   ERROR HANDLER
+================================ */
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);
 
-    // Don't leak error details in production
     const isDevelopment = process.env.NODE_ENV === 'development';
 
     res.status(err.status || 500).json({
@@ -160,14 +164,26 @@ app.use((err, req, res, next) => {
             error: err
         })
     });
-})
+});
 
-// Handle 404s
+/* ================================
+   404 HANDLER
+================================ */
 app.use('*', (req, res) => {
     console.log(`404 - Route not found: ${req.method} ${req.originalUrl}`);
+
     res.status(404).json({
         message: 'Route not found',
         method: req.method,
         url: req.originalUrl
     });
+});
+
+/* ================================
+   START SERVER
+================================ */
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
 });

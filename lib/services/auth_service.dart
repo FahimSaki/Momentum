@@ -252,9 +252,7 @@ class AuthService {
 
       final response = await http
           .get(
-            Uri.parse(
-              '$backendUrl/tasks/assigned?userId=${authData['userId']}',
-            ),
+            Uri.parse('$backendUrl/auth/validate'),
             headers: {'Authorization': 'Bearer ${authData['token']}'},
           )
           .timeout(const Duration(seconds: 10)); // Add timeout

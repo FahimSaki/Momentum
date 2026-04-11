@@ -19,36 +19,39 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: themeProvider.themeData,
-          // Always start with splash screen for proper auth flow
+
+          // Start point (only used on cold start)
           initialRoute: '/splash',
-          routes: {
-            '/splash': (context) => const SplashPage(),
-            '/login': (context) => const LoginPage(),
-            '/home': (context) => const HomePage(),
-            '/register': (context) => const RegisterPage(),
-          },
-          // Handle unknown routes (like direct URL access to /home)
-          onUnknownRoute: (settings) {
-            // If someone tries to access any unknown route, redirect to splash
-            _logger.w('Unknown route accessed: ${settings.name}');
-            return MaterialPageRoute(builder: (context) => const SplashPage());
-          },
-          // Better route generation for web support
+
+          // SINGLE SOURCE OF TRUTH FOR ROUTING
           onGenerateRoute: (settings) {
-            // Handle direct navigation to specific routes
-            switch (settings.name) {
+            final name = settings.name;
+
+            switch (name) {
               case '/':
               case '/splash':
                 return MaterialPageRoute(builder: (_) => const SplashPage());
+
               case '/login':
                 return MaterialPageRoute(builder: (_) => const LoginPage());
+
               case '/register':
                 return MaterialPageRoute(builder: (_) => const RegisterPage());
+
               case '/home':
-                return MaterialPageRoute(builder: (_) => const SplashPage());
+                return MaterialPageRoute(builder: (_) => const HomePage());
+
               default:
+                _logger.w('Unknown route accessed: $name');
+
                 return MaterialPageRoute(builder: (_) => const SplashPage());
             }
+          },
+
+          // final safety fallback
+          onUnknownRoute: (settings) {
+            _logger.w('onUnknownRoute triggered: ${settings.name}');
+            return MaterialPageRoute(builder: (_) => const SplashPage());
           },
         );
       },

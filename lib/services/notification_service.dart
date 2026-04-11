@@ -163,15 +163,15 @@ class NotificationService {
     Map<String, dynamic>? data,
   }) async {
     try {
-      final body = {
+      final body = <String, dynamic>{
         'recipientId': recipientId,
         'type': type,
         'title': title,
         'message': message,
-        'teamId': ?teamId,
-        'taskId': ?taskId,
-        'data': ?data,
       };
+      if (teamId != null) body['teamId'] = teamId;
+      if (taskId != null) body['taskId'] = taskId;
+      if (data != null) body['data'] = data;
 
       final response = await http.post(
         Uri.parse('$apiBaseUrl/notifications'),
