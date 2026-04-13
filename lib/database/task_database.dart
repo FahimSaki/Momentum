@@ -99,6 +99,7 @@ class TaskDatabase extends ChangeNotifier {
         _scheduleMidnightCleanup();
       }
 
+      await updateWidget(); // <-- ADDED
       _isInitialized = true;
       logger.i('TaskDatabase initialization complete');
       notifyListeners();
@@ -138,7 +139,6 @@ class TaskDatabase extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Better task loading with error handling
   Future<void> _loadTasks() async {
     try {
       logger.i('Loading tasks...');
@@ -151,16 +151,13 @@ class TaskDatabase extends ChangeNotifier {
       List<Task> tasks = [];
 
       if (selectedTeam != null) {
-        // Load team tasks
         tasks = await _taskService!.getTeamTasks(selectedTeam!.id);
         logger.d('Loaded ${tasks.length} team tasks');
       } else {
-        // Load all user tasks (personal + team)
         tasks = await _taskService!.getUserTasks();
         logger.d('Loaded ${tasks.length} user tasks');
       }
 
-      // Update local state
       currentTasks.clear();
       currentTasks.addAll(tasks);
 
@@ -168,15 +165,12 @@ class TaskDatabase extends ChangeNotifier {
       logger.i('Tasks loaded and organized successfully');
     } catch (e, stackTrace) {
       logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
-
-      // Don't clear existing tasks on error - keep what we have
       logger.w(
         'Keeping existing ${currentTasks.length} tasks due to load error',
       );
     }
   }
 
-  // notification loading
   Future<void> _loadNotifications() async {
     try {
       if (_notificationService == null) {
@@ -203,7 +197,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Team Management Methods
   Future<void> _loadUserTeams() async {
     try {
       final teams = await _teamService?.getUserTeams() ?? [];
@@ -339,7 +332,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Fixed createTask method in TaskDatabase class
   Future<Task> createTask({
     required String name,
     String? description,
@@ -395,6 +387,7 @@ class TaskDatabase extends ChangeNotifier {
 
       _organizeTasksByType();
       logger.i('Local task lists updated, notifying listeners');
+      await updateWidget();
       notifyListeners();
 
       Future.delayed(const Duration(milliseconds: 500), () {
@@ -435,7 +428,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // FIXED: Complete task with proper state management
   Future<void> completeTask(String taskId, bool isCompleted) async {
     try {
       logger.i('TaskDatabase.completeTask: $taskId, completed: $isCompleted');
@@ -515,6 +507,7 @@ class TaskDatabase extends ChangeNotifier {
       if (index != -1) {
         currentTasks[index] = updatedTask;
         _organizeTasksByType();
+        await updateWidget();
         notifyListeners();
       }
     } catch (e, stackTrace) {
@@ -531,6 +524,7 @@ class TaskDatabase extends ChangeNotifier {
       _organizeTasksByType();
 
       await _loadHistoricalCompletions();
+      await updateWidget();
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e('Error deleting task', error: e, stackTrace: stackTrace);
@@ -606,7 +600,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Background services
   void _startPolling() {
     if (kIsWeb) {
       logger.w('Polling disabled on web to reduce CPU load');
@@ -693,7 +686,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Local, instant stats calculator (reactive in UI)
   Map<String, int> calculateDashboardStats() {
     final now = DateTime.now();
 
