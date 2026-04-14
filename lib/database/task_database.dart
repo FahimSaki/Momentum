@@ -99,7 +99,7 @@ class TaskDatabase extends ChangeNotifier {
         _scheduleMidnightCleanup();
       }
 
-      await updateWidget(); // <-- ADDED
+      await updateWidget();
       _isInitialized = true;
       logger.i('TaskDatabase initialization complete');
       notifyListeners();
@@ -656,6 +656,7 @@ class TaskDatabase extends ChangeNotifier {
       await _widgetService.updateWidgetWithHistoricalData(
         _historicalCompletions,
         currentTasks,
+        selectedTeam: selectedTeam,
       );
     } catch (e, stackTrace) {
       logger.e('Error updating widget', error: e, stackTrace: stackTrace);

@@ -27,10 +27,16 @@
         <!-- Widget receiver -->
         <receiver android:name=".MomentumHomeWidget" android:exported="true">
             <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="com.example.momentum.WIDGET_REFRESH"/>
+                <action android:name="com.example.momentum.WIDGET_TASK_TAPPED"/>
+                <action android:name="com.example.momentum.WIDGET_TASK_COMPLETE"/>
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/momentum_home_widget_info" />
         </receiver>
+
+        <!-- REQUIRED: Widget RemoteViews Service (Fixes crash) -->
+        <service android:name=".MomentumWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>
 
         <!-- Main Activity -->
         <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
