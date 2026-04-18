@@ -125,13 +125,13 @@ class MomentumWidgetFactory(
 
         val checkFillIn = Intent().apply {
             putExtra(MomentumHomeWidget.EXTRA_TASK_ID, taskId)
-            putExtra("tap_action", "complete")
+            putExtra("tap_action", "complete_task")
         }
         views.setOnClickFillInIntent(R.id.task_check, checkFillIn)
 
         val nameFillIn = Intent().apply {
             putExtra(MomentumHomeWidget.EXTRA_TASK_ID, taskId)
-            putExtra("tap_action", "open")
+            putExtra("tap_action", "open_task")
         }
         views.setOnClickFillInIntent(R.id.task_name, nameFillIn)
 

@@ -1,5 +1,3 @@
-// lib/services/task_service.dart - FIXED COMPLETION METHOD
-
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:momentum/constants/api_base_url.dart';

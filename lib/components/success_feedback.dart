@@ -1,5 +1,3 @@
-// lib/components/success_feedback.dart - NEW FILE
-
 import 'package:flutter/material.dart';
 
 class SuccessFeedback {

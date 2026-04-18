@@ -1,4 +1,3 @@
-// lib/pages/register_page.dart - WITH NAME FIELD
 import 'package:flutter/material.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:logger/logger.dart';
