@@ -1,42 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Momentum Home Widget Layout
-  Root must be a RemoteViews-compatible view group.
-  Using LinearLayout (vertical) for simplicity and reliability.
--->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@drawable/widget_background">
 
-    <!-- ══════════════════════════════════════════════
-         HEADER ROW
-         [✓ icon] [Team name ▾] ····· [+] [↺]
-         ══════════════════════════════════════════════ -->
-    <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="4dp">
+     <!-- ─── Header ─── -->
+     <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="12dp" android:paddingEnd="2dp" android:background="#12122B">
 
-        <!-- Blue checkmark accent -->
-        <TextView android:layout_width="22dp" android:layout_height="22dp" android:text="✓" android:textColor="#4A90E2" android:textSize="14sp" android:gravity="center" android:layout_marginEnd="6dp"/>
+          <TextView android:id="@+id/widget_team_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Personal Tasks  ▾" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" android:ellipsize="end" android:maxLines="1"/>
 
-        <!-- Team name / selector — tapping opens team picker in app -->
-        <TextView android:id="@+id/widget_team_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="My Tasks  ▾" android:textColor="#FFFFFF" android:textSize="14sp" android:textStyle="bold" android:ellipsize="end" android:maxLines="1"/>
+          <!-- Add task -->
+          <TextView android:id="@+id/widget_add" android:layout_width="40dp" android:layout_height="40dp" android:text="+" android:textColor="#4A90E2" android:textSize="24sp" android:gravity="center" android:contentDescription="Add task"/>
 
-        <!-- Add task — opens app at task creation dialog -->
-        <TextView android:id="@+id/widget_add" android:layout_width="40dp" android:layout_height="40dp" android:text="+" android:textColor="#BBFFFFFF" android:textSize="24sp" android:gravity="center" android:contentDescription="Add task"/>
+          <!-- Refresh -->
+          <TextView android:id="@+id/widget_refresh" android:layout_width="38dp" android:layout_height="38dp" android:text="↺" android:textColor="#777799" android:textSize="18sp" android:gravity="center" android:contentDescription="Refresh"/>
 
-        <!-- Refresh widget data -->
-        <TextView android:id="@+id/widget_refresh" android:layout_width="40dp" android:layout_height="40dp" android:text="↺" android:textColor="#88FFFFFF" android:textSize="20sp" android:gravity="center" android:contentDescription="Refresh"/>
+     </LinearLayout>
 
-    </LinearLayout>
+     <!-- Hairline divider -->
+     <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#22224A"/>
 
-    <!-- Hairline divider -->
-    <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#33FFFFFF" android:layout_marginStart="8dp" android:layout_marginEnd="8dp"/>
+     <!-- ─── Task list (RemoteViews ListView) ─── -->
+     <ListView android:id="@+id/widget_task_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="#22224A" android:dividerHeight="1dp" android:scrollbars="none" android:visibility="gone"/>
 
-    <!-- ══════════════════════════════════════════════
-         TASK LIST  (shown when tasks exist)
-         ══════════════════════════════════════════════ -->
-    <ListView android:id="@+id/widget_task_list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@null" android:dividerHeight="0dp" android:scrollbars="none" android:visibility="gone"/>
-
-    <!-- ══════════════════════════════════════════════
-         EMPTY STATE  (shown when no tasks)
-         ══════════════════════════════════════════════ -->
-    <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center" android:text="No tasks yet — tap + to add one" android:textColor="#66FFFFFF" android:textSize="13sp" android:visibility="visible"/>
+     <!-- ─── Empty state ─── -->
+     <TextView android:id="@+id/widget_empty" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:gravity="center" android:text="No tasks — tap + to add one" android:textColor="#66FFFFFF" android:textSize="12sp" android:visibility="visible"/>
 
 </LinearLayout>

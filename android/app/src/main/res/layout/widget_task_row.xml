@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="10dp">
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="46dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="10dp" android:paddingEnd="2dp" android:background="#1C1C2E">
 
-    <!-- Circle checkbox — tapping this marks task complete (opens app) -->
-    <TextView android:id="@+id/task_check" android:layout_width="32dp" android:layout_height="32dp" android:text="○" android:textColor="#888888" android:textSize="20sp" android:gravity="center"/>
+    <!-- Checkbox circle — tap to complete -->
+    <TextView android:id="@+id/task_check" android:layout_width="34dp" android:layout_height="34dp" android:text="○" android:textColor="#888888" android:textSize="18sp" android:gravity="center"/>
 
-    <!-- Task name -->
-    <TextView android:id="@+id/task_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Task name" android:textColor="#FFFFFF" android:textSize="14sp" android:ellipsize="end" android:maxLines="1" android:layout_marginStart="6dp"/>
+    <!-- Task name — tap to open in app -->
+    <TextView android:id="@+id/task_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="Task name" android:textColor="#FFFFFF" android:textSize="13sp" android:ellipsize="end" android:maxLines="1" android:layout_marginStart="6dp" android:layout_marginEnd="4dp"/>
 
-    <!-- Team label (shown when in a team context) -->
-    <TextView android:id="@+id/task_team" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="" android:textColor="#66FFFFFF" android:textSize="11sp" android:maxLines="1" android:layout_marginStart="4dp" android:visibility="gone"/>
+    <!-- Team label (hidden when no team) -->
+    <TextView android:id="@+id/task_team" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textColor="#55FFFFFF" android:textSize="11sp" android:maxLines="1" android:layout_marginEnd="4dp" android:visibility="gone"/>
+
+    <!-- ⋮ options — tap to edit/delete in app
+         Long-press is not supported by Android RemoteViews;
+         this is the standard workaround. -->
+    <TextView android:id="@+id/task_options" android:layout_width="36dp" android:layout_height="36dp" android:text="⋮" android:textColor="#55FFFFFF" android:textSize="18sp" android:gravity="center" android:contentDescription="Edit or delete task"/>
 
 </LinearLayout>

@@ -21,18 +21,11 @@ class WidgetService {
     if (kIsWeb) return;
 
     try {
-      // ── Team info ──────────────────────────────────────────────────────────
-      final teamName = selectedTeam?.name ?? 'My Tasks';
+      final teamName = selectedTeam?.name ?? 'Personal Tasks';
       final teamId = selectedTeam?.id ?? '';
 
-      // ── Build task JSON ────────────────────────────────────────────────────
-      // Use task.isArchived as source of truth (set by server in completeTask).
-      // isCompletedToday() re-derives locally and can be stale.
       final activeTasks = tasks.where((t) => !t.isArchived).toList();
       final completedTasks = tasks.where((t) => t.isArchived).toList();
-
-      // Active first, then completed — matches widget display order.
-      // Include task ID so the widget can pass it back when the user taps.
       final display = [...activeTasks, ...completedTasks].take(10);
 
       final taskList = display
@@ -48,19 +41,16 @@ class WidgetService {
 
       final taskJson = jsonEncode(taskList);
 
-      _logger.d(
-        'WidgetService — team: $teamName | tasks (${taskList.length}): $taskJson',
-      );
+      _logger.d('Widget update — team: $teamName, tasks: ${taskList.length}');
 
-      // ── Write to SharedPreferences ─────────────────────────────────────────
+      // Write all three keys before triggering the redraw
       await HomeWidget.saveWidgetData<String>(_tasksKey, taskJson);
       await HomeWidget.saveWidgetData<String>(_teamNameKey, teamName);
       await HomeWidget.saveWidgetData<String>(_teamIdKey, teamId);
 
-      // Small delay so SharedPreferences has flushed before the widget reads it
-      await Future.delayed(const Duration(milliseconds: 150));
+      // Small flush delay then redraw
+      await Future.delayed(const Duration(milliseconds: 200));
 
-      // ── Trigger widget redraw ──────────────────────────────────────────────
       await HomeWidget.updateWidget(
         androidName: _androidWidget,
         iOSName: _androidWidget,
@@ -68,12 +58,11 @@ class WidgetService {
       );
 
       _logger.i(
-        'Widget refreshed — '
-        '${activeTasks.length} active, ${completedTasks.length} completed, '
-        'team=$teamName',
+        'Widget updated — ${activeTasks.length} active, '
+        '${completedTasks.length} completed, team=$teamName',
       );
     } catch (e, st) {
-      _logger.e('WidgetService.updateWidget failed', error: e, stackTrace: st);
+      _logger.e('Widget update failed', error: e, stackTrace: st);
     }
   }
 }
