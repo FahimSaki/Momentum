@@ -8,6 +8,7 @@ import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/services/auth_service.dart';
+import 'package:momentum/services/initialization_service.dart';
 import 'package:provider/provider.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/components/quick_invite_widget.dart';
@@ -30,6 +31,12 @@ class _HomePageState extends State<HomePage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _ensureInitialized();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      InitializationService.registerDatabase(db);
+    });
   }
 
   @override

@@ -25,8 +25,7 @@ class TaskService {
       final requestBody = {
         'userId': userId,
         'isCompleted': isCompleted,
-        'completedAt': DateTime.now()
-            .toIso8601String(), // Send current timestamp
+        'completedAt': DateTime.now().toIso8601String(),
       };
 
       _logger.d('Task completion request body: ${json.encode(requestBody)}');
@@ -45,7 +44,6 @@ class TaskService {
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
 
-        // Handle different response formats from backend
         Map<String, dynamic> taskData;
         if (responseData is Map<String, dynamic>) {
           if (responseData.containsKey('task')) {
@@ -82,7 +80,6 @@ class TaskService {
     } catch (e, stackTrace) {
       _logger.e('Error completing task', error: e, stackTrace: stackTrace);
 
-      // Better error handling
       if (e.toString().contains('TimeoutException')) {
         throw Exception('Request timed out - please try again');
       } else if (e.toString().contains('SocketException')) {
@@ -93,7 +90,6 @@ class TaskService {
     }
   }
 
-  // Get user tasks with better filtering
   Future<List<Task>> getUserTasks({String? teamId, String? type}) async {
     try {
       final queryParams = <String, String>{'userId': userId};
@@ -111,7 +107,6 @@ class TaskService {
       if (response.statusCode == 200) {
         final responseBody = json.decode(response.body);
 
-        // Handle different response formats
         List<dynamic> tasksData;
         if (responseBody is List) {
           tasksData = responseBody;
@@ -138,9 +133,6 @@ class TaskService {
       rethrow;
     }
   }
-
-  // Keep all other methods from your original TaskService...
-  // (createTask, getTeamTasks, updateTask, deleteTask, etc.)
 
   Future<Task> createTask({
     required String name,
@@ -314,7 +306,9 @@ class TaskService {
 
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
-      final queryParams = <String, String>{'userId': userId, 'teamId': ?teamId};
+      // FIX: was `'teamId': ?teamId` — invalid Dart syntax
+      final queryParams = <String, String>{'userId': userId};
+      if (teamId != null) queryParams['teamId'] = teamId;
 
       final uri = Uri.parse(
         '$apiBaseUrl/tasks/history',
@@ -362,7 +356,9 @@ class TaskService {
 
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
-      final queryParams = <String, String>{'teamId': ?teamId};
+      // FIX: was `'teamId': ?teamId` — invalid Dart syntax
+      final queryParams = <String, String>{};
+      if (teamId != null) queryParams['teamId'] = teamId;
 
       final uri = Uri.parse(
         '$apiBaseUrl/tasks/stats',

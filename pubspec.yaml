@@ -1,5 +1,6 @@
 name: momentum
-description: "Smart daily task manager with dynamic scheduling & seamless team collaboration."
+description: "Smart daily task manager with dynamic scheduling & seamless team
+  collaboration."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
@@ -50,6 +51,8 @@ dependencies:
   flutter_background_service: ^5.1.0
   http: ^1.6.0
   flutter_secure_storage: ^10.0.0
+  firebase_core: ^4.7.0
+  firebase_messaging: ^16.2.0
 
 dev_dependencies:
   flutter_test:

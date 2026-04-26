@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/database/task_database.dart';
+import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_permissions.dart';
 import 'package:momentum/helpers/permission_helper.dart';
@@ -41,16 +42,13 @@ class _TeamHomePageState extends State<TeamHomePage> {
         throw Exception('User not authenticated');
       }
 
-      // Fetch fresh team data so members list is fully populated
       final freshTeam = await db.getTeamDetails(widget.team.id);
 
-      // Get user's role and permissions from fresh data
       _userRole = PermissionHelper.getUserRole(freshTeam, db.userId!);
       _permissions = TeamPermissions.forRole(_userRole);
 
       _logger.i('User role in team: $_userRole');
 
-      // Select the team to load its tasks
       db.selectTeam(freshTeam);
 
       setState(() {
@@ -84,7 +82,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            // Go back to team selection
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
@@ -94,7 +91,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
           },
         ),
         actions: [
-          // Role badge
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -111,8 +107,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
               ),
             ),
           ),
-
-          // Switch team button
           IconButton(
             icon: const Icon(Icons.swap_horiz),
             tooltip: 'Switch Team/Workspace',
@@ -125,8 +119,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
               );
             },
           ),
-
-          // Team info
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () {
@@ -141,7 +133,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
         ],
       ),
 
-      // ONLY show FAB if user has permission to create tasks
       floatingActionButton: _permissions.canCreateTasks
           ? FloatingActionButton(
               onPressed: _showTaskCreationDialog,
@@ -155,7 +146,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
-          // Show appropriate view based on permissions
           if (!_permissions.canViewTasks) {
             return _buildNoAccessView();
           }
@@ -171,17 +161,10 @@ class _TeamHomePageState extends State<TeamHomePage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Welcome message with role info
                 _buildWelcomeCard(),
-
                 const SizedBox(height: 16),
-
-                // Stats
                 const DashboardStats(),
-
                 const SizedBox(height: 16),
-
-                // Tasks section
                 _buildTasksSection(db),
               ],
             ),
@@ -228,10 +211,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
-            // Role-specific message
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -275,7 +255,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Active tasks
         if (activeTasks.isNotEmpty) ...[
           Text(
             'Active Tasks (${activeTasks.length})',
@@ -284,7 +263,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-
           ...activeTasks.map((task) {
             final canEdit = _permissions.canEditTask(
               task.assignedBy?.id ?? '',
@@ -306,13 +284,10 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   );
                   return;
                 }
-
                 try {
                   await db.completeTask(task.id, isCompleted);
                 } catch (e) {
-                  if (mounted) {
-                    ErrorHandler.showSnackBarError(context, e);
-                  }
+                  if (mounted) ErrorHandler.showSnackBarError(context, e);
                   rethrow;
                 }
               },
@@ -326,7 +301,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
           }),
         ],
 
-        // Completed tasks
         if (completedTasks.isNotEmpty) ...[
           const SizedBox(height: 16),
           ExpansionTile(
@@ -336,6 +310,12 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 const SizedBox(width: 8),
                 Text('Completed Today (${completedTasks.length})'),
               ],
+            ),
+            subtitle: Text(
+              completedTasks.length == 1
+                  ? 'Great job! 1 task completed today.'
+                  : 'Amazing! ${completedTasks.length} tasks completed today.',
+              style: TextStyle(color: Colors.green.shade600),
             ),
             children: completedTasks.map((task) {
               return TaskTile(
@@ -349,17 +329,14 @@ class _TeamHomePageState extends State<TeamHomePage> {
                     );
                     return;
                   }
-
                   try {
                     await db.completeTask(task.id, isCompleted);
                   } catch (e) {
-                    if (mounted) {
-                      ErrorHandler.showSnackBarError(context, e);
-                    }
+                    if (mounted) ErrorHandler.showSnackBarError(context, e);
                     rethrow;
                   }
                 },
-                onEdit: () => _showNoPermissionDialog('edit'),
+                onEdit: () => _showNoPermissionDialog('edit a completed task'),
                 onDelete: () => _showNoPermissionDialog('delete'),
               );
             }).toList(),
@@ -433,7 +410,196 @@ class _TeamHomePageState extends State<TeamHomePage> {
     );
   }
 
-  // Helper methods
+  // ── Dialogs ───────────────────────────────────────────────────────────────
+
+  void _showTaskCreationDialog() {
+    if (!_permissions.canCreateTasks) {
+      _showNoPermissionDialog('create tasks');
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => const TaskCreationDialog(),
+    );
+  }
+
+  void _editTaskDialog(BuildContext context, Task task, TaskDatabase db) {
+    final nameController = TextEditingController(text: task.name);
+    final descriptionController = TextEditingController(
+      text: task.description ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Edit Task'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Task Name',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isEmpty) return;
+
+              try {
+                await db.updateTask(task.id, {
+                  'name': newName,
+                  'description': descriptionController.text.trim(),
+                });
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task updated successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Error updating task: ${e.toString().replaceFirst('Exception: ', '')}',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete "${task.name}"?'),
+            const SizedBox(height: 8),
+            if (task.isCompletedToday())
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This task was completed today. Deleting it will move the completion to history.',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await db.deleteTask(task.id);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Task deleted successfully'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (dialogContext.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Error deleting task: ${e.toString().replaceFirst('Exception: ', '')}',
+                      ),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNoPermissionDialog(String action) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Permission Required'),
+          ],
+        ),
+        content: Text(
+          'You do not have permission to $action.\n\nOnly team owners and admins can perform this action.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
   Color _getRoleColor() {
     switch (_userRole.toLowerCase()) {
       case 'owner':
@@ -465,50 +631,5 @@ class _TeamHomePageState extends State<TeamHomePage> {
       default:
         return 'Can view and complete tasks assigned to you';
     }
-  }
-
-  void _showTaskCreationDialog() {
-    if (!_permissions.canCreateTasks) {
-      _showNoPermissionDialog('create tasks');
-      return;
-    }
-
-    // Import and show your existing TaskCreationDialog
-    showDialog(
-      context: context,
-      builder: (context) => const TaskCreationDialog(),
-    );
-  }
-
-  void _editTaskDialog(BuildContext context, task, TaskDatabase db) {
-    // Your existing edit dialog code
-  }
-
-  void _deleteTaskDialog(BuildContext context, task, TaskDatabase db) {
-    // Your existing delete dialog code
-  }
-
-  void _showNoPermissionDialog(String action) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.lock, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Permission Required'),
-          ],
-        ),
-        content: Text(
-          'You do not have permission to $action.\n\nOnly team owners and admins can perform this action.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
   }
 }

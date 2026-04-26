@@ -3,6 +3,7 @@ import 'package:momentum/pages/home_page.dart';
 import 'package:momentum/pages/login_page.dart';
 import 'package:momentum/pages/register_page.dart';
 import 'package:momentum/pages/splash_page.dart';
+import 'package:momentum/services/initialization_service.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
@@ -20,10 +21,12 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           theme: themeProvider.themeData,
 
-          // Start point (only used on cold start)
+          // Wired to InitializationService so widget-triggered navigation works
+          // whether the app is cold-started or already in the foreground.
+          navigatorKey: InitializationService.navigatorKey,
+
           initialRoute: '/splash',
 
-          // SINGLE SOURCE OF TRUTH FOR ROUTING
           onGenerateRoute: (settings) {
             final name = settings.name;
 
@@ -43,12 +46,10 @@ class MyApp extends StatelessWidget {
 
               default:
                 _logger.w('Unknown route accessed: $name');
-
                 return MaterialPageRoute(builder: (_) => const SplashPage());
             }
           },
 
-          // final safety fallback
           onUnknownRoute: (settings) {
             _logger.w('onUnknownRoute triggered: ${settings.name}');
             return MaterialPageRoute(builder: (_) => const SplashPage());

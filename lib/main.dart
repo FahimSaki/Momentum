@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:momentum/app.dart';
@@ -7,6 +8,7 @@ import 'package:momentum/services/initialization_service.dart';
 
 void main() async {
   await InitializationService.initialize();
+  await Firebase.initializeApp();
 
   runApp(
     MultiProvider(

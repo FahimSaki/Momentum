@@ -30,7 +30,6 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
                 <action android:name="com.example.momentum.WIDGET_REFRESH"/>
                 <action android:name="com.example.momentum.WIDGET_TASK_TAPPED"/>
-                <action android:name="com.example.momentum.WIDGET_TASK_COMPLETE"/>
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/momentum_home_widget_info" />
         </receiver>
@@ -43,9 +42,21 @@
 
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
 
+            <!-- Launcher intent -->
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+                homeWidget:// intent filter — required so the home_widget Flutter
+                plugin can intercept URIs sent by the widget and fire the
+                widgetClicked stream in Dart.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="homeWidget" />
             </intent-filter>
         </activity>
 

@@ -31,6 +31,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ── Inject Firebase config before anything Flutter touches ──────────
+      - name: Create google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
+            > android/app/google-services.json
+
       - name: Setup Flutter
         uses: flutter-actions/setup-flutter@v4
         with:
@@ -99,7 +105,7 @@ jobs:
           echo "📊 Backend status check completed successfully"
 
   build:
-    needs: [code-quality, check-backend]
+    needs: [ code-quality, check-backend ]
     strategy:
       fail-fast: false
       matrix:
@@ -125,6 +131,24 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4.2.2
+
+      # ── Firebase config — Android ─────────────────────────────────────────
+      # Runs on every platform job but only writes the file when the secret
+      # exists AND we are on a platform that needs it.  The `if` guards
+      # prevent the step from hard-failing on platforms where the secret is
+      # irrelevant (windows / web).
+      - name: Create google-services.json (Android)
+        if: matrix.platform == 'android'
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
+            > android/app/google-services.json
+
+      # ── Firebase config — iOS ─────────────────────────────────────────────
+      - name: Create GoogleService-Info.plist (iOS)
+        if: matrix.platform == 'ios'
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_PLIST }}" | base64 --decode \
+            > ios/Runner/GoogleService-Info.plist
 
       - name: Setup Java
         if: matrix.platform == 'android'
@@ -299,7 +323,6 @@ jobs:
       - name: Prepare Release Files
         run: |
           mkdir -p release-files
-          # Copy all successfully built artifacts
           find artifacts/ -type f -exec cp {} release-files/ \;
           echo "✅ Release files ready:"
           ls -la release-files/
@@ -317,7 +340,8 @@ jobs:
             - iOS Simulator
             - macOS
           draft: false
-          prerelease: contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha')
+          prerelease: contains(github.ref_name, 'beta') || contains(github.ref_name,
+            'alpha')
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -335,7 +359,7 @@ jobs:
 
   notify:
     if: always()
-    needs: [code-quality, check-backend, build, release]
+    needs: [ code-quality, check-backend, build, release ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify Build Status

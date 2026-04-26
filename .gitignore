@@ -17,6 +17,8 @@ backend.txt
 history.txt
 backend/node_modules
 backend/momentum-api-fcm-761b4eb73e69.json
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
 
 # IntelliJ related
 *.iml

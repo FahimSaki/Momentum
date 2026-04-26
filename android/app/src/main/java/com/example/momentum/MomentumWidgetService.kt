@@ -21,34 +21,35 @@ class MomentumWidgetFactory(
 
     private val TAG = "MomentumWidgetFactory"
 
-    private data class Task(
+    // Named WidgetTask to avoid any potential clash with generated model classes.
+    private data class WidgetTask(
         val id:          String,
         val name:        String,
         val isCompleted: Boolean,
         val teamName:    String,
     )
 
-    private val tasks = mutableListOf<Task>()
+    private val tasks = mutableListOf<WidgetTask>()
 
     override fun onCreate()         { loadTasks() }
     override fun onDataSetChanged() { loadTasks() }
     override fun onDestroy()        { tasks.clear() }
 
-    override fun getCount()              = tasks.size
-    override fun getViewTypeCount()      = 1
-    override fun hasStableIds()          = true
-    override fun getItemId(pos: Int)     = pos.toLong()
+    override fun getCount()          = tasks.size
+    override fun getViewTypeCount()  = 1
+    override fun hasStableIds()      = true
+    override fun getItemId(pos: Int) = pos.toLong()
     override fun getLoadingView(): RemoteViews? = null
 
     private fun loadTasks() {
         tasks.clear()
-        runCatching {
+        try {
             val (_, raw, _) = MomentumHomeWidget.readPrefs(ctx)
             if (raw.isBlank()) return
             val arr = JSONArray(raw)
             for (i in 0 until arr.length()) {
                 val obj = arr.optJSONObject(i) ?: continue
-                tasks += Task(
+                tasks += WidgetTask(
                     id          = obj.optString("id", i.toString()),
                     name        = obj.optString("name", "Task"),
                     isCompleted = obj.optBoolean("completed", false),
@@ -56,31 +57,31 @@ class MomentumWidgetFactory(
                 )
             }
             Log.d(TAG, "Loaded ${tasks.size} tasks")
-        }.onFailure { Log.e(TAG, "loadTasks failed", it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadTasks failed: ${e.message}", e)
+        }
     }
 
     override fun getViewAt(position: Int): RemoteViews {
-        // Always return a valid view — any exception here kills the whole widget
+        // Always return a valid RemoteViews — any exception here kills the widget.
         val views = RemoteViews(ctx.packageName, R.layout.widget_task_row)
-        val task  = tasks.getOrNull(position) ?: return views.also {
-            it.setTextViewText(R.id.task_name, "")
-        }
 
-        runCatching {
+        try {
+            val task = tasks.getOrNull(position) ?: run {
+                views.setTextViewText(R.id.task_name, "")
+                return views
+            }
+
             views.setTextViewText(R.id.task_name, task.name)
 
             if (task.isCompleted) {
                 views.setTextViewText(R.id.task_check, "✓")
-                views.setInt(R.id.task_check, "setTextColor",
-                    Color.parseColor("#4CAF50"))
-                views.setInt(R.id.task_name, "setTextColor",
-                    Color.parseColor("#88FFFFFF"))
+                views.setInt(R.id.task_check, "setTextColor", Color.parseColor("#4CAF50"))
+                views.setInt(R.id.task_name,  "setTextColor", Color.parseColor("#88FFFFFF"))
             } else {
                 views.setTextViewText(R.id.task_check, "○")
-                views.setInt(R.id.task_check, "setTextColor",
-                    Color.parseColor("#888888"))
-                views.setInt(R.id.task_name, "setTextColor",
-                    Color.WHITE)
+                views.setInt(R.id.task_check, "setTextColor", Color.parseColor("#888888"))
+                views.setInt(R.id.task_name,  "setTextColor", Color.WHITE)
             }
 
             if (task.teamName.isNotBlank()) {
@@ -90,27 +91,28 @@ class MomentumWidgetFactory(
                 views.setViewVisibility(R.id.task_team, View.GONE)
             }
 
-            // Checkbox tap → complete/uncomplete in app
+            // Checkbox tap → complete / uncomplete task in Flutter
             views.setOnClickFillInIntent(R.id.task_check, Intent().apply {
                 putExtra(MomentumHomeWidget.EXTRA_TASK_ID, task.id)
                 putExtra("tap_action", "complete_task")
             })
 
-            // Task name tap → open task in app
+            // Task name tap → open task detail in Flutter
             views.setOnClickFillInIntent(R.id.task_name, Intent().apply {
                 putExtra(MomentumHomeWidget.EXTRA_TASK_ID, task.id)
                 putExtra("tap_action", "open_task")
             })
 
-            // ⋮ options tap → open task edit screen in app
-            // Long-press is NOT supported by Android RemoteViews;
-            // this button is the standard workaround for edit/delete.
+            // ⋮ options tap → edit / delete in Flutter
+            // (Long-press is not supported by RemoteViews; this button is the workaround.)
             views.setOnClickFillInIntent(R.id.task_options, Intent().apply {
                 putExtra(MomentumHomeWidget.EXTRA_TASK_ID, task.id)
                 putExtra("tap_action", "edit_task")
             })
 
-        }.onFailure { Log.e(TAG, "getViewAt($position) failed", it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "getViewAt($position) failed: ${e.message}", e)
+        }
 
         return views
     }
