@@ -24,7 +24,9 @@
 
     <application android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:label="Momentum" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config">
 
-        <!-- Widget receiver -->
+        <!-- ── Widget receiver ──────────────────────────────────────── -->
+        <!-- NOTE: MomentumWidgetService has been removed. The widget now
+             renders directly using fixed rows — no RemoteViewsService needed. -->
         <receiver android:name=".MomentumHomeWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
@@ -34,25 +36,18 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/momentum_home_widget_info" />
         </receiver>
 
-        <!-- REQUIRED: Widget RemoteViews Service (Fixes crash) -->
-        <service android:name=".MomentumWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>
-
-        <!-- Main Activity -->
+        <!-- ── Main Activity ────────────────────────────────────────── -->
         <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
 
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
 
-            <!-- Launcher intent -->
+            <!-- Launcher -->
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!--
-                homeWidget:// intent filter — required so the home_widget Flutter
-                plugin can intercept URIs sent by the widget and fire the
-                widgetClicked stream in Dart.
-            -->
+            <!-- homeWidget:// URI scheme for widget → Flutter communication -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -60,16 +55,15 @@
             </intent-filter>
         </activity>
 
-        <!-- WorkManager Background Worker -->
+        <!-- WorkManager -->
         <service android:name="dev.fluttercommunity.plus.workmanager.BackgroundWorker" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- Flutter Background Service -->
         <service android:name="id.flutter.flutter_background_service.BackgroundService" android:foregroundServiceType="dataSync" android:exported="true" tools:replace="android:exported"/>
 
-        <!-- Local Notifications Foreground Service -->
+        <!-- Local Notifications -->
         <service android:name="com.dexterous.flutterlocalnotifications.ForegroundService" android:foregroundServiceType="dataSync" android:exported="false"/>
 
-        <!-- Notification Receivers -->
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" android:exported="false" />
 
         <receiver android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver" android:exported="true" android:enabled="true">
@@ -81,7 +75,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- Flutter tool metadata -->
         <meta-data android:name="flutterEmbedding" android:value="2" />
     </application>
 

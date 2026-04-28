@@ -17,200 +17,180 @@ import org.json.JSONException
 class MomentumHomeWidget : AppWidgetProvider() {
 
     companion object {
-        private const val TAG = "MomentumHomeWidget"
+        private const val TAG = "MomentumWidget"
+        private const val MAX_ROWS = 5
 
-        const val ACTION_REFRESH      = "com.example.momentum.WIDGET_REFRESH"
-        const val ACTION_TASK_TAPPED  = "com.example.momentum.WIDGET_TASK_TAPPED"
-        const val EXTRA_TASK_ID       = "task_id"
-        const val EXTRA_WIDGET_ACTION = "widget_action"
+        const val ACTION_REFRESH     = "com.example.momentum.WIDGET_REFRESH"
+        const val ACTION_TASK_TAPPED = "com.example.momentum.WIDGET_TASK_TAPPED"
+        const val EXTRA_TASK_ID      = "task_id"
 
-        private fun immutableFlag() =
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                    PendingIntent.FLAG_IMMUTABLE else 0
+        // Must match the IDs in momentum_home_widget.xml
+        private val ROW_IDS   = intArrayOf(R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4)
+        private val CHECK_IDS = intArrayOf(R.id.check0, R.id.check1, R.id.check2, R.id.check3, R.id.check4)
+        private val NAME_IDS  = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
 
-        private fun mutableFlag() =
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                    PendingIntent.FLAG_MUTABLE else 0
+        private fun immutableFlag(): Int =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            else
+                PendingIntent.FLAG_UPDATE_CURRENT
 
-        /** Called from Flutter's WidgetService after data is written. */
+        /** Called from Flutter's WidgetService after data is saved. */
         fun triggerUpdate(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, MomentumHomeWidget::class.java))
+            Log.d(TAG, "triggerUpdate: ${ids.size} widget(s)")
             ids.forEach { id ->
                 try { updateAppWidget(context, mgr, id) }
-                catch (e: Exception) { Log.e(TAG, "triggerUpdate failed for $id", e) }
+                catch (e: Exception) { Log.e(TAG, "triggerUpdate failed id=$id", e) }
             }
         }
 
         fun updateAppWidget(context: Context, mgr: AppWidgetManager, widgetId: Int) {
+            Log.d(TAG, "updateAppWidget id=$widgetId")
             try {
                 val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
-                val (_, rawTasks, teamName) = readPrefs(context)
-                val label = if (teamName.isBlank()) "Personal Tasks  ▾" else "$teamName  ▾"
 
+                // Read data saved by the Flutter home_widget package
+                val (_, rawTasks, teamName) = readPrefs(context)
+                val label = if (teamName.isBlank()) "Personal Tasks" else teamName
                 views.setTextViewText(R.id.widget_team_name, label)
 
-                // Set up button click handlers — each wrapped individually so one
-                // failure does not prevent the rest of the widget from rendering.
-                try {
-                    views.setOnClickPendingIntent(
-                        R.id.widget_refresh,
-                        makeRefreshIntent(context, widgetId)
-                    )
-                } catch (e: Exception) { Log.w(TAG, "refresh click: ${e.message}") }
+                // Header buttons
+                views.setOnClickPendingIntent(
+                    R.id.widget_refresh,
+                    makeRefreshIntent(context, widgetId)
+                )
+                views.setOnClickPendingIntent(
+                    R.id.widget_add,
+                    makeOpenAppIntent(context, widgetId * 10 + 2, "add_task")
+                )
+                views.setOnClickPendingIntent(
+                    R.id.widget_team_name,
+                    makeOpenAppIntent(context, widgetId * 10 + 3, "select_team")
+                )
 
-                try {
-                    views.setOnClickPendingIntent(
-                        R.id.widget_add,
-                        makeAppLaunchIntent(context, widgetId * 10 + 2, "add_task", null)
-                    )
-                } catch (e: Exception) { Log.w(TAG, "add click: ${e.message}") }
+                val tasks = parseTasks(rawTasks)
+                Log.d(TAG, "Rendering ${tasks.size} tasks")
 
-                try {
-                    views.setOnClickPendingIntent(
-                        R.id.widget_team_name,
-                        makeAppLaunchIntent(context, widgetId * 10 + 3, "select_team", null)
-                    )
-                } catch (e: Exception) { Log.w(TAG, "team-name click: ${e.message}") }
-
-                val count = parseTaskCount(rawTasks)
-
-                if (count == 0) {
-                    // ── Empty state ───────────────────────────────────────────
-                    views.setViewVisibility(R.id.widget_task_list, View.GONE)
+                if (tasks.isEmpty()) {
                     views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-                    try {
-                        views.setOnClickPendingIntent(
-                            R.id.widget_empty,
-                            makeAppLaunchIntent(context, widgetId * 10 + 4, "add_task", null)
-                        )
-                    } catch (e: Exception) { Log.w(TAG, "empty click: ${e.message}") }
+                    ROW_IDS.forEach { views.setViewVisibility(it, View.GONE) }
+                    views.setOnClickPendingIntent(
+                        R.id.widget_empty,
+                        makeOpenAppIntent(context, widgetId * 10 + 4, "add_task")
+                    )
                 } else {
-                    // ── Task list ─────────────────────────────────────────────
-                    // NOTE: Do NOT call setEmptyView() here — it conflicts with the
-                    // manual visibility management above and is the primary cause of
-                    // "an error occurred while loading widget" on many launchers.
-                    views.setViewVisibility(R.id.widget_task_list, View.VISIBLE)
                     views.setViewVisibility(R.id.widget_empty, View.GONE)
 
-                    try {
-                        // Unique data URI per instance → separate RemoteViewsFactory.
-                        val serviceIntent = Intent(context, MomentumWidgetService::class.java).apply {
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                            data = Uri.parse("content://momentum.tasks/$widgetId")
-                        }
-                        views.setRemoteAdapter(R.id.widget_task_list, serviceIntent)
+                    for (i in 0 until MAX_ROWS) {
+                        if (i < tasks.size) {
+                            val task = tasks[i]
+                            views.setViewVisibility(ROW_IDS[i], View.VISIBLE)
 
-                        // Template PendingIntent for row taps.
-                        // fill-in intent from each row adds task_id + tap_action.
-                        val tapTemplate = PendingIntent.getBroadcast(
-                            context, widgetId * 10 + 5,
-                            Intent(context, MomentumHomeWidget::class.java).also {
-                                it.action = ACTION_TASK_TAPPED
-                                it.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-                            },
-                            mutableFlag()  // MUST be mutable so fill-in extras work
-                        )
-                        views.setPendingIntentTemplate(R.id.widget_task_list, tapTemplate)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "adapter setup failed, falling back to empty: ${e.message}")
-                        views.setViewVisibility(R.id.widget_task_list, View.GONE)
-                        views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
+                            val checkText  = if (task.isCompleted) "✓" else "○"
+                            val checkColor = if (task.isCompleted) 0xFF4CAF50.toInt() else 0xFF888888.toInt()
+                            val nameColor  = if (task.isCompleted) 0x88FFFFFF.toInt() else 0xFFFFFFFF.toInt()
+
+                            views.setTextViewText(CHECK_IDS[i], checkText)
+                            views.setInt(CHECK_IDS[i], "setTextColor", checkColor)
+                            views.setTextViewText(NAME_IDS[i], task.name)
+                            views.setInt(NAME_IDS[i], "setTextColor", nameColor)
+
+                            views.setOnClickPendingIntent(
+                                ROW_IDS[i],
+                                makeOpenAppIntent(context, widgetId * 100 + i, "open_task")
+                            )
+                        } else {
+                            views.setViewVisibility(ROW_IDS[i], View.GONE)
+                        }
                     }
                 }
 
                 mgr.updateAppWidget(widgetId, views)
-
-                if (count > 0) {
-                    try {
-                        mgr.notifyAppWidgetViewDataChanged(widgetId, R.id.widget_task_list)
-                    } catch (e: Exception) { Log.w(TAG, "notifyDataChanged: ${e.message}") }
-                }
+                Log.d(TAG, "Widget $widgetId updated OK")
 
             } catch (e: Exception) {
-                Log.e(TAG, "Widget $widgetId update failed: ${e.message}", e)
-                showSafeState(context, mgr, widgetId)
+                Log.e(TAG, "updateAppWidget crashed id=$widgetId", e)
+                renderFallback(context, mgr, widgetId)
             }
         }
 
-        // ── Private helpers ───────────────────────────────────────────────────
-
-        /** Minimal safe render used as last-resort fallback. */
-        private fun showSafeState(context: Context, mgr: AppWidgetManager, widgetId: Int) {
-            runCatching {
-                val v = RemoteViews(context.packageName, R.layout.momentum_home_widget)
-                v.setTextViewText(R.id.widget_team_name, "Momentum")
-                v.setViewVisibility(R.id.widget_task_list, View.GONE)
-                v.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-                v.setTextViewText(R.id.widget_empty, "Open the app to sync tasks")
-                try {
-                    v.setOnClickPendingIntent(
-                        R.id.widget_empty,
-                        makeAppLaunchIntent(context, widgetId * 10 + 9, null, null)
-                    )
-                    v.setOnClickPendingIntent(
-                        R.id.widget_team_name,
-                        makeAppLaunchIntent(context, widgetId * 10 + 8, null, null)
-                    )
-                } catch (e: Exception) { Log.w(TAG, "safe-state clicks: ${e.message}") }
-                mgr.updateAppWidget(widgetId, v)
-            }.onFailure { Log.e(TAG, "Safe state also failed for $widgetId", it) }
+        private fun renderFallback(context: Context, mgr: AppWidgetManager, widgetId: Int) {
+            try {
+                val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
+                views.setTextViewText(R.id.widget_team_name, "Momentum")
+                views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
+                views.setTextViewText(R.id.widget_empty, "Tap to open app")
+                ROW_IDS.forEach { views.setViewVisibility(it, View.GONE) }
+                val openIntent = makeOpenAppIntent(context, widgetId * 10 + 9, null)
+                views.setOnClickPendingIntent(R.id.widget_empty, openIntent)
+                views.setOnClickPendingIntent(R.id.widget_team_name, openIntent)
+                mgr.updateAppWidget(widgetId, views)
+            } catch (e: Exception) {
+                Log.e(TAG, "Fallback also failed id=$widgetId", e)
+            }
         }
 
         private fun makeRefreshIntent(context: Context, widgetId: Int): PendingIntent =
             PendingIntent.getBroadcast(
                 context, widgetId * 10 + 1,
-                Intent(context, MomentumHomeWidget::class.java).also {
-                    it.action = ACTION_REFRESH
-                    it.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                Intent(context, MomentumHomeWidget::class.java).apply {
+                    action = ACTION_REFRESH
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                 },
                 immutableFlag()
             )
 
-        /**
-         * Builds a PendingIntent that opens the app via the homeWidget:// URI scheme.
-         * The home_widget Flutter plugin intercepts this URI and fires the
-         * widgetClicked stream, so all widget actions are handled on the Flutter side.
-         */
-        private fun makeAppLaunchIntent(
-            context: Context,
-            requestCode: Int,
-            action: String?,
-            taskId: String?
-        ): PendingIntent {
-            val uriBuilder = Uri.Builder()
+        private fun makeOpenAppIntent(context: Context, requestCode: Int, action: String?): PendingIntent {
+            val uri = Uri.Builder()
                 .scheme("homeWidget")
                 .authority("widget")
-            action?.let { uriBuilder.appendQueryParameter("widget_action", it) }
-            taskId?.let  { uriBuilder.appendQueryParameter("task_id", it) }
-
-            val intent = Intent(Intent.ACTION_VIEW, uriBuilder.build()).apply {
+                .apply { action?.let { appendQueryParameter("widget_action", it) } }
+                .build()
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 setPackage(context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             return PendingIntent.getActivity(context, requestCode, intent, immutableFlag())
         }
 
-        private fun parseTaskCount(raw: String): Int {
-            if (raw.isBlank()) return 0
-            return try { JSONArray(raw).length() } catch (_: JSONException) { 0 }
+        data class WidgetTask(val id: String, val name: String, val isCompleted: Boolean)
+
+        private fun parseTasks(raw: String): List<WidgetTask> {
+            if (raw.isBlank()) return emptyList()
+            return try {
+                val arr = JSONArray(raw)
+                (0 until arr.length()).mapNotNull { i ->
+                    val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+                    WidgetTask(
+                        id          = obj.optString("id", i.toString()),
+                        name        = obj.optString("name", "Task"),
+                        isCompleted = obj.optBoolean("completed", false)
+                    )
+                }.take(MAX_ROWS)
+            } catch (e: JSONException) {
+                Log.e(TAG, "JSON parse error", e)
+                emptyList()
+            }
         }
 
-        /** Tries all known SharedPreferences file names written by home_widget pkg. */
+        /**
+         * Tries all SharedPreferences file names used by different home_widget
+         * package versions to find where the data was actually saved.
+         */
         fun readPrefs(context: Context): Triple<String, String, String> {
             val candidates = listOf(
-                "${context.packageName}.home_widget",  // home_widget >= 0.4
-                "HomeWidgetPreferences",
+                "HomeWidgetPreferences",              // home_widget >= 0.6
+                "${context.packageName}.home_widget", // home_widget 0.4–0.5
                 context.packageName,
             )
             for (name in candidates) {
-                runCatching {
+                try {
                     val sp    = context.getSharedPreferences(name, Context.MODE_PRIVATE)
                     val tasks = sp.getString("widget_tasks", null)
                     val team  = sp.getString("widget_team_name", null)
-                    if (!tasks.isNullOrBlank() || team != null) {
+                    if (!tasks.isNullOrBlank() || !team.isNullOrBlank()) {
                         Log.d(TAG, "Prefs found in '$name'")
                         return Triple(
                             sp.getString("heatmap_data", "") ?: "",
@@ -218,16 +198,20 @@ class MomentumHomeWidget : AppWidgetProvider() {
                             team  ?: ""
                         )
                     }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not read prefs '$name'", e)
                 }
             }
+            Log.w(TAG, "No widget prefs found — showing empty state")
             return Triple("", "", "")
         }
     }
 
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
+        Log.d(TAG, "onUpdate: ${ids.toList()}")
         ids.forEach { id ->
             try { updateAppWidget(context, mgr, id) }
-            catch (e: Exception) { Log.e(TAG, "onUpdate failed for $id", e) }
+            catch (e: Exception) { Log.e(TAG, "onUpdate failed id=$id", e) }
         }
     }
 
@@ -235,29 +219,26 @@ class MomentumHomeWidget : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_REFRESH -> {
-                Log.d(TAG, "Refresh broadcast received")
+                Log.d(TAG, "Refresh received")
                 triggerUpdate(context)
             }
             ACTION_TASK_TAPPED -> {
-                val taskId    = intent.getStringExtra(EXTRA_TASK_ID) ?: return
-                val tapAction = intent.getStringExtra("tap_action") ?: "open_task"
-                Log.d(TAG, "Task tapped: id=$taskId action=$tapAction")
-
-                // Launch the app via homeWidget:// so the Flutter widgetClicked
-                // stream fires with the correct parameters.
+                val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return
                 val uri = Uri.Builder()
-                    .scheme("homeWidget")
-                    .authority("widget")
-                    .appendQueryParameter("widget_action", tapAction)
+                    .scheme("homeWidget").authority("widget")
+                    .appendQueryParameter("widget_action", "open_task")
                     .appendQueryParameter("task_id", taskId)
                     .build()
-
-                val launchIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-                    setPackage(context.packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                try {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, uri).apply {
+                            setPackage(context.packageName)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        }
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to open app", e)
                 }
-                try { context.startActivity(launchIntent) }
-                catch (e: Exception) { Log.e(TAG, "Failed to launch from task tap: ${e.message}") }
             }
         }
     }
