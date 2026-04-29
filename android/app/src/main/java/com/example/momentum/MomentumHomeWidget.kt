@@ -24,7 +24,6 @@ class MomentumHomeWidget : AppWidgetProvider() {
         const val ACTION_TASK_TAPPED = "com.example.momentum.WIDGET_TASK_TAPPED"
         const val EXTRA_TASK_ID      = "task_id"
 
-        // Must match the IDs in momentum_home_widget.xml
         private val ROW_IDS   = intArrayOf(R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4)
         private val CHECK_IDS = intArrayOf(R.id.check0, R.id.check1, R.id.check2, R.id.check3, R.id.check4)
         private val NAME_IDS  = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
@@ -35,7 +34,6 @@ class MomentumHomeWidget : AppWidgetProvider() {
             else
                 PendingIntent.FLAG_UPDATE_CURRENT
 
-        /** Called from Flutter's WidgetService after data is saved. */
         fun triggerUpdate(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, MomentumHomeWidget::class.java))
@@ -51,35 +49,26 @@ class MomentumHomeWidget : AppWidgetProvider() {
             try {
                 val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
 
-                // Read data saved by the Flutter home_widget package
                 val (_, rawTasks, teamName) = readPrefs(context)
                 val label = if (teamName.isBlank()) "Personal Tasks" else teamName
                 views.setTextViewText(R.id.widget_team_name, label)
 
                 // Header buttons
-                views.setOnClickPendingIntent(
-                    R.id.widget_refresh,
-                    makeRefreshIntent(context, widgetId)
-                )
-                views.setOnClickPendingIntent(
-                    R.id.widget_add,
-                    makeOpenAppIntent(context, widgetId * 10 + 2, "add_task")
-                )
-                views.setOnClickPendingIntent(
-                    R.id.widget_team_name,
-                    makeOpenAppIntent(context, widgetId * 10 + 3, "select_team")
-                )
+                views.setOnClickPendingIntent(R.id.widget_refresh,
+                    makeRefreshIntent(context, widgetId))
+                views.setOnClickPendingIntent(R.id.widget_add,
+                    makeOpenAppIntent(context, widgetId * 10 + 2, "add_task"))
+                views.setOnClickPendingIntent(R.id.widget_team_name,
+                    makeOpenAppIntent(context, widgetId * 10 + 3, "select_team"))
 
                 val tasks = parseTasks(rawTasks)
-                Log.d(TAG, "Rendering ${tasks.size} tasks")
+                Log.d(TAG, "Rendering ${tasks.size} tasks from rawTasks length=${rawTasks.length}")
 
                 if (tasks.isEmpty()) {
                     views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
                     ROW_IDS.forEach { views.setViewVisibility(it, View.GONE) }
-                    views.setOnClickPendingIntent(
-                        R.id.widget_empty,
-                        makeOpenAppIntent(context, widgetId * 10 + 4, "add_task")
-                    )
+                    views.setOnClickPendingIntent(R.id.widget_empty,
+                        makeOpenAppIntent(context, widgetId * 10 + 4, "add_task"))
                 } else {
                     views.setViewVisibility(R.id.widget_empty, View.GONE)
 
@@ -97,10 +86,8 @@ class MomentumHomeWidget : AppWidgetProvider() {
                             views.setTextViewText(NAME_IDS[i], task.name)
                             views.setInt(NAME_IDS[i], "setTextColor", nameColor)
 
-                            views.setOnClickPendingIntent(
-                                ROW_IDS[i],
-                                makeOpenAppIntent(context, widgetId * 100 + i, "open_task")
-                            )
+                            views.setOnClickPendingIntent(ROW_IDS[i],
+                                makeOpenAppIntent(context, widgetId * 100 + i, "open_task"))
                         } else {
                             views.setViewVisibility(ROW_IDS[i], View.GONE)
                         }
@@ -170,28 +157,35 @@ class MomentumHomeWidget : AppWidgetProvider() {
                     )
                 }.take(MAX_ROWS)
             } catch (e: JSONException) {
-                Log.e(TAG, "JSON parse error", e)
+                Log.e(TAG, "JSON parse error for raw='${raw.take(100)}'", e)
                 emptyList()
             }
         }
 
         /**
-         * Tries all SharedPreferences file names used by different home_widget
-         * package versions to find where the data was actually saved.
+         * home_widget v0.9.x writes to "HomeWidgetPreferences" by default.
+         * We try that first, then fall back to older naming conventions.
          */
         fun readPrefs(context: Context): Triple<String, String, String> {
+            // home_widget v0.9 uses this file name
             val candidates = listOf(
-                "HomeWidgetPreferences",              // home_widget >= 0.6
-                "${context.packageName}.home_widget", // home_widget 0.4–0.5
+                "HomeWidgetPreferences",
+                "${context.packageName}.home_widget",
                 context.packageName,
+                "FlutterSharedPreferences",
             )
+
             for (name in candidates) {
                 try {
-                    val sp    = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+                    val sp = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+                    val allKeys = sp.all.keys.toList()
+                    Log.d(TAG, "Checking prefs '$name' — keys: $allKeys")
+
                     val tasks = sp.getString("widget_tasks", null)
                     val team  = sp.getString("widget_team_name", null)
+
                     if (!tasks.isNullOrBlank() || !team.isNullOrBlank()) {
-                        Log.d(TAG, "Prefs found in '$name'")
+                        Log.d(TAG, "Prefs found in '$name': tasks=${tasks?.take(50)}, team=$team")
                         return Triple(
                             sp.getString("heatmap_data", "") ?: "",
                             tasks ?: "",
@@ -202,7 +196,8 @@ class MomentumHomeWidget : AppWidgetProvider() {
                     Log.w(TAG, "Could not read prefs '$name'", e)
                 }
             }
-            Log.w(TAG, "No widget prefs found — showing empty state")
+
+            Log.w(TAG, "No widget prefs found in any candidate file — showing empty state")
             return Triple("", "", "")
         }
     }

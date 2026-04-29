@@ -5,10 +5,21 @@ import 'package:momentum/app.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:momentum/services/initialization_service.dart';
+import 'firebase_options.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   await InitializationService.initialize();
-  await Firebase.initializeApp();
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    debugPrint('Firebase initialized successfully');
+  } catch (e) {
+    debugPrint('Firebase init skipped or failed (non-fatal): $e');
+  }
 
   runApp(
     MultiProvider(

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
 import 'package:logger/logger.dart';
@@ -43,13 +43,25 @@ class WidgetService {
 
       _logger.d('Widget update — team: $teamName, tasks: ${taskList.length}');
 
-      // Write all three keys before triggering the redraw
-      await HomeWidget.saveWidgetData<String>(_tasksKey, taskJson);
-      await HomeWidget.saveWidgetData<String>(_teamNameKey, teamName);
-      await HomeWidget.saveWidgetData<String>(_teamIdKey, teamId);
+      // Save all keys before triggering the redraw.
+      // home_widget v0.9 uses a single SharedPreferences file called
+      // "HomeWidgetPreferences" — all keys must be written there.
+      final results = await Future.wait([
+        HomeWidget.saveWidgetData<String>(_tasksKey, taskJson),
+        HomeWidget.saveWidgetData<String>(_teamNameKey, teamName),
+        HomeWidget.saveWidgetData<String>(_teamIdKey, teamId),
+      ]);
 
-      // Small flush delay then redraw
-      await Future.delayed(const Duration(milliseconds: 200));
+      // Check if saves succeeded
+      final allSaved = results.every((r) => r == true);
+      if (!allSaved) {
+        _logger.w(
+          'Some widget data saves returned false — widget may be stale',
+        );
+      }
+
+      // Small flush delay, then trigger a redraw.
+      await Future.delayed(const Duration(milliseconds: 300));
 
       await HomeWidget.updateWidget(
         androidName: _androidWidget,
@@ -62,7 +74,9 @@ class WidgetService {
         '${completedTasks.length} completed, team=$teamName',
       );
     } catch (e, st) {
+      // Widget updates are non-fatal — log and continue.
       _logger.e('Widget update failed', error: e, stackTrace: st);
+      debugPrint('[WidgetService] Widget update failed: $e');
     }
   }
 }
