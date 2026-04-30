@@ -49,10 +49,19 @@ class TaskDatabase extends ChangeNotifier {
   bool get isInitialized => _isInitialized;
 
   // Better getters for task states
-  List<Task> get activeTasks =>
-      currentTasks.where((t) => !t.isCompletedToday()).toList();
-  List<Task> get completedTasks =>
-      currentTasks.where((t) => t.isCompletedToday()).toList();
+  List<Task> get activeTasks {
+    return currentTasks.where((task) {
+      // A task is active if it's not archived OR not completed today
+      return !task.isArchived || !task.isCompletedToday();
+    }).toList();
+  }
+
+  List<Task> get completedTasks {
+    return currentTasks.where((task) {
+      // A task is in completed list if it's archived AND completed today
+      return task.isArchived && task.isCompletedToday();
+    }).toList();
+  }
 
   TaskDatabase() {
     if (!kIsWeb) {
