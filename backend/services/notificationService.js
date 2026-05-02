@@ -31,14 +31,14 @@ const getServiceAccountPath = () => {
     }
 
     // 3. Render.com secret files mount
-    const renderPath = '/etc/secrets/momentum-api-fcm-761b4eb73e69.json';
+    const renderPath = '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json';
     if (fs.existsSync(renderPath)) {
         console.log(`✅ Using Firebase service account from Render: ${renderPath}`);
         return renderPath;
     }
 
     // 4. Project root (local development)
-    const localPath = path.resolve('momentum-api-fcm-761b4eb73e69.json');
+    const localPath = path.resolve('momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json');
     if (fs.existsSync(localPath)) {
         console.log(`✅ Using Firebase service account from project root: ${localPath}`);
         return localPath;
