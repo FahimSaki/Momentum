@@ -126,7 +126,7 @@ Push notifications and FCM token registration require a Firebase project. For lo
 - Avoid `dynamic` types where a typed alternative exists.
 
 ```dart
-// ✅
+//
 Future<void> deleteTask(String taskId) async {
   try {
     await _taskService!.deleteTask(taskId);
@@ -138,7 +138,7 @@ Future<void> deleteTask(String taskId) async {
   }
 }
 
-// ❌ – swallows errors, no logging, dynamic return
+// Swallows errors, no logging, dynamic return
 deleteTask(id) async {
   await _taskService.deleteTask(id);
 }
@@ -153,7 +153,7 @@ deleteTask(id) async {
 - Do not hardcode MongoDB IDs, secrets, or file paths – use environment variables.
 
 ```js
-// ✅
+//
 export const createTask = async (req, res) => {
   try {
     const { name } = req.body;
@@ -161,7 +161,7 @@ export const createTask = async (req, res) => {
     const task = await Task.create({ name: name.trim(), assignedBy: req.userId });
     res.status(201).json({ message: 'Task created', task });
   } catch (err) {
-    console.error('❌ createTask:', err);
+    console.error('createTask:', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
