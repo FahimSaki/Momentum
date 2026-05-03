@@ -1,11 +1,7 @@
 # Momentum
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/images/momentum_app_logo_main.png">
-    <source media="(prefers-color-scheme: light)" srcset="assets/images/momentum_app_logo_main.png">
-    <img src="assets/images/momentum_app_logo_main.png" width="120" alt="Momentum Logo"/>
-  </picture>
+  <img src="assets/images/momentum_app_logo_main.png" width="120" alt="Momentum Logo"/>
 </p>
 
 <p align="center">
@@ -13,12 +9,11 @@
 </p>
 
 <p align="center">
-  A full-stack task tracking application for team and personal use built with Flutter (frontend) and Node.js/Express (backend).<br>
-  Designed for both users and developers who want a self-hosted, customizable productivity solution.
+  A full-stack task tracking application for team and personal productivity, built with Flutter and Node.js/Express.
 </p>
 
 <p align="center">
-  <a href="#-quick-start">Quick Start</a> •
+  <a href="#quick-start">Quick Start</a> •
   <a href="docs/INSTALLATION.md">Installation</a> •
   <a href="docs/API.md">API Docs</a> •
   <a href="docs/ARCHITECTURE.md">Architecture</a> •
@@ -27,114 +22,106 @@
 
 ---
 
+## Overview
+
+Momentum is a cross-platform productivity app that helps individuals and teams track daily tasks, visualize activity over time, and collaborate with role-based permissions. Tasks are automatically archived at midnight and their completion history is preserved indefinitely for analytics.
+
+## Features
+
+### Task Management
+
+- Create personal or team tasks with priority levels (low, medium, high, urgent), due dates, and descriptions
+- Complete and un-complete tasks; completion is tracked per user per day
+- Tasks completed today appear in a "Completed" section; active tasks appear separately
+- At midnight (12:05 AM UTC), completed tasks are archived and their history is saved to `TaskHistory`
+- Slide-to-reveal edit and delete actions on each task tile
+
+### Team Collaboration
+
+- Create teams and invite members via email, username search, or a unique Invite ID
+- Role system: **owner**, **admin**, and **member** with distinct permissions
+  - Owners and admins can create, edit, and delete tasks
+  - Members can only complete tasks assigned to them
+- Pending invitations appear in the Notifications page; accept or decline in one tap
+- Team tasks show which team they belong to and can be filtered per team
+
+### Analytics
+
+- 39-day progressive activity heatmap that grows from your first recorded completion
+- Dashboard stats: active tasks, completed today, overdue, and upcoming
+- Productivity insights: current streak, completions this week, daily average
+
+### Notifications
+
+- Firebase Cloud Messaging (FCM) push notifications for task assignments, completions, and team invitations
+- In-app notification centre with unread badge counts
+- Mark individual or all notifications as read
+
+### Android Home Screen Widget
+
+- Shows up to 5 tasks with their completion status
+- Displays the currently selected team name
+- Refresh and add-task shortcuts from the widget
+
+### Background & Sync
+
+- 10-second polling timer keeps tasks up to date while the app is open
+- Midnight cleanup timer resets archived tasks at the start of each new day
+- Automatic widget refresh after every task change
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Flutter 3.41+, Dart, Provider |
+| Backend | Node.js 24 LTS, Express 4 |
+| Database | MongoDB 8, Mongoose 8 |
+| Auth | JWT (7-day expiry), bcryptjs, FlutterSecureStorage |
+| Notifications | Firebase Admin SDK, Firebase Messaging |
+| Background | WorkManager, flutter_background_service |
+| Widget | home_widget 0.9, Android AppWidgetProvider |
+| Analytics | flutter_heatmap_calendar |
+
 ## Quick Start
 
-Get Momentum running in under 5 minutes:
-
 ```bash
-# Clone the repository
-git clone <repository-url>
+# 1. Clone
+git clone https://github.com/FahimSaki/Momentum.git
 cd momentum
 
-# Backend setup
+# 2. Backend
 cd backend
 npm install
-cp .env.example .env  # Configure your environment
-npm run dev
+cp .env.example .env      # fill in MONGODB_URI, JWT_SECRET, PORT
+npm run dev               # starts on port 10000
 
-# Frontend setup (new terminal)
-cd ../
+# 3. Flutter (new terminal)
+cd ..
 flutter pub get
 flutter run
 ```
 
-> **Need detailed setup?** See the [Installation Guide](docs/INSTALLATION.md)
-
-## Key Features
-
-### For Users
-
-- **Cross-platform**: Android, iOS, Web, Desktop with platform-specific optimizations
-- **Progressive Analytics**: 39-day growing activity heatmap with historical data preservation
-- **Team Collaboration**: Real-time invitations, role-based permissions, team task assignment
-- **Smart Notifications**: Firebase FCM push notifications + in-app notifications
-- **Background Sync**: Automatic 10-second polling with offline capability
-- **Home Screen Widgets**: Android home screen widget with activity visualization
-- **Intelligent Cleanup**: Automated daily cleanup (12:05 AM UTC) with complete data preservation
-
-### For Developers  
-
-- **Self-hosted**: Complete control over data, deployment, and customization
-- **Production Ready**: Automated cleanup, proper error handling, monitoring endpoints
-- **Clean Architecture**: Service-layer separation, Provider state management, proper abstractions
-- **Security First**: JWT with secure storage, input validation, bcrypt hashing
-- **Developer Experience**: Hot reload, comprehensive logging, structured error responses
-- **Extensible**: Well-documented APIs, clear separation of concerns, modular design
-
-## Tech Stack
-
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Frontend** | Flutter 3.41+ | Cross-platform UI with Provider state management |
-| **Backend** | Node.js 24.14 (LTS) + Express | RESTful API with automated cleanup scheduler |
-| **Database** | MongoDB + Mongoose | Document storage with intelligent indexing |
-| **Authentication** | JWT + bcrypt | Secure auth with FlutterSecureStorage |
-| **Notifications** | Firebase FCM | Cross-platform push notifications |
-| **Background Services** | WorkManager + BackgroundService | Real-time sync and widget updates |
-| **Analytics** | Flutter Heatmap Calendar | Progressive 39-day activity visualization |
+> For detailed environment setup, Firebase configuration, and production deployment see [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Installation Guide](docs/INSTALLATION.md) | Complete setup for development & production |
-| [Architecture](docs/ARCHITECTURE.md) | System design, data flow, and technical decisions |
-| [API Reference](docs/API.md) | Endpoint documentation with examples |
-| [Deployment](docs/DEPLOYMENT.md) | Self-hosting, VPS, cloud deployment options |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [Performance](docs/PERFORMANCE.md) | Optimization tips and monitoring |
-| [Security](docs/SECURITY.md) | Security features and best practices |
+| File | Contents |
+|------|---------|
+| [docs/INSTALLATION.md](docs/INSTALLATION.md) | Dev and production setup, environment variables, Firebase config |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, state management |
+| [docs/API.md](docs/API.md) | All REST endpoints with request/response examples |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Render, VPS, Docker deployment instructions |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common errors and fixes |
+| [docs/SECURITY.md](docs/SECURITY.md) | Auth model, permissions, secure storage |
 
 ## Contributing
 
-We welcome contributions! Whether it's bug fixes, features, or documentation improvements.
-
-- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow, coding standards
-- **[Issue Tracker](../../issues)** - Report bugs or request features  
-- **[Discussions](../../discussions)** - Ask questions, share ideas
-
-### Development Setup
-
-```bash
-# Fork the repo, then clone your fork
-git clone https://github.com/YOUR_USERNAME/momentum.git
-
-# Follow the installation guide
-cd momentum && cat docs/INSTALLATION.md
-
-# Create a feature branch
-git checkout -b feature/your-feature-name
-
-# Make changes, commit, and push
-# Open a Pull Request with a clear description
-```
-
-## Why Momentum?
-
-- **Own Your Data** - Self-hosted, no vendor lock-in
-- **Purpose-Built** - Specifically designed for development teams
-- **Security First** - JWT auth, input validation, secure defaults
-- **API-First** - Everything accessible via REST API
-- **Scalable** - Handles individual users to large teams
-- **Extensible** - Clean architecture for custom integrations
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards, branch naming, commit format, and the pull-request checklist.
 
 ## License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0) with additional terms under section 7**.  
-> See the [LICENSE](LICENSE) file for more details.
+GNU Affero General Public License v3.0 with additional attribution terms. See [LICENSE](LICENSE).
 
 ---
 
-<p align="center">
-  Made with ❤️ by <a href="https://github.com/fahimsaki">Fahim Saki</a>
-</p>
+<p align="center">Made with ❤️ by <a href="https://github.com/FahimSaki">Fahim Saki</a></p>

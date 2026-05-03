@@ -1,191 +1,268 @@
 # Contributing to Momentum
 
-Thank you for your interest in contributing to Momentum! This guide will help you get started with development and understand our workflow.
+Thank you for your interest in contributing! This document covers how to set up a development environment, coding standards, commit conventions, and the pull-request process.
+
+---
+
+## Table of Contents
+
+1. [Ways to Contribute](#ways-to-contribute)
+2. [Development Setup](#development-setup)
+3. [Project Structure at a Glance](#project-structure-at-a-glance)
+4. [Coding Standards](#coding-standards)
+5. [Commit Conventions](#commit-conventions)
+6. [Branch Naming](#branch-naming)
+7. [Pull Request Process](#pull-request-process)
+8. [Testing](#testing)
+9. [Issue Guidelines](#issue-guidelines)
+10. [Code of Conduct](#code-of-conduct)
+
+---
 
 ## Ways to Contribute
 
-- **Bug Reports**: Found an issue? Report it with details
-- **Feature Requests**: Have ideas? We'd love to hear them
-- **Documentation**: Help improve docs and guides
-- **Code Contributions**: Fix bugs, add features, improve performance
-- **UI/UX Improvements**: Make the app more user-friendly
-- **Testing**: Write tests, test on different platforms
-- **Localization**: Help translate the app
+- **Bug reports** – open an issue using the bug template
+- **Feature requests** – open an issue with the feature template
+- **Code** – fix a bug, implement a feature, or improve performance
+- **Documentation** – improve clarity, fix typos, add missing content
+- **Tests** – add unit or widget tests to increase coverage
+- **Translations** – help localise the app
 
-## Getting Started
+---
 
-### 1. Fork & Clone
+## Development Setup
+
+### Prerequisites
+
+| Tool | Minimum version |
+|------|----------------|
+| Flutter SDK | 3.41.0 |
+| Dart SDK | 3.11.1 |
+| Node.js | 20 LTS |
+| MongoDB | 6+ (local) or Atlas |
+| Android Studio / Xcode | Latest stable |
+
+### 1 – Fork and Clone
 
 ```bash
-# Fork the repository on GitHub, then clone your fork
 git clone https://github.com/YOUR_USERNAME/momentum.git
 cd momentum
-
-# Add upstream remote to stay updated
-git remote add upstream https://github.com/ORIGINAL_OWNER/momentum.git
+git remote add upstream https://github.com/FahimSaki/Momentum.git
 ```
 
-### 2. Development Setup
-
-Follow the [Installation Guide](docs/INSTALLATION.md) to set up your development environment.
-
-**Quick Setup**:
+### 2 – Backend
 
 ```bash
-# Backend
 cd backend
 npm install
-cp .env.example .env  # Configure environment
-npm run dev
 
-# Frontend (new terminal)
-cd ../
-flutter pub get
-flutter run
+# Create .env (never commit this file)
+cp .env.example .env
 ```
 
-### 3. Create a Branch
+Minimum `.env` contents:
+
+```env
+MONGODB_URI=mongodb://localhost:27017/momentum
+JWT_SECRET=a-long-random-secret
+PORT=10000
+NODE_ENV=development
+```
+
+Optional (needed for push notifications):
+
+```env
+FIREBASE_SERVICE_ACCOUNT_PATH=./momentum-firebase-adminsdk.json
+# OR
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+```
 
 ```bash
-# Create and switch to a new branch
-git checkout -b feature/your-feature-name
-
-# Branch naming conventions:
-# feature/add-dark-mode-toggle
-# bugfix/fix-login-validation
-# docs/update-api-documentation
-# refactor/improve-state-management
+npm run dev   # nodemon, auto-restarts on save
 ```
 
-## Development Standards
+### 3 – Flutter Frontend
 
-### Code Style
+```bash
+cd ..          # back to project root
+flutter pub get
+```
 
-**Flutter/Dart**:
+The API base URL is resolved automatically by `lib/constants/api_base_url.dart`:
 
-- Follow [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style)
-- Use `flutter analyze` to check for issues
-- Format code with `dart format .`
-- Use meaningful variable and function names
-- Add documentation comments for public APIs
+| Context | URL used |
+|---------|---------|
+| Android emulator (debug) | `http://10.0.2.2:10000` |
+| iOS simulator (debug) | `http://127.0.0.1:10000` |
+| Release / web | `https://momentum-to2e.onrender.com` |
+
+To point at a different server, edit `api_base_url.dart` locally (do not commit personal URLs).
+
+```bash
+flutter run          # pick a connected device / emulator
+flutter run -d chrome  # web
+```
+
+### 4 – Firebase (optional for local dev)
+
+Push notifications and FCM token registration require a Firebase project. For local development you can skip Firebase setup – the app degrades gracefully (notifications are silently no-ops). If you want to test notifications:
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Add an Android app (`com.example.momentum`) and download `google-services.json` → `android/app/`
+3. Add an iOS app and download `GoogleService-Info.plist` → `ios/Runner/`
+4. Generate a service account key and set `FIREBASE_SERVICE_ACCOUNT_PATH` in the backend `.env`
+
+---
+
+## Coding Standards
+
+### Dart / Flutter
+
+- Run `flutter analyze` and resolve all issues before committing.
+- Format with `dart format .` (enforced by CI).
+- Use `Logger` from the `logger` package instead of `print`.
+- All HTTP calls belong in `lib/services/`; widgets call `TaskDatabase` methods only.
+- Dispose controllers, animation controllers, and timers in `dispose()`.
+- Avoid `dynamic` types where a typed alternative exists.
 
 ```dart
-// ✅ Good
-/// Completes a task and updates the UI state.
-/// 
-/// Returns true if the task was successfully completed.
-Future<bool> completeTask(String taskId, bool isCompleted) async {
+// ✅
+Future<void> deleteTask(String taskId) async {
   try {
-    await _taskService.completeTask(taskId, isCompleted);
-    _updateLocalState();
-    return true;
-  } catch (e) {
-    _logger.e('Error completing task', error: e);
-    return false;
+    await _taskService!.deleteTask(taskId);
+    currentTasks.removeWhere((t) => t.id == taskId);
+    notifyListeners();
+  } catch (e, st) {
+    logger.e('Error deleting task', error: e, stackTrace: st);
+    rethrow;
   }
 }
 
-// ❌ Bad
-Future<bool> ct(String id, bool c) async {
-  await _taskService.completeTask(id, c);
-  return true;
+// ❌ – swallows errors, no logging, dynamic return
+deleteTask(id) async {
+  await _taskService.deleteTask(id);
 }
 ```
 
-**Node.js/JavaScript**:
+### JavaScript / Node.js
 
-- Use ES6+ features and async/await
-- Follow consistent indentation (2 spaces)
-- Use descriptive variable names
-- Add JSDoc comments for functions
-- Handle errors properly with try-catch
+- Use ES modules (`import`/`export`), async/await, and optional chaining.
+- Wrap every async controller in try/catch; never let unhandled rejections crash the server.
+- Return a clean error object: `{ message: '...' }` with an appropriate HTTP status.
+- Log with `console.log` / `console.error` prefixed with an emoji for easy scanning (✅ ❌ ⚠️).
+- Do not hardcode MongoDB IDs, secrets, or file paths – use environment variables.
 
-```javascript
-// ✅ Good
-/**
- * Creates a new task with validation and notification
- * @param {Object} taskData - The task information
- * @param {string} userId - ID of the user creating the task
- * @returns {Promise<Task>} The created task
- */
-const createTask = async (taskData, userId) => {
+```js
+// ✅
+export const createTask = async (req, res) => {
   try {
-    const validatedData = validateTaskInput(taskData);
-    const task = await Task.create({ ...validatedData, assignedBy: userId });
-    await sendTaskNotification(task);
-    return task;
-  } catch (error) {
-    logger.error('Task creation failed', error);
-    throw new Error(`Failed to create task: ${error.message}`);
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ message: 'Task name is required' });
+    const task = await Task.create({ name: name.trim(), assignedBy: req.userId });
+    res.status(201).json({ message: 'Task created', task });
+  } catch (err) {
+    console.error('❌ createTask:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 };
-
-// ❌ Bad
-const createTask = (data, uid) => {
-  const task = Task.create(data);
-  return task;
-};
 ```
 
-### File Organization
+---
 
-**Frontend Structure**:
+## Commit Conventions
 
-```
-lib/
-├── components/          # Reusable UI widgets
-├── pages/              # Screen-level pages
-├── models/             # Data models and DTOs
-├── services/           # API services and external integrations
-├── database/           # State management (TaskDatabase)
-├── constants/          # App-wide constants
-├── theme/             # Theme configuration
-└── util/              # Helper functions and utilities
-```
-
-**Backend Structure**:
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-backend/
-├── controllers/        # Request handlers and route logic
-├── models/            # Mongoose schemas and models
-├── services/          # Business logic and external services
-├── middleware/        # Express middleware functions
-├── routes/           # API route definitions
-└── util/             # Helper functions and utilities
+<type>[optional scope]: <short description>
+
+[optional body]
+
+[optional footer]
 ```
 
-### Commit Standards
+| Type | Use for |
+|------|---------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Formatting, no logic change |
+| `refactor` | Restructuring without behaviour change |
+| `test` | Adding or updating tests |
+| `chore` | Dependencies, build scripts, CI config |
+| `perf` | Performance improvement |
 
-Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+Examples:
 
 ```bash
-# Format: <type>[optional scope]: <description>
-
-# Examples:
-git commit -m "feat: add dark mode toggle to settings page"
-git commit -m "fix: resolve login validation error handling"
-git commit -m "docs: update API endpoints documentation"
-git commit -m "refactor(auth): improve token validation logic"
-git commit -m "test: add unit tests for task completion"
-git commit -m "chore: update dependencies to latest versions"
+git commit -m "feat(team): add Invite ID lookup when sending invitations"
+git commit -m "fix(widget): correct SharedPreferences file name for home_widget 0.9"
+git commit -m "docs: add INSTALLATION.md with Firebase setup steps"
+git commit -m "refactor(task_database): split activeTasks and completedTasks getters"
 ```
 
-**Commit Types**:
+---
 
-- `feat`: New features
-- `fix`: Bug fixes
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code refactoring without feature changes
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks, dependency updates
+## Branch Naming
+
+```
+feature/<short-description>      # new feature
+bugfix/<short-description>       # bug fix
+docs/<short-description>         # documentation
+refactor/<short-description>     # refactoring
+chore/<short-description>        # maintenance
+```
+
+Examples: `feature/google-oauth`, `bugfix/widget-empty-state`, `docs/api-endpoints`
+
+---
+
+## Pull Request Process
+
+### Before Opening a PR
+
+- [ ] `flutter analyze` passes with no errors
+- [ ] `dart format . --set-exit-if-changed` passes
+- [ ] `flutter test` passes
+- [ ] Backend starts without errors (`npm run dev`)
+- [ ] No secrets, personal URLs, or debug `print` statements in the diff
+- [ ] Documentation updated if the change affects public API or user-facing behaviour
+
+### PR Description Template
+
+```markdown
+## What does this PR do?
+Short description.
+
+## Type
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Refactor
+- [ ] Documentation
+- [ ] Breaking change
+
+## How to test
+Step-by-step instructions for reviewers.
+
+## Screenshots (if UI change)
+Before / After screenshots.
+
+## Checklist
+- [ ] `flutter analyze` passes
+- [ ] Tests added / updated
+- [ ] Documentation updated
+- [ ] CHANGELOG.md updated (for user-facing changes)
+```
+
+### Review Criteria
+
+Reviewers look for: correctness, error handling, test coverage, adherence to the patterns in the codebase, and documentation.
+
+---
 
 ## Testing
 
-### Running Tests
-
-**Flutter Tests**:
+### Flutter
 
 ```bash
 # Run all tests
@@ -194,355 +271,62 @@ flutter test
 # Run with coverage
 flutter test --coverage
 
-# Run specific test file
-flutter test test/models/task_test.dart
+# Run a single test file
+flutter test test/unit_test.dart
 ```
 
-**Backend Tests**:
+Tests live in `test/`. Add unit tests for models and utilities in `test/unit_test.dart`; widget tests in `test/widget_test.dart`.
 
-```bash
-cd backend
+### Backend
 
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run specific test
-npm test -- --grep "Task creation"
-```
-
-### Writing Tests
-
-**Flutter Widget Tests**:
-
-```dart
-testWidgets('TaskTile shows completion status correctly', (tester) async {
-  const task = Task(
-    id: 'test-id',
-    name: 'Test Task',
-    isCompleted: true,
-  );
-
-  await tester.pumpWidget(
-    MaterialApp(
-      home: TaskTile(task: task),
-    ),
-  );
-
-  expect(find.byIcon(Icons.check_circle), findsOneWidget);
-  expect(find.text('Test Task'), findsOneWidget);
-});
-```
-
-**Backend API Tests**:
-
-```javascript
-describe('POST /tasks', () => {
-  it('should create a new task with valid data', async () => {
-    const taskData = {
-      name: 'Test Task',
-      description: 'Test Description'
-    };
-
-    const response = await request(app)
-      .post('/tasks')
-      .set('Authorization', `Bearer ${validToken}`)
-      .send(taskData)
-      .expect(201);
-
-    expect(response.body.task.name).toBe('Test Task');
-    expect(response.body.task.assignedBy).toBe(testUserId);
-  });
-
-  it('should return 400 for missing required fields', async () => {
-    const response = await request(app)
-      .post('/tasks')
-      .set('Authorization', `Bearer ${validToken}`)
-      .send({})
-      .expect(400);
-
-    expect(response.body.message).toContain('name is required');
-  });
-});
-```
-
-## Documentation Standards
-
-### Code Documentation
-
-**Flutter/Dart Documentation**:
-
-```dart
-/// A widget that displays a task with completion status and actions.
-///
-/// The [TaskTile] shows task information and provides controls for
-/// completing, editing, and deleting tasks.
-///
-/// Example usage:
-/// ```dart
-/// TaskTile(
-///   task: myTask,
-///   onToggle: (completed) => handleTaskToggle(completed),
-///   onEdit: () => showEditDialog(),
-///   onDelete: () => deleteTask(),
-/// )
-/// ```
-class TaskTile extends StatefulWidget {
-  /// The task to display
-  final Task task;
-  
-  /// Callback when task completion is toggled
-  final Function(bool) onToggle;
-  
-  const TaskTile({
-    super.key,
-    required this.task,
-    required this.onToggle,
-  });
-}
-```
-
-**Backend API Documentation**:
-
-```javascript
-/**
- * Creates a new task
- * 
- * @route POST /tasks
- * @access Private
- * @param {Object} req.body - Task creation data
- * @param {string} req.body.name - Task name (required)
- * @param {string} [req.body.description] - Task description
- * @param {string} [req.body.priority] - Task priority (low, medium, high, urgent)
- * @param {Date} [req.body.dueDate] - Task due date
- * @param {string[]} [req.body.assignedTo] - Array of user IDs to assign
- * @returns {Object} Created task object
- * 
- * @example
- * POST /tasks
- * {
- *   "name": "Complete API documentation",
- *   "description": "Write comprehensive API docs",
- *   "priority": "high",
- *   "dueDate": "2023-12-31T23:59:59.000Z"
- * }
- */
-export const createTask = async (req, res) => {
-  // Implementation...
-};
-```
-
-### README Updates
-
-When adding features, update relevant documentation:
-
-- Main [README.md](README.md) for major features
-- [API Documentation](docs/API.md) for new endpoints
-- [Architecture Guide](docs/ARCHITECTURE.md) for structural changes
-
-## Code Review Process
-
-### Before Submitting
-
-1. **Self-Review Checklist**:
-   - [ ] Code follows style guidelines
-   - [ ] All tests pass
-   - [ ] No compiler warnings
-   - [ ] Documentation updated
-   - [ ] No hardcoded secrets or URLs
-   - [ ] Error handling implemented
-   - [ ] Logging added where appropriate
-
-2. **Run Quality Checks**:
-
-   ```bash
-   # Flutter
-   flutter analyze
-   flutter test
-   dart format . --set-exit-if-changed
-   
-   # Backend
-   npm run lint
-   npm test
-   ```
-
-### Pull Request Guidelines
-
-**PR Title**: Use descriptive titles that explain the change
-
-```
-✅ Good: "Add team invitation expiration and cleanup"
-❌ Bad: "Fix stuff"
-```
-
-**PR Description Template**:
-
-```markdown
-## Description
-Brief description of changes and motivation.
-
-## Type of Change
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Documentation update
-
-## Testing
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing completed
-
-## Screenshots (if applicable)
-Add screenshots for UI changes.
-
-## Checklist
-- [ ] My code follows the project's style guidelines
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have made corresponding changes to the documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally with my changes
-```
-
-### Review Criteria
-
-**Code Quality**:
-
-- Readable and maintainable
-- Follows established patterns
-- Proper error handling
-- Appropriate comments
-
-**Functionality**:
-
-- Solves the intended problem
-- Doesn't break existing features
-- Handles edge cases
-- Good user experience
-
-**Testing**:
-
-- Adequate test coverage
-- Tests are meaningful
-- All tests pass
-
-## Issue Guidelines
-
-### Bug Reports
-
-Use the bug report template:
-
-```markdown
-**Bug Description**
-A clear and concise description of what the bug is.
-
-**Steps to Reproduce**
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
-
-**Expected Behavior**
-A clear and concise description of what you expected to happen.
-
-**Environment**
-- Platform: [e.g., Android, iOS, Web]
-- Version: [e.g., 0.5.1]
-- Device: [e.g., Pixel 6, iPhone 13]
-- OS: [e.g., Android 12, iOS 15]
-
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Additional Context**
-Add any other context about the problem here.
-```
-
-### Feature Requests
-
-```markdown
-**Feature Request**
-A clear and concise description of what you want to happen.
-
-** Problem Statement**
-Is your feature request related to a problem? Please describe.
-
-**Proposed Solution**
-Describe the solution you'd like.
-
-**Alternatives Considered**
-Describe any alternative solutions or features you've considered.
-
-**Additional Context**
-Add any other context or screenshots about the feature request here.
-```
-
-## Release Process
-
-### Version Numbering
-
-We follow [Semantic Versioning](https://semver.org/):
-
-- `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes (backward compatible)
-
-### Release Checklist
-
-1. **Pre-release**:
-   - [ ] All tests pass
-   - [ ] Documentation updated
-   - [ ] CHANGELOG.md updated
-   - [ ] Version numbers bumped
-
-2. **Release**:
-   - [ ] Create release branch
-   - [ ] Final testing on all platforms
-   - [ ] Create GitHub release
-   - [ ] Deploy to production
-   - [ ] Update deployment documentation
-
-## Community Guidelines
-
-### Code of Conduct
-
-- **Be respectful**: Treat everyone with kindness and respect
-- **Be inclusive**: Welcome newcomers and different perspectives
-- **Be collaborative**: Work together to solve problems
-- **Be constructive**: Provide helpful feedback and suggestions
-- **Be patient**: Help others learn and grow
-
-### Communication
-
-- **GitHub Issues**: For bug reports and feature requests
-- **GitHub Discussions**: For questions, ideas, and general discussion
-- **Pull Requests**: For code contributions and reviews
-
-### Getting Help
-
-- **Documentation**: Start with our comprehensive docs
-- **Issues**: Search existing issues before creating new ones
-- **Discussions**: Ask questions in GitHub Discussions
-- **Email**: For security issues or private concerns
-
-## Recognition
-
-Contributors are recognized in:
-
-- GitHub contributor graphs
-- Release notes for significant contributions
-- README acknowledgments for major features
-
-Thank you for contributing to Momentum! 🚀
+There is no dedicated test runner configured yet. Manual testing against a local MongoDB instance is acceptable for now. Contributors adding backend tests are welcome to introduce Jest or Mocha.
 
 ---
 
-**Questions?**
+## Issue Guidelines
 
-- [GitHub Discussions](../../discussions)
-- [Documentation](docs/)
-- [Report Issues](../../issues)
+### Bug Report
+
+```markdown
+**Description**
+What went wrong?
+
+**Steps to reproduce**
+1. ...
+2. ...
+
+**Expected behaviour**
+What should have happened?
+
+**Environment**
+- Platform: Android / iOS / Web / Desktop
+- App version:
+- Device / OS:
+
+**Logs / screenshots**
+Paste relevant logs or screenshots.
+```
+
+### Feature Request
+
+```markdown
+**Problem**
+What problem does this solve?
+
+**Proposed solution**
+How should it work?
+
+**Alternatives considered**
+What else did you think about?
+```
+
+---
+
+## Code of Conduct
+
+- Be respectful and constructive in all interactions.
+- Welcome contributors of all experience levels.
+- Focus feedback on the code, not the person.
+- Harassment of any kind will not be tolerated.
+
+Questions? Open a [GitHub Discussion](../../discussions).
