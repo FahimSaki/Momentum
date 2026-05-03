@@ -32,9 +32,7 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   // ── Private state ──────────────────────────────────────────────────────────
-  static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(),
-  );
+  static const _storage = FlutterSecureStorage(aOptions: AndroidOptions());
   static final Logger _logger = Logger();
 
   /// Listeners notified with the JWT string whenever a valid JWT is obtained
@@ -73,7 +71,10 @@ class AuthService {
 
   /// Register a new account. Returns same shape as [login].
   Future<Map<String, dynamic>> register(
-      String email, String password, String name) async {
+    String email,
+    String password,
+    String name,
+  ) async {
     final response = await http
         .post(
           Uri.parse('$apiBaseUrl/auth/register'),
