@@ -124,4 +124,4 @@ GNU Affero General Public License v3.0 with additional attribution terms. See [L
 
 ---
 
-<p align="center">Made with ❤️ by <a href="https://github.com/FahimSaki">Fahim Saki</a></p>
+<p align="center">Made by <a href="https://github.com/FahimSaki">Fahim Saki</a></p>
