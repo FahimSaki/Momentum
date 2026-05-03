@@ -132,6 +132,9 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
             return null;
         }
 
+        // Safety fallback for undefined fcmTokens
+        user.fcmTokens = user.fcmTokens || [];
+
         // Check user notification preferences
         if (!user.notificationSettings?.push && !user.notificationSettings?.inApp) {
             console.log(`ℹ️ User ${userId} has disabled notifications`);
@@ -144,11 +147,33 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
         if (isFirebaseInitialized && user.notificationSettings?.push && user.fcmTokens?.length > 0) {
             try {
                 // Filter valid tokens (active within last 60 days)
-                const validTokens = user.fcmTokens.filter(tokenData => {
+                let validTokens = user.fcmTokens.filter(tokenData => {
                     if (!tokenData.token) return false;
-                    const daysSinceLastUsed = (Date.now() - new Date(tokenData.lastUsed).getTime()) / (1000 * 60 * 60 * 24);
+                    const lastUsed = tokenData.lastUsed ? new Date(tokenData.lastUsed) : null;
+                    if (!lastUsed) return true;
+                    const daysSinceLastUsed = (Date.now() - lastUsed.getTime()) / (1000 * 60 * 60 * 24);
                     return daysSinceLastUsed <= 60;
                 });
+
+                if (validTokens.length === 0 && user.fcmToken) {
+                    const legacyToken = user.fcmToken;
+
+                    await User.findByIdAndUpdate(userId, {
+                        $push: {
+                            fcmTokens: {
+                                token: legacyToken,
+                                platform: 'legacy',
+                                lastUsed: new Date()
+                            }
+                        },
+                        $unset: { fcmToken: '' }
+                    });
+
+                    validTokens = [{
+                        token: legacyToken,
+                        lastUsed: new Date()
+                    }];
+                }
 
                 if (validTokens.length === 0) {
                     console.log(`ℹ️ No valid FCM tokens for user ${userId}`);
@@ -156,62 +181,78 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
                     const tokens = validTokens.map(t => t.token);
                     console.log(`📱 Sending FCM to ${tokens.length} token(s) for user ${userId}`);
 
-                    // MESSAGE FORMAT
-                    const message = {
-                        notification: {
-                            title: notificationData.title || 'Momentum Notification',
-                            body: notificationData.body || 'You have a new notification',
-                        },
-                        data: {
-                            // Convert all data to strings (FCM requirement)
-                            type: notificationData.type || 'general',
-                            userId: userId.toString(),
-                            notificationId: notificationData.notificationId || '',
-                            teamId: notificationData.teamId?.toString() || '',
-                            taskId: notificationData.taskId?.toString() || '',
-                            timestamp: new Date().toISOString(),
-                            // Include all other data as strings
-                            ...Object.fromEntries(
-                                Object.entries(notificationData.data || {}).map(([k, v]) => [k, String(v)])
-                            )
-                        },
-                        // ANDROID/IOS SPECIFIC CONFIGS
-                        android: {
+                    // Chunk tokens to respect Firebase's 500 limit per multicast
+                    const chunkSize = 500;
+                    let totalSuccessCount = 0;
+                    const invalidTokens = [];
+                    let firstMessageId = null;
+
+                    for (let i = 0; i < tokens.length; i += chunkSize) {
+                        const tokenChunk = tokens.slice(i, i + chunkSize);
+
+                        const message = {
                             notification: {
-                                sound: 'default',
-                                channelId: 'momentum_notifications',
-                                priority: 'high',
+                                title: notificationData.title || 'Momentum Notification',
+                                body: notificationData.body || 'You have a new notification',
                             },
                             data: {
-                                click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                            }
-                        },
-                        apns: {
-                            payload: {
-                                aps: {
+                                // Convert all data to strings (FCM requirement)
+                                type: notificationData.type || 'general',
+                                userId: userId.toString(),
+                                notificationId: notificationData.notificationId || '',
+                                teamId: notificationData.teamId?.toString() || '',
+                                taskId: notificationData.taskId?.toString() || '',
+                                timestamp: new Date().toISOString(),
+                                // Include all other data as strings
+                                ...Object.fromEntries(
+                                    Object.entries(notificationData.data || {}).map(([k, v]) => [k, String(v)])
+                                )
+                            },
+                            // ANDROID/IOS SPECIFIC CONFIGS
+                            android: {
+                                notification: {
                                     sound: 'default',
-                                    badge: 1,
+                                    channelId: 'momentum_notifications',
+                                    priority: 'high',
+                                },
+                                data: {
+                                    click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                                }
+                            },
+                            apns: {
+                                payload: {
+                                    aps: {
+                                        sound: 'default',
+                                        badge: 1,
+                                    }
+                                }
+                            },
+                            tokens: tokenChunk,
+                        };
+
+                        const chunkResponse = await admin.messaging().sendMulticast(message);
+                        totalSuccessCount += chunkResponse.successCount;
+
+                        if (!firstMessageId && chunkResponse.responses?.[0]?.messageId) {
+                            firstMessageId = chunkResponse.responses[0].messageId;
+                        }
+
+                        // ERROR HANDLING
+                        chunkResponse.responses.forEach((resp, idx) => {
+                            if (!resp.success) {
+                                console.error(`❌ FCM Error for token ${idx}:`, resp.error?.code, resp.error?.message);
+
+                                // Identify tokens to remove
+                                if (['messaging/registration-token-not-registered',
+                                    'messaging/invalid-registration-token'].includes(resp.error?.code)) {
+                                    invalidTokens.push(tokenChunk[idx]);
                                 }
                             }
-                        },
-                        tokens: tokens,
-                    };
+                        });
+                    }
 
-                    fcmResponse = await admin.messaging().sendMulticast(message);
-
-                    // ERROR HANDLING
-                    const invalidTokens = [];
-                    fcmResponse.responses.forEach((resp, idx) => {
-                        if (!resp.success) {
-                            console.error(`❌ FCM Error for token ${idx}:`, resp.error?.code, resp.error?.message);
-
-                            // Identify tokens to remove
-                            if (['messaging/registration-token-not-registered',
-                                'messaging/invalid-registration-token'].includes(resp.error?.code)) {
-                                invalidTokens.push(tokens[idx]);
-                            }
-                        }
-                    });
+                    // Construct a unified response object for downstream usage
+                    fcmResponse = { successCount: totalSuccessCount, responses: [{ messageId: firstMessageId }] };
 
                     // Remove invalid tokens
                     if (invalidTokens.length > 0) {
@@ -223,7 +264,7 @@ export const sendNotification = async (userId, notificationData, saveToDb = true
                         });
                     }
 
-                    console.log(`✅ FCM sent to ${fcmResponse.successCount}/${tokens.length} tokens`);
+                    console.log(`✅ FCM sent to ${totalSuccessCount}/${tokens.length} tokens`);
                 }
             } catch (fcmError) {
                 console.error('❌ FCM Send Error:', fcmError.code, fcmError.message);
@@ -312,6 +353,9 @@ export const updateFCMToken = async (userId, token, platform = 'android') => {
 
 // BULK NOTIFICATION SENDING
 export const sendBulkNotification = async (userIds, notificationData, saveToDb = true) => {
+    // Prevent duplicate notifications for same user
+    userIds = [...new Set(userIds.map(id => id.toString()))];
+
     console.log(`📤 Sending bulk notification to ${userIds.length} users`);
 
     const results = await Promise.allSettled(

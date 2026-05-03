@@ -45,7 +45,7 @@ class MyDrawer extends StatelessWidget {
         ).pushNamedAndRemoveUntil('/login', (route) => false);
 
         // Run logout in background
-        AuthService.logout().catchError((e) {
+        AuthService.instance.logout().catchError((e) {
           _logger.e('Logout error: $e');
         });
       } catch (e) {

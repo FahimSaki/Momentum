@@ -65,7 +65,7 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       _logger.i("🚀 Starting registration for: $email with name: $name");
 
-      final result = await AuthService.register(email, password, name);
+      final result = await AuthService.instance.register(email, password, name);
 
       _logger.i("✅ Registration successful! Response: $result");
 

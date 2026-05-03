@@ -54,10 +54,10 @@ class _HomePageState extends State<HomePage>
       });
 
       try {
-        final authData = await AuthService.getStoredAuthData();
+        final authData = await AuthService.instance.getStoredAuthData();
 
         if (authData != null && mounted) {
-          final isValidToken = await AuthService.validateToken();
+          final isValidToken = await AuthService.instance.validateToken();
 
           if (isValidToken && mounted) {
             await db.initialize(
@@ -67,7 +67,7 @@ class _HomePageState extends State<HomePage>
           } else {
             if (mounted) {
               final navigator = Navigator.of(context);
-              await AuthService.logout();
+              await AuthService.instance.logout();
               navigator.pushNamedAndRemoveUntil('/login', (route) => false);
               return;
             }
@@ -87,7 +87,7 @@ class _HomePageState extends State<HomePage>
           });
 
           final navigator = Navigator.of(context);
-          await AuthService.logout();
+          await AuthService.instance.logout();
           navigator.pushNamedAndRemoveUntil('/login', (route) => false);
           return;
         }

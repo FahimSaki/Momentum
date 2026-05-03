@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -10,7 +11,6 @@ import 'package:momentum/constants/api_base_url.dart';
 import 'package:momentum/models/app_notification.dart';
 
 // ── Background message handler ────────────────────────────────────────────
-// Must be a top-level function (not inside a class).
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('[FCM] Background message: ${message.messageId}');
@@ -18,7 +18,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 // ── Android notification channel ──────────────────────────────────────────
 const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-  'momentum_notifications', // must match channelId in backend notificationService.js
+  'momentum_notifications',
   'Momentum Notifications',
   description: 'Task assignments, completions, and team invitations',
   importance: Importance.high,
@@ -32,6 +32,13 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
+
+  // ── Subscription tracking ──────────────────────────────────────────────
+  StreamSubscription<RemoteMessage>? _onMessageSub;
+  StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
+  StreamSubscription<String>? _onTokenRefreshSub;
+
+  bool _isFirebaseInitialized = false;
 
   Map<String, String> get _headers => {
     'Authorization': 'Bearer $_jwtToken',
@@ -50,10 +57,17 @@ class NotificationService {
 
     try {
       await _initLocalNotifications();
-      await _initFirebaseMessaging();
+
+      // ── Prevent duplicate listeners ────────────────────────────────────────
+      if (!_isFirebaseInitialized) {
+        await _initFirebaseMessaging();
+        _isFirebaseInitialized = true;
+      } else {
+        await _registerToken(); // only refresh token
+      }
+
       _logger.i('NotificationService initialised');
     } catch (e, st) {
-      // Non-fatal — app works fine without push notifications.
       _logger.w(
         'NotificationService init failed (non-critical)',
         error: e,
@@ -72,8 +86,6 @@ class NotificationService {
       requestSoundPermission: false,
     );
 
-    // FIX: flutter_local_notifications v21 changed initialize() to use the
-    // named parameter `settings:` instead of a positional argument.
     await _localNotifications.initialize(
       settings: const InitializationSettings(
         android: androidInit,
@@ -82,7 +94,6 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
     );
 
-    // Create the Android channel so high-priority messages appear as heads-up.
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -115,13 +126,21 @@ class NotificationService {
 
     await _registerToken();
 
-    FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+    // ── Store subscriptions instead of duplicating ─────────────────────────
+    _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+      token,
+    ) async {
       _logger.i('FCM token refreshed');
       await _sendTokenToBackend(token);
     });
 
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+    _onMessageSub = FirebaseMessaging.onMessage.listen(
+      _handleForegroundMessage,
+    );
+
+    _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
+      _handleNotificationTap,
+    );
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
@@ -134,7 +153,6 @@ class NotificationService {
   Future<void> _registerToken() async {
     try {
       if (Platform.isIOS) {
-        // APNS token must be available before FCM token on iOS.
         await FirebaseMessaging.instance.getAPNSToken();
       }
 
@@ -168,7 +186,6 @@ class NotificationService {
     }
   }
 
-  // FIX: use dart:io Platform directly — clean and unambiguous.
   String _platform() {
     if (kIsWeb) return 'web';
     if (Platform.isIOS) return 'ios';
@@ -184,8 +201,6 @@ class NotificationService {
     final notification = message.notification;
     if (notification == null) return;
 
-    // FIX: flutter_local_notifications v21 changed show() to named parameters.
-    // `id:` is now required and the old positional signature was removed.
     await _localNotifications.show(
       id: message.hashCode,
       title: notification.title,
@@ -213,7 +228,7 @@ class NotificationService {
     _logger.i('Notification tapped: type=${message.data['type']}');
   }
 
-  // ── REST API (in-app notifications) ───────────────────────────────────────
+  // ── REST API methods ─────────────────────────────────────────────────────
 
   Future<List<AppNotification>> getNotifications() async {
     try {
@@ -281,7 +296,18 @@ class NotificationService {
     }
   }
 
-  void dispose() {
+  // ── Cleanup ─────────────────────────────────────────────────────
+  Future<void> dispose() async {
+    await _onMessageSub?.cancel();
+    await _onMessageOpenedAppSub?.cancel();
+    await _onTokenRefreshSub?.cancel();
+
+    _onMessageSub = null;
+    _onMessageOpenedAppSub = null;
+    _onTokenRefreshSub = null;
+
+    _isFirebaseInitialized = false;
+
     _logger.i('NotificationService disposed');
   }
 }

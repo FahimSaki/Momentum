@@ -27,14 +27,14 @@ class _SplashPageState extends State<SplashPage> {
       await Future.delayed(const Duration(milliseconds: 1500));
 
       // Check if user has stored auth data
-      final authData = await AuthService.getStoredAuthData();
+      final authData = await AuthService.instance.getStoredAuthData();
       _logger.i('Stored auth data: $authData');
 
       if (!mounted) return;
 
       if (authData != null) {
         // Validate token with server
-        final isValidToken = await AuthService.validateToken();
+        final isValidToken = await AuthService.instance.validateToken();
         _logger.i('Token validation result: $isValidToken');
 
         if (!mounted) return;
@@ -55,7 +55,7 @@ class _SplashPageState extends State<SplashPage> {
           Navigator.pushReplacementNamed(context, '/home');
         } else {
           _logger.w('Invalid token detected, logging out.');
-          await AuthService.logout();
+          await AuthService.instance.logout();
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/login');
         }

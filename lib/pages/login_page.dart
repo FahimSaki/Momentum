@@ -23,7 +23,7 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final result = await AuthService.login(
+      final result = await AuthService.instance.login(
         emailController.text.trim(),
         passwordController.text.trim(),
       );
