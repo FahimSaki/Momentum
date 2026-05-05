@@ -15,10 +15,12 @@ supabase_cmd.sql
 frontend.txt
 backend.txt
 history.txt
-backend/node_modules
-backend/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json
+momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+backendjs/node_modules
+backendts/node_modules
+backendts/dist
 
 # IntelliJ related
 *.iml
