@@ -1,1 +1,0 @@
-{"version":3,"file":"middle_auth.d.ts","sourceRoot":"","sources":["../../src/middleware/middle_auth.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,QAAQ,EAAE,YAAY,EAAE,MAAM,SAAS,CAAC;AAK1D,eAAO,MAAM,iBAAiB,GAC1B,KAAK,OAAO,EACZ,KAAK,QAAQ,EACb,MAAM,YAAY,KACnB,OAAO,CAAC,IAAI,CAyBd,CAAC"}
