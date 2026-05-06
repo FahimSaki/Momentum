@@ -18,8 +18,8 @@ The production backend is hosted at `https://momentum-to2e.onrender.com`.
 |---------|-------|
 | Runtime | Node |
 | Root directory | `backend` |
-| Build command | `npm install` |
-| Start command | `node index.js` |
+| Build command | `npm install && npm run build` |
+| Start command | `npm start` |
 | Instance type | Free or Starter |
 
 1. Under **Environment**, add the following variables:
@@ -32,9 +32,9 @@ The production backend is hosted at `https://momentum-to2e.onrender.com`.
 | `NODE_ENV` | `production` |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Paste the full contents of your Firebase service account JSON as a single-line string |
 
-> **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The `notificationService.js` parses this variable, writes it to `/tmp/firebase-service-account.json` at startup, and uses it automatically.
+> **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
 
-1. Click **Create Web Service**. Render builds and deploys automatically.
+1. Click **Create Web Service**. Render runs `npm install && npm run build` to compile TypeScript, then starts the server with `npm start` (which runs `node dist/index.js`).
 
 ### Keep-Alive
 
@@ -45,7 +45,7 @@ Render free-tier instances spin down after 15 minutes of inactivity. The GitHub 
 
 ### Redeployment
 
-Every push to `main` triggers a new Render build automatically if auto-deploy is enabled in the Render dashboard. You can also trigger a manual deploy from the Render dashboard or via the Render CLI.
+Every push to `main` triggers a new Render build automatically if auto-deploy is enabled in the Render dashboard. Render re-runs the full build command (`npm install && npm run build`) on each deploy so compiled output is always up to date.
 
 ### MongoDB Atlas Setup
 
@@ -90,7 +90,7 @@ Or connect the GitHub repo in the Vercel dashboard and set:
 
 ### CORS
 
-The backend `index.js` allows `*.vercel.app` origins. If you deploy to a custom domain, add it to the `allowedOrigins` array in `backend/index.js`.
+The backend `src/index.ts` allows `*.vercel.app` origins. If you deploy to a custom domain, add it to the `allowedOrigins` array in `backend/src/index.ts`.
 
 ---
 

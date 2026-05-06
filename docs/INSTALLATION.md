@@ -29,6 +29,8 @@ cd momentum
 
 ## 2 – Backend Setup
 
+The backend is written in TypeScript. Source files live in `backend/src/`. Compiled output goes to `backend/dist/` (git-ignored).
+
 ### Install Dependencies
 
 ```bash
@@ -60,11 +62,12 @@ If neither Firebase option is set the app will still work – push notifications
 ### Run the Backend
 
 ```bash
-npm run dev      # development (nodemon, auto-restart)
-npm start        # production
+npm run dev      # development – ts-node-dev compiles on the fly, auto-restarts on save
+npm run build    # compile TypeScript → dist/
+npm start        # production – runs compiled dist/index.js
 ```
 
-The server listens on `http://localhost:10000` by default.
+> During development you never need to run `npm run build` manually. For production you must build before starting: `npm run build && npm start`.
 
 Verify it's running:
 
@@ -169,6 +172,9 @@ flutter analyze
 
 # Format check
 dart format . --set-exit-if-changed
+
+# Backend type check (no emit)
+cd backend && npx tsc --noEmit
 ```
 
 ---
@@ -225,3 +231,4 @@ See [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) for a complete list. Quick fix
 | `google-services.json` missing | Add the file from Firebase Console or remove `firebase_core` if not needed |
 | MongoDB connection refused | Ensure `mongod` is running locally or check Atlas URI |
 | Widget shows empty state | Open the app once after install to let `HomeWidget.saveWidgetData` run |
+| TypeScript compile errors after `git pull` | Run `cd backend && npm install` to pick up any new type dependencies |
