@@ -18,7 +18,7 @@ export const initFirebase = (): void => {
         // ── Render / production ─────────────────────────────
         if (process.env.NODE_ENV === 'production') {
             const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
-                || '/etc/secrets/momentum-firebase.json';
+                || '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json';
 
             serviceAccount = JSON.parse(
                 fs.readFileSync(filePath, 'utf8')
