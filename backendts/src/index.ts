@@ -58,6 +58,13 @@ app.use('/tasks', taskRoutes);
 app.use('/teams', teamRoutes);
 app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
+app.get('/', (_req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Momentum API is running 🚀',
+        health: '/health'
+    });
+});
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 app.use((req, res) => {
