@@ -4,7 +4,8 @@ import Task from '../models/Task';
 import User from '../models/User';
 import { ITaskDocument, IUserDocument, NotificationPayload } from '../types/interfaces';
 import { Types } from 'mongoose';
-import serviceAccount from "../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json";
+import fs from 'fs';
+import path from 'path';
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 let firebaseInitialised = false;
@@ -12,8 +13,30 @@ let firebaseInitialised = false;
 export const initFirebase = (): void => {
     if (firebaseInitialised || admin.apps.length) { firebaseInitialised = true; return; }
     try {
+        let serviceAccount;
+
+        // ── Render / production ─────────────────────────────
+        if (process.env.NODE_ENV === 'production') {
+            const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
+                || '/etc/secrets/momentum-firebase.json';
+
+            serviceAccount = JSON.parse(
+                fs.readFileSync(filePath, 'utf8')
+            );
+        }
+
+        // ── Local development ───────────────────────────────
+        else {
+            const localPath = path.join(
+                __dirname,
+                '../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json'
+            );
+
+            serviceAccount = require(localPath);
+        }
+
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+            credential: admin.credential.cert(serviceAccount),
         });
 
         firebaseInitialised = true;
