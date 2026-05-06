@@ -18,9 +18,9 @@ history.txt
 momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
-backendjs/node_modules
-backendts/node_modules
-backendts/dist
+backend/node_modules
+backend/dist
+debug/backend_old/node_modules
 
 # IntelliJ related
 *.iml
