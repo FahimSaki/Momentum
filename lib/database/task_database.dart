@@ -87,7 +87,6 @@ class TaskDatabase extends ChangeNotifier {
 
       // Initialize services
       _teamService = TeamService(jwtToken: jwt);
-      _taskService = TaskService(jwtToken: jwt, userId: userId);
 
       if (!kIsWeb) {
         await _notificationService?.init(jwtToken: jwt);
