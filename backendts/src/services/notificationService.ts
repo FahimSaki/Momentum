@@ -4,6 +4,7 @@ import Task from '../models/Task';
 import User from '../models/User';
 import { ITaskDocument, IUserDocument, NotificationPayload } from '../types/interfaces';
 import { Types } from 'mongoose';
+import serviceAccount from "../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json";
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 let firebaseInitialised = false;
@@ -11,12 +12,15 @@ let firebaseInitialised = false;
 export const initFirebase = (): void => {
     if (firebaseInitialised || admin.apps.length) { firebaseInitialised = true; return; }
     try {
-        const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
-        if (!sa) { console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT not set — push disabled'); return; }
-        admin.initializeApp({ credential: admin.credential.cert(JSON.parse(sa)) });
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+        });
+
         firebaseInitialised = true;
         console.log('✅ Firebase initialised');
-    } catch (err) { console.error('❌ Firebase init failed:', err); }
+    } catch (err) {
+        console.error('❌ Firebase init failed:', err);
+    }
 };
 
 // ── Send FCM to one user ──────────────────────────────────────────────────
