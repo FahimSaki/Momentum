@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { Document, Types } from 'mongoose';
+import { Types, HydratedDocument } from 'mongoose';
 
 // ── Augment Express Request ────────────────────────────────────────────────
 declare global {
@@ -59,18 +59,7 @@ export interface IUser {
     updatedAt: Date;
 }
 
-export interface IUserDocument extends IUser, Document {
-    _id: Types.ObjectId;
-}
-
-export interface IUserModel extends Document {
-    findByInviteId(inviteId: string): Promise<IUserDocument | null>;
-    searchUsers(
-        query: string,
-        limit?: number,
-        excludeUserId?: string | null
-    ): Promise<IUserDocument[]>;
-}
+export type IUserDocument = HydratedDocument<IUser>;
 
 // ── Task ──────────────────────────────────────────────────────────────────
 export interface ICompletedBy {
@@ -105,11 +94,9 @@ export interface ITask {
     updatedAt: Date;
 }
 
-export interface ITaskDocument extends ITask, Document {
-    _id: Types.ObjectId;
-}
+export type ITaskDocument = HydratedDocument<ITask>;
 
-// ── Team Notification Settings ────────────────────────────────────────────
+// ── Team ──────────────────────────────────────────────────────────────────
 export interface ITeamNotificationSettings {
     taskAssigned: boolean;
     taskCompleted: boolean;
@@ -140,9 +127,7 @@ export interface ITeam {
     updatedAt: Date;
 }
 
-export interface ITeamDocument extends ITeam, Document {
-    _id: Types.ObjectId;
-}
+export type ITeamDocument = HydratedDocument<ITeam>;
 
 // ── Team Invitation ───────────────────────────────────────────────────────
 export interface ITeamInvitation {
@@ -158,9 +143,7 @@ export interface ITeamInvitation {
     updatedAt: Date;
 }
 
-export interface ITeamInvitationDocument extends ITeamInvitation, Document {
-    _id: Types.ObjectId;
-}
+export type ITeamInvitationDocument = HydratedDocument<ITeamInvitation>;
 
 // ── Task History ──────────────────────────────────────────────────────────
 export interface ITaskHistory {
@@ -172,9 +155,7 @@ export interface ITaskHistory {
     updatedAt: Date;
 }
 
-export interface ITaskHistoryDocument extends ITaskHistory, Document {
-    _id: Types.ObjectId;
-}
+export type ITaskHistoryDocument = HydratedDocument<ITaskHistory>;
 
 // ── Notification ──────────────────────────────────────────────────────────
 export type NotificationType =
@@ -201,9 +182,7 @@ export interface INotification {
     updatedAt: Date;
 }
 
-export interface INotificationDocument extends INotification, Document {
-    _id: Types.ObjectId;
-}
+export type INotificationDocument = HydratedDocument<INotification>;
 
 // ── Notification Payload ──────────────────────────────────────────────────
 export interface NotificationPayload {
