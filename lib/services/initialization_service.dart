@@ -71,7 +71,7 @@ class InitializationService {
     if (!kIsWeb) {
       await _secureStorage.delete(key: 'jwt');
     }
-    _notificationService.dispose();
+    await _notificationService.dispose();
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

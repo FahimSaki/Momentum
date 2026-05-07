@@ -153,7 +153,11 @@ class NotificationService {
   Future<void> _registerToken() async {
     try {
       if (Platform.isIOS) {
-        await FirebaseMessaging.instance.getAPNSToken();
+        final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        if (apnsToken == null) {
+          _logger.w('APNS token is null, skipping FCM registration on iOS');
+          return;
+        }
       }
 
       final token = await FirebaseMessaging.instance.getToken();
@@ -171,7 +175,7 @@ class NotificationService {
 
     try {
       final response = await http.post(
-        Uri.parse('$apiBaseUrl/notifications/fcm-token'),
+        Uri.parse('$apiBaseUrl/users/fcm-token'),
         headers: _headers,
         body: json.encode({'token': token, 'platform': _platform()}),
       );
@@ -264,7 +268,7 @@ class NotificationService {
 
   Future<void> markAsRead(String notificationId) async {
     try {
-      final response = await http.put(
+      final response = await http.patch(
         Uri.parse('$apiBaseUrl/notifications/$notificationId/read'),
         headers: _headers,
       );
@@ -279,8 +283,8 @@ class NotificationService {
 
   Future<void> markAllAsRead() async {
     try {
-      final response = await http.put(
-        Uri.parse('$apiBaseUrl/notifications/read-all'),
+      final response = await http.patch(
+        Uri.parse('$apiBaseUrl/notifications/mark-all-read'),
         headers: _headers,
       );
       if (response.statusCode != 200) {

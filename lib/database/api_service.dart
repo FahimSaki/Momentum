@@ -58,7 +58,7 @@ class TaskApiService {
 
           for (final day in completedDays) {
             try {
-              allCompletions.add(DateTime.parse(day));
+              allCompletions.add(DateTime.parse(day).toLocal());
             } catch (_) {}
           }
         }

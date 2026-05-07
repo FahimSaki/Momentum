@@ -18,7 +18,7 @@ class UserService {
   Future<List> searchUsers(String query) async {
     try {
       final response = await http.get(
-        Uri.parse('$apiBaseUrl/users/search?query=$query&limit=20'),
+        Uri.parse('$apiBaseUrl/users/search?q=$query&limit=20'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
 
@@ -83,7 +83,7 @@ class UserService {
   }) async {
     try {
       final response = await http.put(
-        Uri.parse('$apiBaseUrl/users/privacy'),
+        Uri.parse('$apiBaseUrl/users/profile'),
         headers: _headers,
         body: json.encode({
           'isPublic': isPublic,

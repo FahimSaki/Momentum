@@ -7,16 +7,14 @@ class TaskOrganizer {
     List<Task> activeTasks,
     List<Task> completedTasks,
   ) {
-    final now = DateTime.now();
     final List<Task> active = [];
     final List<Task> completed = [];
 
     for (final task in allTasks) {
-      if (!task.isArchived) {
-        active.add(task);
-      } else if (task.archivedAt != null &&
-          now.difference(task.archivedAt!).inHours < 24) {
+      if (task.isCompletedToday()) {
         completed.add(task);
+      } else {
+        active.add(task);
       }
     }
 

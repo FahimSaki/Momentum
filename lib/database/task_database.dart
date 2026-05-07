@@ -50,17 +50,11 @@ class TaskDatabase extends ChangeNotifier {
 
   // Better getters for task states
   List<Task> get activeTasks {
-    return currentTasks.where((task) {
-      // A task is active if it's not archived OR not completed today
-      return !task.isArchived || !task.isCompletedToday();
-    }).toList();
+    return currentTasks.where((task) => !task.isCompletedToday()).toList();
   }
 
   List<Task> get completedTasks {
-    return currentTasks.where((task) {
-      // A task is in completed list if it's archived AND completed today
-      return task.isArchived && task.isCompletedToday();
-    }).toList();
+    return currentTasks.where((task) => task.isCompletedToday()).toList();
   }
 
   TaskDatabase() {

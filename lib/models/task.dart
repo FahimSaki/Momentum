@@ -130,9 +130,6 @@ class Task {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
-    // Check if task is archived and has completion for today
-    if (!isArchived) return false;
-
     return completedDays.any((completedDate) {
       final localDate = completedDate.toLocal();
       final completedDay = DateTime(

@@ -197,7 +197,7 @@ class TeamService {
   // Respond to team invitation
   Future<void> respondToInvitation(String invitationId, String response) async {
     try {
-      final httpResponse = await http.put(
+      final httpResponse = await http.patch(
         Uri.parse('$apiBaseUrl/teams/invitations/$invitationId/respond'),
         headers: _headers,
         body: json.encode({'response': response}),

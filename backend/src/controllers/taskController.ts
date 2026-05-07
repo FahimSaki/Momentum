@@ -192,8 +192,9 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        //  const now = new Date();
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
 
         if (isCompleted) {
             const alreadyToday = task.completedDays.some((d) => {
