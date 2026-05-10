@@ -32,7 +32,7 @@ class InitializationService {
     if (!kIsWeb) {
       await HomeWidget.setAppGroupId(_appGroupId);
 
-      final savedToken = await _secureStorage.read(key: 'jwt');
+      final savedToken = await _secureStorage.read(key: 'auth_jwt');
       if (savedToken != null) {
         await _notificationService.init(jwtToken: savedToken);
       }
@@ -58,18 +58,10 @@ class InitializationService {
     }
   }
 
-  /// Save JWT after login so the notification service stays authenticated.
-  static Future<void> saveJwt(String jwtToken) async {
-    if (!kIsWeb) {
-      await _secureStorage.write(key: 'jwt', value: jwtToken);
-      await _notificationService.init(jwtToken: jwtToken);
-    }
-  }
-
   /// Clear JWT on logout.
   static Future<void> clearJwt() async {
     if (!kIsWeb) {
-      await _secureStorage.delete(key: 'jwt');
+      await _secureStorage.delete(key: 'auth_jwt');
     }
     await _notificationService.dispose();
   }

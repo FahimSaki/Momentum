@@ -43,14 +43,17 @@ app.get('/wake-up', (_req, res) => {
     res.json({ message: 'Server is awake', timestamp: new Date().toISOString(), uptime: process.uptime() });
 });
 
-app.post('/manual-cleanup', async (_req, res) => {
+// Accept both GET (cron jobs) and POST (manual triggers)
+const manualCleanupHandler = async (_req: express.Request, res: express.Response) => {
     try {
         const result = await runManualCleanup();
         res.json({ message: 'Manual cleanup completed', ...result });
     } catch (err: any) {
         res.status(500).json({ message: 'Cleanup failed', error: err.message });
     }
-});
+};
+app.get('/manual-cleanup', manualCleanupHandler);
+app.post('/manual-cleanup', manualCleanupHandler);
 
 // ── API routes (no /api prefix — matches Flutter app expectations) ─────────
 app.use('/auth', authRoutes);

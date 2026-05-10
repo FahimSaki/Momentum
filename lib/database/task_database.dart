@@ -166,6 +166,7 @@ class TaskDatabase extends ChangeNotifier {
 
       _organizeTasksByType();
       logger.i('Tasks loaded and organized successfully');
+      notifyListeners();
     } catch (e, stackTrace) {
       logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
       logger.w(
@@ -296,6 +297,10 @@ class TaskDatabase extends ChangeNotifier {
   void selectTeam(Team? team) {
     selectedTeam = team;
     currentView = team != null ? 'team' : 'personal';
+    // Clear immediately so UI doesn't show stale tasks from previous context
+    currentTasks.clear();
+    personalTasks.clear();
+    teamTasks.clear();
     notifyListeners();
     _loadTasks();
   }

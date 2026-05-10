@@ -99783,6 +99783,7 @@ B.b.a6(i)
 B.b.M(i,m)
 n.wm()
 j.bO("Tasks loaded and organized successfully")
+n.V()
 p=2
 s=6
 break
@@ -99976,9 +99977,13 @@ break
 case 5:return A.r(null,r)
 case 1:return A.q(p.at(-1),r)}})
 return A.t($async$lO,r)},
-GC(a){this.y=a
-this.V()
-this.me()},
+GC(a){var s=this
+s.y=a
+B.b.a6(s.b)
+B.b.a6(s.c)
+B.b.a6(s.d)
+s.V()
+s.me()},
 wm(){var s,r,q,p,o,n=this,m=n.c
 B.b.a6(m)
 s=n.d
