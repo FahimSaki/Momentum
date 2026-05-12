@@ -153,16 +153,22 @@ class NotificationService {
   Future<void> _registerToken() async {
     try {
       if (Platform.isIOS) {
-        final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+        // Add a retry loop — APNS token may not be ready immediately
+        String? apnsToken;
+        for (int i = 0; i < 3; i++) {
+          apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+          if (apnsToken != null) break;
+          await Future.delayed(const Duration(seconds: 2));
+        }
         if (apnsToken == null) {
-          _logger.w('APNS token is null, skipping FCM registration on iOS');
+          _logger.w('APNS token still null after retries');
           return;
         }
       }
 
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        _logger.i('FCM token obtained');
+        _logger.i('FCM token obtained: ${token.substring(0, 20)}...');
         await _sendTokenToBackend(token);
       }
     } catch (e) {

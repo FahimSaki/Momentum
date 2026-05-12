@@ -65,6 +65,7 @@ const saveTaskToHistory = async (task: ITaskDocument): Promise<void> => {
 
 export const createTask = async (req: Request, res: Response): Promise<void> => {
     try {
+        console.log('🟢 TASK CREATE HIT', { userId: req.userId, body: req.body });
         const {
             name,
             description,
@@ -131,9 +132,15 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
         ]);
 
         const notifRecipients = assigneeIds.filter((id) => id.toString() !== assignerId);
+        console.log('📩 notifRecipients:', notifRecipients.length, notifRecipients);
         if (notifRecipients.length > 0) {
-            try { await sendTaskAssignedNotification(task, req.user, notifRecipients.map(String)); }
+            try {
+                console.log('📡 calling sendTaskAssignedNotification');
+                await sendTaskAssignedNotification(task, req.user, notifRecipients.map(String));
+            }
             catch (e) { console.error('Notification error (non-critical):', e); }
+        } else {
+            console.log('⚠️ No recipients to notify — skipping FCM');
         }
 
         res.status(201).json({ message: 'Task created successfully', task });
@@ -234,9 +241,24 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
 
         await task.save();
 
-        if (isCompleted && task.assignedBy && (task.assignedBy as any)._id?.toString() !== userId) {
-            try { await sendTaskCompletedNotification(task, req.user, (task.assignedBy as any)._id); }
-            catch (e) { console.error('Notification error (non-critical):', e); }
+        // Fixed — notify ALL assignees except the completer:
+        if (isCompleted) {
+            const toNotify = task.assignedTo
+                .map((a: any) => a._id?.toString() ?? a.toString())
+                .filter((id: string) => id !== userId);
+
+            if (task.assignedBy) {
+                const assignerIdStr = (task.assignedBy as any)._id?.toString()
+                    ?? task.assignedBy.toString();
+                if (!toNotify.includes(assignerIdStr)) toNotify.push(assignerIdStr);
+            }
+
+            for (const recipientId of toNotify) {
+                try {
+                    await sendTaskCompletedNotification(task, req.user, recipientId);
+                }
+                catch (e) { console.error('Notification error (non-critical):', e); }
+            }
         }
 
         await task.populate([{ path: 'completedBy.user', select: 'name email avatar' }, { path: 'team', select: 'name' }]);
