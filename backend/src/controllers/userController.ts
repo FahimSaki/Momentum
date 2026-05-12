@@ -64,6 +64,7 @@ export const updateNotificationSettings = async (req: Request, res: Response): P
 // ── Register / update FCM token ───────────────────────────────────────────
 
 export const registerFcmToken = async (req: Request, res: Response): Promise<void> => {
+    console.log('📱 [FCM HIT] registerFcmToken called');
     try {
         const { token, platform = 'android' } = req.body as { token?: string; platform?: string };
 

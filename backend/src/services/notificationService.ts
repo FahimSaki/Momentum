@@ -13,49 +13,93 @@ let firebaseInitialised = false;
 export const initFirebase = (): void => {
     if (firebaseInitialised || admin.apps.length) { firebaseInitialised = true; return; }
     try {
-        let serviceAccount;
+        let serviceAccount: object | undefined;
+        let source = '';
 
-        // ── Render / production ─────────────────────────────
-        if (process.env.NODE_ENV === 'production') {
-            const filePath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH
-                || '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json';
-
-            serviceAccount = JSON.parse(
-                fs.readFileSync(filePath, 'utf8')
-            );
+        // Option 1: full JSON string in env var (safest for cloud hosting)
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+            serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+            source = 'FIREBASE_SERVICE_ACCOUNT_JSON env var';
         }
-
-        // ── Local development ───────────────────────────────
+        // Option 2: explicit file path in env var
+        else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+            serviceAccount = JSON.parse(
+                fs.readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8')
+            );
+            source = `file at ${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`;
+        }
+        // Option 3: Render mounted secret file (default path)
+        else if (fs.existsSync('/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json')) {
+            serviceAccount = JSON.parse(
+                fs.readFileSync(
+                    '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json',
+                    'utf8'
+                )
+            );
+            source = 'Render mounted secret file';
+        }
+        // Option 4: local dev file relative to compiled output
         else {
             const localPath = path.join(
                 __dirname,
                 '../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json'
             );
-
-            serviceAccount = require(localPath);
+            if (!fs.existsSync(localPath)) {
+                console.warn('⚠️ Firebase: no service account found in any location — push notifications disabled');
+                return;
+            }
+            serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+            source = `local dev file at ${localPath}`;
         }
 
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
+            credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
         });
 
         firebaseInitialised = true;
-        console.log('✅ Firebase initialised');
+        console.log(`✅ Firebase initialised (source: ${source})`);
     } catch (err) {
         console.error('❌ Firebase init failed:', err);
     }
 };
 
 // ── Send FCM to one user ──────────────────────────────────────────────────
-export const sendNotification = async (userId: string, payload: NotificationPayload): Promise<boolean> => {
-    if (!firebaseInitialised) return false;
+export const sendNotification = async (
+    userId: string,
+    payload: NotificationPayload
+): Promise<boolean> => {
+    console.log('📡 ENTER sendNotification:', userId);
+
+    if (!firebaseInitialised) {
+        console.log('❌ Firebase not initialised');
+        return false;
+    }
+
     try {
         const user = await User.findById(userId).select('fcmTokens fcmToken');
-        if (!user) return false;
+
+        if (!user) {
+            console.log('❌ User not found:', userId);
+            return false;
+        }
+
         const tokens: string[] = [];
-        if (user.fcmTokens?.length) tokens.push(...user.fcmTokens.map((t) => t.token));
-        else if (user.fcmToken) tokens.push(user.fcmToken);
-        if (!tokens.length) return false;
+
+        if (user.fcmTokens?.length) {
+            tokens.push(...user.fcmTokens.map((t) => t.token));
+        } else if (user.fcmToken) {
+            tokens.push(user.fcmToken);
+        }
+
+        console.log('📲 Tokens resolved:', {
+            userId,
+            tokenCount: tokens.length,
+        });
+
+        if (!tokens.length) {
+            console.log('❌ No FCM tokens found for user:', userId);
+            return false;
+        }
 
         const dataMap: Record<string, string> = {
             type: payload.type ?? '',
@@ -69,22 +113,64 @@ export const sendNotification = async (userId: string, payload: NotificationPayl
         };
 
         const stale: string[] = [];
-        await Promise.allSettled(tokens.map(async (token) => {
-            try {
-                await admin.messaging().send({
-                    token, notification: { title: payload.title, body: payload.body }, data: dataMap,
-                    android: { priority: 'high', notification: { channelId: 'default', sound: 'default' } },
-                    apns: { payload: { aps: { sound: 'default', badge: 1 } } },
-                });
-            } catch (err: any) {
-                const code = err?.errorInfo?.code ?? '';
-                if (['messaging/invalid-registration-token', 'messaging/registration-token-not-registered'].includes(code)) stale.push(token);
-            }
-        }));
 
-        if (stale.length) await User.findByIdAndUpdate(userId, { $pull: { fcmTokens: { token: { $in: stale } } } });
+        await Promise.allSettled(
+            tokens.map(async (token) => {
+                try {
+                    await admin.messaging().send({
+                        token,
+                        notification: {
+                            title: payload.title,
+                            body: payload.body,
+                        },
+                        data: dataMap,
+                        android: {
+                            priority: 'high',
+                            notification: {
+                                channelId: 'default',
+                                sound: 'default',
+                            },
+                        },
+                        apns: {
+                            payload: {
+                                aps: {
+                                    sound: 'default',
+                                    badge: 1,
+                                },
+                            },
+                        },
+                    });
+                } catch (err: any) {
+                    const code = err?.errorInfo?.code ?? '';
+                    if (
+                        [
+                            'messaging/invalid-registration-token',
+                            'messaging/registration-token-not-registered',
+                        ].includes(code)
+                    ) {
+                        stale.push(token);
+                    }
+                }
+            })
+        );
+
+        if (stale.length) {
+            await User.findByIdAndUpdate(userId, {
+                $pull: { fcmTokens: { token: { $in: stale } } },
+            });
+        }
+
+        console.log('📲 SEND FINISHED:', {
+            userId,
+            tokenCount: tokens.length,
+            staleRemoved: stale.length,
+        });
+
         return true;
-    } catch (err) { console.error('sendNotification error:', err); return false; }
+    } catch (err) {
+        console.error('❌ sendNotification error:', err);
+        return false;
+    }
 };
 
 // ── Update FCM token ──────────────────────────────────────────────────────

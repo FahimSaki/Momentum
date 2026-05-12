@@ -185,6 +185,26 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   }
 
   Widget _buildMemberSelection(Team team) {
+    // Filter out the current user so they don't assign to themselves
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final otherMembers = team.members
+        .where((m) => m.user.id != db.userId)
+        .toList();
+
+    if (otherMembers.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          'No other members to assign to.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
     return Container(
       height: 150,
       decoration: BoxDecoration(
@@ -192,7 +212,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListView(
-        children: team.members.map((member) {
+        children: otherMembers.map((member) {
           final isSelected = _selectedAssignees.contains(member.user.id);
           return CheckboxListTile(
             title: Text(member.user.name),
@@ -224,34 +244,41 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
       return;
     }
 
+    // When individual mode and a team is selected, require at least one assignee
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (_assignmentType == 'individual' &&
+        db.selectedTeam != null &&
+        _selectedAssignees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select at least one member to assign this task to',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-
-      // FIX: Ensure teamId is passed correctly
       final teamId = db.selectedTeam?.id;
 
-      _logger.i(
-        'Creating task: name=$name, teamId=$teamId, assignmentType=$_assignmentType',
-      );
-
-      // task creation with better error handling
       final task = await db.createTask(
         name: name,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        assignedTo: _assignmentType == 'team'
-            ? null // Let backend handle team assignment
-            : (_selectedAssignees.isEmpty ? null : _selectedAssignees),
-        teamId: teamId, // FIX: Pass teamId explicitly
+        // For team-wide assignment, pass null and let backend assign to everyone.
+        // For individual, pass the selected list (never empty at this point).
+        assignedTo: _assignmentType == 'team' ? null : _selectedAssignees,
+        teamId: teamId,
         priority: _priority,
         dueDate: _dueDate,
         assignmentType: _assignmentType,
-        tags: [], // Empty tags list
+        tags: [],
       );
 
       _logger.i('Task created successfully: ${task.id}');
@@ -264,21 +291,11 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
       }
     } catch (e, stackTrace) {
       _logger.e('Error creating task', error: e, stackTrace: stackTrace);
-
       if (mounted) {
-        // Better error message extraction
         String errorMessage = e.toString();
         if (errorMessage.startsWith('Exception: ')) {
           errorMessage = errorMessage.substring(11);
         }
-
-        // Handle specific error types
-        if (errorMessage.toLowerCase().contains('network')) {
-          errorMessage = 'Network error - check your connection';
-        } else if (errorMessage.toLowerCase().contains('unauthorized')) {
-          errorMessage = 'Session expired - please login again';
-        }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error creating task: $errorMessage'),
