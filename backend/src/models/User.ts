@@ -41,7 +41,7 @@ const userSchema = new Schema<IUserDocument>(
         inviteId: {
             type: String,
             unique: true,
-            required: true,
+            required: false,
             sparse: true,
         },
 
@@ -82,7 +82,7 @@ function generateUniqueInviteId(): string {
 }
 
 // ── Pre-save hook ───────────────────────────────────────
-userSchema.pre('save', async function (next) {
+userSchema.pre('validate', async function (next) {
     if (!this.inviteId) {
         let attempts = 0;
         const maxAttempts = 10;
