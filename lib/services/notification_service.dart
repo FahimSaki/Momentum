@@ -34,15 +34,14 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     'title: ${message.notification?.title}',
   );
 
-  // Show a local notification when the app is in the background or terminated.
-  // The OS will already show a notification if a `notification` payload is
-  // present, but we do it here too so the channel / icon are always correct.
   final localNotifications = FlutterLocalNotificationsPlugin();
 
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   const iosInit = DarwinInitializationSettings();
+
+  // FIX: flutter_local_notifications v21 — `settings` is now a named param
   await localNotifications.initialize(
-    const InitializationSettings(android: androidInit, iOS: iosInit),
+    settings: const InitializationSettings(android: androidInit, iOS: iosInit),
   );
 
   await localNotifications
@@ -53,11 +52,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   final notification = message.notification;
   if (notification != null) {
+    // FIX: flutter_local_notifications v21 — `show()` now uses named params
     await localNotifications.show(
-      message.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: message.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channel.id,
           channel.name,
@@ -138,13 +138,18 @@ class NotificationService {
       requestSoundPermission: false,
     );
 
+    // FIX: flutter_local_notifications v21 — `settings` is now a named param
     await _localNotifications.initialize(
-      const InitializationSettings(android: androidInit, iOS: iosInit),
+      settings: const InitializationSettings(
+        android: androidInit,
+        iOS: iosInit,
+      ),
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
       onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTap,
     );
 
-    // Create the high-importance channel on Android
+    // Create the high-importance channel on Android so WhatsApp-style
+    // heads-up banners appear even when the app is in the foreground.
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -164,8 +169,9 @@ class NotificationService {
   // ── Firebase Messaging ────────────────────────────────────────────────────
 
   Future<void> _initFirebaseMessaging() async {
-    // Register the TOP-LEVEL background handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    // NOTE: The top-level background handler is registered once in main.dart
+    // BEFORE Firebase.initializeApp(). Do NOT register it again here — a
+    // duplicate registration can cause missed messages on some devices.
 
     // Request permission (iOS + Android 13+)
     final settings = await FirebaseMessaging.instance.requestPermission(
@@ -185,9 +191,7 @@ class NotificationService {
       return;
     }
 
-    // On Android, FCM delivers data-only messages to background apps silently
-    // unless you set a high-priority channel. Tell FCM to use the foreground
-    // presentation options so iOS shows banners while the app is open.
+    // Ensure iOS shows banners while the app is open.
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
           alert: true,
@@ -198,6 +202,7 @@ class NotificationService {
     await _registerToken();
 
     // ── Listeners ────────────────────────────────────────────────────────────
+
     _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
       token,
     ) async {
@@ -205,17 +210,18 @@ class NotificationService {
       await _sendTokenToBackend(token);
     });
 
-    // App is OPEN (foreground)
+    // App is OPEN (foreground) — FCM does NOT show a banner automatically,
+    // so we display one ourselves via flutter_local_notifications.
     _onMessageSub = FirebaseMessaging.onMessage.listen(
       _handleForegroundMessage,
     );
 
-    // App was in BACKGROUND, user tapped the notification
+    // App was in BACKGROUND, user tapped the notification.
     _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
       _handleNotificationTap,
     );
 
-    // App was TERMINATED, user tapped the notification
+    // App was TERMINATED, user tapped the notification.
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       _logger.i(
@@ -231,7 +237,7 @@ class NotificationService {
   Future<void> _registerToken() async {
     try {
       if (!kIsWeb && Platform.isIOS) {
-        // APNS token must exist before FCM token is available on iOS
+        // APNS token must exist before FCM token is available on iOS.
         String? apnsToken;
         for (int i = 0; i < 5; i++) {
           apnsToken = await FirebaseMessaging.instance.getAPNSToken();
@@ -298,8 +304,8 @@ class NotificationService {
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
-  /// App is in the FOREGROUND — show a local notification ourselves because
-  /// FCM does NOT display a heads-up banner when the app is open.
+  /// App is in the FOREGROUND — show a WhatsApp-style heads-up banner
+  /// because FCM does NOT display one automatically when the app is open.
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     _logger.i(
       'FCM foreground: ${message.messageId} '
@@ -309,11 +315,12 @@ class NotificationService {
     final notification = message.notification;
     if (notification == null) return;
 
+    // FIX: flutter_local_notifications v21 — `show()` now uses named params
     await _localNotifications.show(
-      message.hashCode,
-      notification.title,
-      notification.body,
-      NotificationDetails(
+      id: message.hashCode,
+      title: notification.title,
+      body: notification.body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channel.id,
           channel.name,
@@ -323,7 +330,7 @@ class NotificationService {
           icon: '@mipmap/ic_launcher',
           enableVibration: true,
           playSound: true,
-          // Show a heads-up notification (peek) on Android
+          // Show a heads-up (peek) banner on Android — WhatsApp-style
           fullScreenIntent: false,
           styleInformation: BigTextStyleInformation(
             notification.body ?? '',
