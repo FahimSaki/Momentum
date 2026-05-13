@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Required on Android 13+ (API 33+) for push notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
@@ -24,9 +25,22 @@
 
     <application android:name="${applicationName}" android:icon="@mipmap/ic_launcher" android:label="Momentum" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config">
 
-        <!-- ── Widget receiver ──────────────────────────────────────── -->
-        <!-- NOTE: MomentumWidgetService has been removed. The widget now
-             renders directly using fixed rows — no RemoteViewsService needed. -->
+        <!-- ── FCM default notification channel ───────────────────────────
+             This makes sure notifications land in the high-importance channel
+             that flutter_local_notifications creates at runtime. Without this,
+             Android may deliver the notification silently or to the wrong
+             channel on first install (before the channel exists). -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="momentum_high_importance" />
+
+        <!-- Default notification icon (shown in the status bar).
+             Must be a white-on-transparent drawable; ic_launcher is fine for
+             debug builds but replace with a proper monochrome icon for release. -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@mipmap/ic_launcher" />
+
+        <!-- Default notification colour (accent) -->
+        <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:resource="@color/notification_color" />
+
+        <!-- ── Widget receiver ──────────────────────────────────────────── -->
         <receiver android:name=".MomentumHomeWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
@@ -36,7 +50,7 @@
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/momentum_home_widget_info" />
         </receiver>
 
-        <!-- ── Main Activity ────────────────────────────────────────── -->
+        <!-- ── Main Activity ────────────────────────────────────────────── -->
         <activity android:name=".MainActivity" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode" android:exported="true" android:hardwareAccelerated="true" android:launchMode="singleTop" android:taskAffinity="" android:theme="@style/LaunchTheme" android:windowSoftInputMode="adjustResize">
 
             <meta-data android:name="io.flutter.embedding.android.NormalTheme" android:resource="@style/NormalTheme" />
@@ -52,6 +66,14 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="homeWidget" />
+            </intent-filter>
+
+            <!-- FCM notification tap when app is in background/terminated.
+                 The SINGLE_TOP flag prevents spawning a new activity if one
+                 is already running. -->
+            <intent-filter>
+                <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

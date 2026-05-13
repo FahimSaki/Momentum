@@ -3,28 +3,81 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
 import 'package:momentum/constants/api_base_url.dart';
+import 'package:momentum/firebase_options.dart';
 import 'package:momentum/models/app_notification.dart';
 
-// ── Background message handler ────────────────────────────────────────────
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('[FCM] Background message: ${message.messageId}');
-}
-
 // ── Android notification channel ──────────────────────────────────────────
-const AndroidNotificationChannel _channel = AndroidNotificationChannel(
-  'momentum_notifications',
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'momentum_high_importance',
   'Momentum Notifications',
   description: 'Task assignments, completions, and team invitations',
-  importance: Importance.high,
+  importance: Importance.max,
   enableVibration: true,
   playSound: true,
+  showBadge: true,
 );
+
+// ── Background message handler (MUST be top-level, not a class method) ────
+// Firebase must be initialised here because the isolate is fresh.
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  debugPrint(
+    '[FCM-BG] message: ${message.messageId}, '
+    'title: ${message.notification?.title}',
+  );
+
+  // Show a local notification when the app is in the background or terminated.
+  // The OS will already show a notification if a `notification` payload is
+  // present, but we do it here too so the channel / icon are always correct.
+  final localNotifications = FlutterLocalNotificationsPlugin();
+
+  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const iosInit = DarwinInitializationSettings();
+  await localNotifications.initialize(
+    const InitializationSettings(android: androidInit, iOS: iosInit),
+  );
+
+  await localNotifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(channel);
+
+  final notification = message.notification;
+  if (notification != null) {
+    await localNotifications.show(
+      message.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: Importance.max,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          playSound: true,
+        ),
+        iOS: const DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: json.encode(message.data),
+    );
+  }
+}
 
 class NotificationService {
   final Logger _logger = Logger();
@@ -33,7 +86,6 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  // ── Subscription tracking ──────────────────────────────────────────────
   StreamSubscription<RemoteMessage>? _onMessageSub;
   StreamSubscription<RemoteMessage>? _onMessageOpenedAppSub;
   StreamSubscription<String>? _onTokenRefreshSub;
@@ -58,12 +110,12 @@ class NotificationService {
     try {
       await _initLocalNotifications();
 
-      // ── Prevent duplicate listeners ────────────────────────────────────────
       if (!_isFirebaseInitialized) {
         await _initFirebaseMessaging();
         _isFirebaseInitialized = true;
       } else {
-        await _registerToken(); // only refresh token
+        // App already running — just make sure the token is current
+        await _registerToken();
       }
 
       _logger.i('NotificationService initialised');
@@ -76,7 +128,7 @@ class NotificationService {
     }
   }
 
-  // ── Local notifications setup ─────────────────────────────────────────────
+  // ── Local notifications ───────────────────────────────────────────────────
 
   Future<void> _initLocalNotifications() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -87,46 +139,65 @@ class NotificationService {
     );
 
     await _localNotifications.initialize(
-      settings: const InitializationSettings(
-        android: androidInit,
-        iOS: iosInit,
-      ),
+      const InitializationSettings(android: androidInit, iOS: iosInit),
       onDidReceiveNotificationResponse: _onLocalNotificationTap,
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTap,
     );
 
+    // Create the high-importance channel on Android
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
         >()
-        ?.createNotificationChannel(_channel);
+        ?.createNotificationChannel(channel);
   }
 
   void _onLocalNotificationTap(NotificationResponse response) {
-    _logger.i('Local notification tapped: ${response.payload}');
+    _logger.i('Notification tapped (foreground): ${response.payload}');
   }
 
-  // ── Firebase Messaging setup ──────────────────────────────────────────────
+  @pragma('vm:entry-point')
+  static void _onBackgroundNotificationTap(NotificationResponse response) {
+    debugPrint('[FCM] Background notification tapped: ${response.payload}');
+  }
+
+  // ── Firebase Messaging ────────────────────────────────────────────────────
 
   Future<void> _initFirebaseMessaging() async {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    // Register the TOP-LEVEL background handler
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
+    // Request permission (iOS + Android 13+)
     final settings = await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
       sound: true,
       provisional: false,
+      announcement: false,
+      carPlay: false,
+      criticalAlert: false,
     );
 
-    _logger.i('FCM permission: ${settings.authorizationStatus}');
+    _logger.i('FCM permission status: ${settings.authorizationStatus}');
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
       _logger.w('Push notifications denied by user');
       return;
     }
 
+    // On Android, FCM delivers data-only messages to background apps silently
+    // unless you set a high-priority channel. Tell FCM to use the foreground
+    // presentation options so iOS shows banners while the app is open.
+    await FirebaseMessaging.instance
+        .setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
     await _registerToken();
 
-    // ── Store subscriptions instead of duplicating ─────────────────────────
+    // ── Listeners ────────────────────────────────────────────────────────────
     _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
       token,
     ) async {
@@ -134,16 +205,23 @@ class NotificationService {
       await _sendTokenToBackend(token);
     });
 
+    // App is OPEN (foreground)
     _onMessageSub = FirebaseMessaging.onMessage.listen(
       _handleForegroundMessage,
     );
 
+    // App was in BACKGROUND, user tapped the notification
     _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
       _handleNotificationTap,
     );
 
+    // App was TERMINATED, user tapped the notification
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
+      _logger.i(
+        'App opened from terminated state via notification: '
+        '${initialMessage.messageId}',
+      );
       _handleNotificationTap(initialMessage);
     }
   }
@@ -152,47 +230,62 @@ class NotificationService {
 
   Future<void> _registerToken() async {
     try {
-      if (Platform.isIOS) {
-        // Add a retry loop — APNS token may not be ready immediately
+      if (!kIsWeb && Platform.isIOS) {
+        // APNS token must exist before FCM token is available on iOS
         String? apnsToken;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
           apnsToken = await FirebaseMessaging.instance.getAPNSToken();
           if (apnsToken != null) break;
           await Future.delayed(const Duration(seconds: 2));
         }
         if (apnsToken == null) {
-          _logger.w('APNS token still null after retries');
+          _logger.w('APNS token still null after retries — skipping FCM reg');
           return;
         }
+        _logger.i('APNS token obtained');
       }
 
       final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        _logger.i('FCM token obtained: ${token.substring(0, 20)}...');
+        _logger.i('FCM token: ${token.substring(0, 20)}...');
         await _sendTokenToBackend(token);
+      } else {
+        _logger.w('FCM getToken() returned null');
       }
-    } catch (e) {
-      _logger.w('Could not obtain FCM token: $e');
+    } catch (e, st) {
+      _logger.w('Could not obtain FCM token', error: e, stackTrace: st);
     }
   }
 
   Future<void> _sendTokenToBackend(String token) async {
-    if (_jwtToken == null) return;
+    if (_jwtToken == null) {
+      _logger.w('No JWT — cannot register FCM token yet');
+      return;
+    }
 
     try {
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl/users/fcm-token'),
-        headers: _headers,
-        body: json.encode({'token': token, 'platform': _platform()}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$apiBaseUrl/users/fcm-token'),
+            headers: _headers,
+            body: json.encode({'token': token, 'platform': _platform()}),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        _logger.i('FCM token registered with backend');
+        _logger.i('FCM token registered with backend ✅');
       } else {
-        _logger.w('FCM token registration failed: ${response.statusCode}');
+        _logger.w(
+          'FCM token registration failed: '
+          '${response.statusCode} ${response.body}',
+        );
       }
-    } catch (e) {
-      _logger.w('Could not send FCM token to backend: $e');
+    } catch (e, st) {
+      _logger.w(
+        'Could not send FCM token to backend',
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 
@@ -203,26 +296,41 @@ class NotificationService {
     return 'android';
   }
 
-  // ── Message handling ──────────────────────────────────────────────────────
+  // ── Message handlers ──────────────────────────────────────────────────────
 
+  /// App is in the FOREGROUND — show a local notification ourselves because
+  /// FCM does NOT display a heads-up banner when the app is open.
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    _logger.i('FCM foreground message: ${message.messageId}');
+    _logger.i(
+      'FCM foreground: ${message.messageId} '
+      'title="${message.notification?.title}"',
+    );
 
     final notification = message.notification;
     if (notification == null) return;
 
     await _localNotifications.show(
-      id: message.hashCode,
-      title: notification.title,
-      body: notification.body,
-      notificationDetails: NotificationDetails(
+      message.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
-          importance: Importance.high,
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          importance: Importance.max,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+          enableVibration: true,
+          playSound: true,
+          // Show a heads-up notification (peek) on Android
+          fullScreenIntent: false,
+          styleInformation: BigTextStyleInformation(
+            notification.body ?? '',
+            htmlFormatBigText: false,
+            contentTitle: notification.title,
+            htmlFormatContentTitle: false,
+          ),
         ),
         iOS: const DarwinNotificationDetails(
           presentAlert: true,
@@ -236,9 +344,11 @@ class NotificationService {
 
   void _handleNotificationTap(RemoteMessage message) {
     _logger.i('Notification tapped: type=${message.data['type']}');
+    // Add any navigation logic here based on message.data['type']
+    // e.g. navigate to notifications page, specific task, etc.
   }
 
-  // ── REST API methods ─────────────────────────────────────────────────────
+  // ── REST API ──────────────────────────────────────────────────────────────
 
   Future<List<AppNotification>> getNotifications() async {
     try {
@@ -263,7 +373,10 @@ class NotificationService {
             .map((json) => AppNotification.fromJson(json))
             .toList();
       } else {
-        _logger.e('Error fetching notifications: ${response.statusCode}');
+        _logger.e(
+          'Error fetching notifications: '
+          '${response.statusCode}',
+        );
         return [];
       }
     } catch (e, st) {
@@ -306,7 +419,8 @@ class NotificationService {
     }
   }
 
-  // ── Cleanup ─────────────────────────────────────────────────────
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+
   Future<void> dispose() async {
     await _onMessageSub?.cancel();
     await _onMessageOpenedAppSub?.cancel();
@@ -315,7 +429,6 @@ class NotificationService {
     _onMessageSub = null;
     _onMessageOpenedAppSub = null;
     _onTokenRefreshSub = null;
-
     _isFirebaseInitialized = false;
 
     _logger.i('NotificationService disposed');

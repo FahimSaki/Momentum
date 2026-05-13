@@ -16,20 +16,15 @@ export const initFirebase = (): void => {
         let serviceAccount: object | undefined;
         let source = '';
 
-        // Option 1: full JSON string in env var (safest for cloud hosting)
         if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
             serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
             source = 'FIREBASE_SERVICE_ACCOUNT_JSON env var';
-        }
-        // Option 2: explicit file path in env var
-        else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+        } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
             serviceAccount = JSON.parse(
                 fs.readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8')
             );
             source = `file at ${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`;
-        }
-        // Option 3: Render mounted secret file (default path)
-        else if (fs.existsSync('/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json')) {
+        } else if (fs.existsSync('/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json')) {
             serviceAccount = JSON.parse(
                 fs.readFileSync(
                     '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json',
@@ -37,15 +32,13 @@ export const initFirebase = (): void => {
                 )
             );
             source = 'Render mounted secret file';
-        }
-        // Option 4: local dev file relative to compiled output
-        else {
+        } else {
             const localPath = path.join(
                 __dirname,
                 '../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json'
             );
             if (!fs.existsSync(localPath)) {
-                console.warn('⚠️ Firebase: no service account found in any location — push notifications disabled');
+                console.warn('⚠️ Firebase: no service account found — push notifications disabled');
                 return;
             }
             serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
@@ -68,39 +61,28 @@ export const sendNotification = async (
     userId: string,
     payload: NotificationPayload
 ): Promise<boolean> => {
-    console.log('📡 ENTER sendNotification:', userId);
-
     if (!firebaseInitialised) {
-        console.log('❌ Firebase not initialised');
+        console.log('⚠️ Firebase not initialised — skipping FCM send');
         return false;
     }
 
     try {
         const user = await User.findById(userId).select('fcmTokens fcmToken');
-
-        if (!user) {
-            console.log('❌ User not found:', userId);
-            return false;
-        }
+        if (!user) { console.log('❌ User not found:', userId); return false; }
 
         const tokens: string[] = [];
-
         if (user.fcmTokens?.length) {
             tokens.push(...user.fcmTokens.map((t) => t.token));
         } else if (user.fcmToken) {
             tokens.push(user.fcmToken);
         }
 
-        console.log('📲 Tokens resolved:', {
-            userId,
-            tokenCount: tokens.length,
-        });
-
         if (!tokens.length) {
-            console.log('❌ No FCM tokens found for user:', userId);
+            console.log('⚠️ No FCM tokens for user:', userId);
             return false;
         }
 
+        // ALL values in the data map MUST be strings (FCM requirement)
         const dataMap: Record<string, string> = {
             type: payload.type ?? '',
             title: payload.title,
@@ -117,6 +99,13 @@ export const sendNotification = async (
         await Promise.allSettled(
             tokens.map(async (token) => {
                 try {
+                    // ── CRITICAL: always send BOTH `notification` and `data` ──────────
+                    // A message with ONLY `data` is delivered silently on Android when
+                    // the app is in the background (the system does not show a banner).
+                    // Including `notification` tells the Android/iOS system to render a
+                    // visible heads-up notification automatically, even when the app is
+                    // closed. The `data` payload is then available in the background
+                    // handler and the notification tap handler for routing.
                     await admin.messaging().send({
                         token,
                         notification: {
@@ -125,29 +114,52 @@ export const sendNotification = async (
                         },
                         data: dataMap,
                         android: {
-                            priority: 'high',
+                            priority: 'high',          // wake up the device
                             notification: {
-                                channelId: 'default',
+                                // Must match the channel created in Flutter
+                                channelId: 'momentum_high_importance',
                                 sound: 'default',
+                                priority: 'high',
+                                defaultVibrateTimings: true,
+                                notificationCount: 1,
                             },
                         },
                         apns: {
+                            headers: {
+                                // 10 = high priority on APNs
+                                'apns-priority': '10',
+                            },
                             payload: {
                                 aps: {
+                                    alert: {
+                                        title: payload.title,
+                                        body: payload.body,
+                                    },
                                     sound: 'default',
                                     badge: 1,
+                                    // Required for background execution on iOS
+                                    'content-available': 1,
+                                    'mutable-content': 1,
                                 },
                             },
                         },
+                        webpush: {
+                            notification: {
+                                title: payload.title,
+                                body: payload.body,
+                                icon: '/icons/Icon-192.png',
+                            },
+                        },
                     });
+                    console.log(`✅ FCM sent to ${token.substring(0, 20)}...`);
                 } catch (err: any) {
                     const code = err?.errorInfo?.code ?? '';
-                    if (
-                        [
-                            'messaging/invalid-registration-token',
-                            'messaging/registration-token-not-registered',
-                        ].includes(code)
-                    ) {
+                    console.error(`❌ FCM send error (${code}):`, err?.message ?? err);
+                    if ([
+                        'messaging/invalid-registration-token',
+                        'messaging/registration-token-not-registered',
+                        'messaging/invalid-argument',
+                    ].includes(code)) {
                         stale.push(token);
                     }
                 }
@@ -158,13 +170,8 @@ export const sendNotification = async (
             await User.findByIdAndUpdate(userId, {
                 $pull: { fcmTokens: { token: { $in: stale } } },
             });
+            console.log(`🗑️  Removed ${stale.length} stale token(s) for user ${userId}`);
         }
-
-        console.log('📲 SEND FINISHED:', {
-            userId,
-            tokenCount: tokens.length,
-            staleRemoved: stale.length,
-        });
 
         return true;
     } catch (err) {
@@ -190,16 +197,22 @@ export const sendTaskAssignedNotification = async (
     for (const recipientId of recipientIds) {
         try {
             const notif = await Notification.create({
-                recipient: new Types.ObjectId(recipientId), sender: assigner._id,
-                task: task._id, team: task.team, type: 'task_assigned',
+                recipient: new Types.ObjectId(recipientId),
+                sender: assigner._id,
+                task: task._id,
+                team: task.team,
+                type: 'task_assigned',
                 title: 'New Task Assigned',
                 message: `${assigner.name} assigned you: "${task.name}"`,
                 data: { taskId: task._id.toString(), taskName: task.name, assignerName: assigner.name },
             });
             await sendNotification(recipientId, {
-                type: 'task_assigned', title: 'New Task Assigned',
+                type: 'task_assigned',
+                title: 'New Task Assigned',
                 body: `${assigner.name} assigned you: "${task.name}"`,
-                senderId: assigner._id, taskId: task._id, teamId: task.team,
+                senderId: assigner._id,
+                taskId: task._id,
+                teamId: task.team,
                 notificationId: notif._id.toString(),
             });
         } catch (err) { console.error(`Notification failed for ${recipientId}:`, err); }
@@ -212,16 +225,22 @@ export const sendTaskCompletedNotification = async (
 ): Promise<void> => {
     try {
         const notif = await Notification.create({
-            recipient: new Types.ObjectId(recipientId.toString()), sender: completer._id,
-            task: task._id, team: task.team, type: 'task_completed',
+            recipient: new Types.ObjectId(recipientId.toString()),
+            sender: completer._id,
+            task: task._id,
+            team: task.team,
+            type: 'task_completed',
             title: 'Task Completed',
             message: `${completer.name} completed: "${task.name}"`,
             data: { taskId: task._id.toString(), taskName: task.name, completerName: completer.name },
         });
         await sendNotification(recipientId.toString(), {
-            type: 'task_completed', title: 'Task Completed',
+            type: 'task_completed',
+            title: 'Task Completed',
             body: `${completer.name} completed: "${task.name}"`,
-            senderId: completer._id, taskId: task._id, teamId: task.team,
+            senderId: completer._id,
+            taskId: task._id,
+            teamId: task.team,
             notificationId: notif._id.toString(),
         });
     } catch (err) { console.error('sendTaskCompletedNotification error:', err); }
@@ -230,38 +249,54 @@ export const sendTaskCompletedNotification = async (
 // ── Due date reminders ────────────────────────────────────────────────────
 export const sendDueDateReminders = async (): Promise<number> => {
     try {
-        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
-        const dayAfter = new Date(tomorrow); dayAfter.setDate(dayAfter.getDate() + 1);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        const dayAfter = new Date(tomorrow);
+        dayAfter.setDate(dayAfter.getDate() + 1);
 
-        const tasks = await Task.find({ dueDate: { $gte: tomorrow, $lt: dayAfter }, isArchived: false })
+        const tasks = await Task.find({
+            dueDate: { $gte: tomorrow, $lt: dayAfter },
+            isArchived: false,
+        })
             .populate('assignedTo', 'name email fcmTokens fcmToken notificationSettings')
             .populate('assignedBy', 'name email')
             .populate('team', 'name');
 
         console.log(`⏰ Found ${tasks.length} tasks due tomorrow`);
         let sent = 0;
+
         for (const task of tasks) {
             try {
                 const teamName = (task.team as any)?.name ?? 'Personal';
                 for (const assignee of task.assignedTo as any[]) {
                     await Notification.create({
-                        recipient: assignee._id, sender: task.assignedBy,
-                        task: task._id, team: task.team, type: 'task_due_reminder',
+                        recipient: assignee._id,
+                        sender: task.assignedBy,
+                        task: task._id,
+                        team: task.team,
+                        type: 'task_due_reminder',
                         title: 'Task Due Tomorrow',
                         message: `"${task.name}" in ${teamName} is due tomorrow`,
                     });
                     await sendNotification(assignee._id.toString(), {
-                        type: 'task_due_reminder', title: 'Task Due Tomorrow',
+                        type: 'task_due_reminder',
+                        title: 'Task Due Tomorrow',
                         body: `"${task.name}" in ${teamName} is due tomorrow`,
-                        taskId: task._id, teamId: task.team,
+                        taskId: task._id,
+                        teamId: task.team,
                     });
                     sent++;
                 }
             } catch (err) { console.error(`Reminder error for task ${task._id}:`, err); }
         }
+
         console.log(`✅ Sent ${sent} due date reminders`);
         return sent;
-    } catch (err) { console.error('sendDueDateReminders error:', err); return 0; }
+    } catch (err) {
+        console.error('sendDueDateReminders error:', err);
+        return 0;
+    }
 };
 
 // ── Cleanup old notifications ─────────────────────────────────────────────
@@ -271,7 +306,10 @@ export const cleanupOldNotifications = async (daysOld = 30): Promise<number> => 
         const result = await Notification.deleteMany({ createdAt: { $lt: cutoff }, isRead: true });
         console.log(`🧹 Deleted ${result.deletedCount} old notifications (>${daysOld} days)`);
         return result.deletedCount;
-    } catch (err) { console.error('cleanupOldNotifications error:', err); return 0; }
+    } catch (err) {
+        console.error('cleanupOldNotifications error:', err);
+        return 0;
+    }
 };
 
 // ── Get user notifications ────────────────────────────────────────────────
@@ -280,19 +318,23 @@ export const getUserNotifications = async (
 ) => {
     const query: Record<string, unknown> = { recipient: userId };
     if (unreadOnly) query.isRead = false;
+
     const [notifications, totalCount, unreadCount] = await Promise.all([
         Notification.find(query)
             .populate('sender', 'name email avatar')
             .populate('team', 'name')
             .populate('task', 'name')
-            .sort({ createdAt: -1 }).limit(limit).skip(offset).lean(),
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .skip(offset)
+            .lean(),
         Notification.countDocuments(query),
         Notification.countDocuments({ recipient: userId, isRead: false }),
     ]);
+
     return { notifications, totalCount, unreadCount };
 };
 
-// ── Mark as read ──────────────────────────────────────────────────────────
 export const markNotificationAsRead = async (notificationId: string, userId: string) =>
     Notification.findOneAndUpdate(
         { _id: notificationId, recipient: userId },
@@ -300,6 +342,8 @@ export const markNotificationAsRead = async (notificationId: string, userId: str
         { new: true }
     );
 
-// ── Mark all as read ──────────────────────────────────────────────────────
 export const markAllNotificationsAsRead = async (userId: string) =>
-    Notification.updateMany({ recipient: userId, isRead: false }, { isRead: true, readAt: new Date() });
+    Notification.updateMany(
+        { recipient: userId, isRead: false },
+        { isRead: true, readAt: new Date() }
+    );

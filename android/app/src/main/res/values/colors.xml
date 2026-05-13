@@ -10,4 +10,6 @@
     <color name="heatmap_level3">#FF00796B</color>
     <color name="heatmap_level4">#FF00695C</color>
     <color name="heatmap_level5">#FF004D40</color>
+    <!-- Accent colour used for FCM notification icons on Android -->
+    <color name="notification_color">#FF009688</color>
 </resources>
