@@ -24,59 +24,18 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 );
 
 // ── Background message handler (MUST be top-level, not a class method) ────
-// Firebase must be initialised here because the isolate is fresh.
+// FIX: Do NOT show a local notification here. Because the backend sends
+// messages with a `notification` field, FCM already shows the system banner
+// automatically when the app is in the background or terminated. Showing a
+// local notification here would produce a duplicate banner.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
   debugPrint(
     '[FCM-BG] message: ${message.messageId}, '
     'title: ${message.notification?.title}',
   );
-
-  final localNotifications = FlutterLocalNotificationsPlugin();
-
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const iosInit = DarwinInitializationSettings();
-
-  // FIX: flutter_local_notifications v21 — `settings` is now a named param
-  await localNotifications.initialize(
-    settings: const InitializationSettings(android: androidInit, iOS: iosInit),
-  );
-
-  await localNotifications
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(channel);
-
-  final notification = message.notification;
-  if (notification != null) {
-    // FIX: flutter_local_notifications v21 — `show()` now uses named params
-    await localNotifications.show(
-      id: message.hashCode,
-      title: notification.title,
-      body: notification.body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          importance: Importance.max,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-          enableVibration: true,
-          playSound: true,
-        ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-      payload: json.encode(message.data),
-    );
-  }
+  // FCM system handles the banner automatically — nothing else needed here.
 }
 
 class NotificationService {
@@ -138,7 +97,6 @@ class NotificationService {
       requestSoundPermission: false,
     );
 
-    // FIX: flutter_local_notifications v21 — `settings` is now a named param
     await _localNotifications.initialize(
       settings: const InitializationSettings(
         android: androidInit,
@@ -149,7 +107,7 @@ class NotificationService {
     );
 
     // Create the high-importance channel on Android so WhatsApp-style
-    // heads-up banners appear even when the app is in the foreground.
+    // heads-up banners appear when the app is in the foreground.
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -170,8 +128,7 @@ class NotificationService {
 
   Future<void> _initFirebaseMessaging() async {
     // NOTE: The top-level background handler is registered once in main.dart
-    // BEFORE Firebase.initializeApp(). Do NOT register it again here — a
-    // duplicate registration can cause missed messages on some devices.
+    // BEFORE Firebase.initializeApp(). Do NOT register it again here.
 
     // Request permission (iOS + Android 13+)
     final settings = await FirebaseMessaging.instance.requestPermission(
@@ -191,17 +148,21 @@ class NotificationService {
       return;
     }
 
-    // Ensure iOS shows banners while the app is open.
+    // FIX: Disable iOS auto-display of FCM banner in foreground.
+    // Without this, iOS would show the FCM banner AND our local notification
+    // banner simultaneously — two banners for one event.
+    // The local notification in _handleForegroundMessage handles the banner
+    // on both Android and iOS when the app is open.
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
+          alert: false, // local notification handles this
+          badge: true, // still update the app badge count
+          sound: false, // local notification handles this
         );
 
     await _registerToken();
 
-    // ── Listeners ────────────────────────────────────────────────────────────
+    // ── Listeners ─────────────────────────────────────────────────────────
 
     _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
       token,
@@ -210,8 +171,9 @@ class NotificationService {
       await _sendTokenToBackend(token);
     });
 
-    // App is OPEN (foreground) — FCM does NOT show a banner automatically,
-    // so we display one ourselves via flutter_local_notifications.
+    // App is OPEN (foreground) — FCM does NOT show a banner automatically
+    // on Android, and we disabled it on iOS above. Show one ourselves so
+    // the user still gets a WhatsApp-style heads-up banner.
     _onMessageSub = FirebaseMessaging.onMessage.listen(
       _handleForegroundMessage,
     );
@@ -304,8 +266,10 @@ class NotificationService {
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
-  /// App is in the FOREGROUND — show a WhatsApp-style heads-up banner
-  /// because FCM does NOT display one automatically when the app is open.
+  /// App is in the FOREGROUND — show a WhatsApp-style heads-up banner via
+  /// local notifications. This handles both Android (FCM never auto-shows
+  /// in foreground) and iOS (we disabled FCM auto-show above to prevent
+  /// duplicates).
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     _logger.i(
       'FCM foreground: ${message.messageId} '
@@ -315,7 +279,6 @@ class NotificationService {
     final notification = message.notification;
     if (notification == null) return;
 
-    // FIX: flutter_local_notifications v21 — `show()` now uses named params
     await _localNotifications.show(
       id: message.hashCode,
       title: notification.title,
@@ -330,7 +293,6 @@ class NotificationService {
           icon: '@mipmap/ic_launcher',
           enableVibration: true,
           playSound: true,
-          // Show a heads-up (peek) banner on Android — WhatsApp-style
           fullScreenIntent: false,
           styleInformation: BigTextStyleInformation(
             notification.body ?? '',
@@ -352,7 +314,6 @@ class NotificationService {
   void _handleNotificationTap(RemoteMessage message) {
     _logger.i('Notification tapped: type=${message.data['type']}');
     // Add any navigation logic here based on message.data['type']
-    // e.g. navigate to notifications page, specific task, etc.
   }
 
   // ── REST API ──────────────────────────────────────────────────────────────
