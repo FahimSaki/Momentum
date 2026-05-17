@@ -152,10 +152,9 @@ class _HomePageState extends State<HomePage>
           drawer: const MyDrawer(),
           floatingActionButton: FloatingActionButton(
             onPressed: () => _showTaskCreationDialog(),
-            backgroundColor: Theme.of(context).colorScheme.tertiary,
             child: Icon(
               Icons.add,
-              color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.onTertiary,
             ),
           ),
           body: Column(
@@ -165,11 +164,6 @@ class _HomePageState extends State<HomePage>
                 color: Theme.of(context).colorScheme.surface,
                 child: TabBar(
                   controller: _tabController,
-                  labelColor: Theme.of(context).colorScheme.primary,
-                  unselectedLabelColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  indicatorColor: Theme.of(context).colorScheme.primary,
                   tabs: const [
                     Tab(text: 'Dashboard'),
                     Tab(text: 'Tasks'),
