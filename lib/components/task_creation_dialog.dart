@@ -150,7 +150,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
 
                       // Priority
                       DropdownButtonFormField<String>(
-                        value: _priority,
+                        initialValue: _priority,
                         decoration: const InputDecoration(
                           labelText: 'Priority',
                           prefixIcon: Icon(Icons.flag_rounded),
@@ -262,7 +262,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                       if (selectedTeam != null) ...[
                         const SizedBox(height: 14),
                         DropdownButtonFormField<String>(
-                          value: _assignmentType,
+                          initialValue: _assignmentType,
                           decoration: const InputDecoration(
                             labelText: 'Assign To',
                             prefixIcon: Icon(Icons.group_rounded),

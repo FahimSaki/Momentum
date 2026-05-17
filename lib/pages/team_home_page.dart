@@ -95,8 +95,9 @@ class _TeamHomePageState extends State<TeamHomePage> {
     if (confirmed != true || !mounted) return;
     try {
       await db.deleteTeam(widget.team.id);
-      if (mounted)
+      if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
+      }
     } catch (e) {
       if (mounted) ErrorHandler.showError(context, e, title: 'Delete failed');
     }
@@ -473,8 +474,9 @@ class _TeamHomePageState extends State<TeamHomePage> {
                           try {
                             await db.completeTask(task.id, isCompleted);
                           } catch (e) {
-                            if (mounted)
+                            if (mounted) {
                               ErrorHandler.showSnackBarError(context, e);
+                            }
                             rethrow;
                           }
                         },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/models/team.dart';
+import 'package:momentum/models/team_member.dart';
 import 'package:momentum/pages/team_settings_page.dart';
 import 'package:momentum/pages/user_search_page.dart';
 import 'package:momentum/database/task_database.dart';
@@ -242,7 +243,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     );
   }
 
-  Widget _buildMemberCard(member, bool isDark) {
+  Widget _buildMemberCard(TeamMember member, bool isDark) {
     final roleColor = _roleColor(member.role);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
