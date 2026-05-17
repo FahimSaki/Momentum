@@ -30,7 +30,7 @@ class TaskDatabase extends ChangeNotifier {
 
   // Current context
   Team? selectedTeam;
-  String currentView = 'personal'; // 'personal', 'team', 'all'
+  String currentView = 'personal';
 
   // Services
   String? jwtToken;
@@ -48,14 +48,11 @@ class TaskDatabase extends ChangeNotifier {
       List.unmodifiable(_historicalCompletions);
   bool get isInitialized => _isInitialized;
 
-  // Better getters for task states
-  List<Task> get activeTasks {
-    return currentTasks.where((task) => !task.isCompletedToday()).toList();
-  }
+  List<Task> get activeTasks =>
+      currentTasks.where((task) => !task.isCompletedToday()).toList();
 
-  List<Task> get completedTasks {
-    return currentTasks.where((task) => task.isCompletedToday()).toList();
-  }
+  List<Task> get completedTasks =>
+      currentTasks.where((task) => task.isCompletedToday()).toList();
 
   TaskDatabase() {
     if (!kIsWeb) {
@@ -71,7 +68,6 @@ class TaskDatabase extends ChangeNotifier {
     );
   }
 
-  // Initialize the database with authentication
   Future<void> initialize({required String jwt, required String userId}) async {
     try {
       logger.i('Initializing TaskDatabase with userId: $userId');
@@ -79,7 +75,6 @@ class TaskDatabase extends ChangeNotifier {
       jwtToken = jwt;
       this.userId = userId;
 
-      // Initialize services
       _teamService = TeamService(jwtToken: jwt);
       _taskService = TaskService(jwtToken: jwt);
 
@@ -87,7 +82,6 @@ class TaskDatabase extends ChangeNotifier {
         await _notificationService?.init(jwtToken: jwt);
       }
 
-      // Load initial data
       await Future.wait([
         _loadUserTeams(),
         _loadPendingInvitations(),
@@ -96,7 +90,6 @@ class TaskDatabase extends ChangeNotifier {
         _loadNotifications(),
       ]);
 
-      // Start background services (mobile only)
       if (!kIsWeb) {
         _startPolling();
         _scheduleMidnightCleanup();
@@ -117,10 +110,8 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // Clear all data (for logout)
   void clearData() {
     logger.i('Clearing TaskDatabase data');
-
     currentTasks.clear();
     personalTasks.clear();
     teamTasks.clear();
@@ -128,75 +119,50 @@ class TaskDatabase extends ChangeNotifier {
     userTeams.clear();
     pendingInvitations.clear();
     notifications.clear();
-
     selectedTeam = null;
     currentView = 'personal';
     unreadNotificationCount = 0;
-
     jwtToken = null;
     userId = null;
     _teamService = null;
     _taskService = null;
     _isInitialized = false;
-
     notifyListeners();
   }
 
   Future<void> _loadTasks() async {
     try {
-      logger.i('Loading tasks...');
-
-      if (_taskService == null) {
-        logger.w('TaskService not initialized, skipping task loading');
-        return;
-      }
+      if (_taskService == null) return;
 
       List<Task> tasks = [];
-
       if (selectedTeam != null) {
         tasks = await _taskService!.getTeamTasks(selectedTeam!.id);
-        logger.d('Loaded ${tasks.length} team tasks');
       } else {
         tasks = await _taskService!.getUserTasks();
-        logger.d('Loaded ${tasks.length} user tasks');
       }
 
       currentTasks.clear();
       currentTasks.addAll(tasks);
-
       _organizeTasksByType();
-      logger.i('Tasks loaded and organized successfully');
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
-      logger.w(
-        'Keeping existing ${currentTasks.length} tasks due to load error',
-      );
     }
   }
 
   Future<void> _loadNotifications() async {
     try {
-      if (_notificationService == null) {
-        logger.w('NotificationService not available');
-        return;
-      }
-
+      if (_notificationService == null) return;
       final notifs = await _notificationService!.getNotifications();
       notifications.clear();
       notifications.addAll(notifs);
-
       unreadNotificationCount = notifs.where((n) => !n.isRead).length;
-      logger.i(
-        'Loaded ${notifs.length} notifications ($unreadNotificationCount unread)',
-      );
     } catch (e, stackTrace) {
       logger.w(
         'Error loading notifications (non-critical)',
         error: e,
         stackTrace: stackTrace,
       );
-
       unreadNotificationCount = notifications.where((n) => !n.isRead).length;
     }
   }
@@ -206,7 +172,6 @@ class TaskDatabase extends ChangeNotifier {
       final teams = await _teamService?.getUserTeams() ?? [];
       userTeams.clear();
       userTeams.addAll(teams);
-      logger.i('Loaded ${teams.length} user teams');
     } catch (e, stackTrace) {
       logger.e('Error loading user teams', error: e, stackTrace: stackTrace);
     }
@@ -217,7 +182,6 @@ class TaskDatabase extends ChangeNotifier {
       final invitations = await _teamService?.getPendingInvitations() ?? [];
       pendingInvitations.clear();
       pendingInvitations.addAll(invitations);
-      logger.i('Loaded ${invitations.length} pending invitations');
     } catch (e, stackTrace) {
       logger.e(
         'Error loading pending invitations',
@@ -251,6 +215,45 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  // ── NEW: Update team settings ──────────────────────────────────────────
+  Future<void> updateTeamSettings(
+    String teamId,
+    Map<String, dynamic> settings,
+  ) async {
+    try {
+      await _teamService!.updateTeamSettings(teamId, settings);
+      // Reload teams to reflect changes
+      await _loadUserTeams();
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e(
+        'Error updating team settings',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
+  // ── NEW: Delete team ───────────────────────────────────────────────────
+  Future<void> deleteTeam(String teamId) async {
+    try {
+      await _teamService!.deleteTeam(teamId);
+      userTeams.removeWhere((t) => t.id == teamId);
+      if (selectedTeam?.id == teamId) {
+        selectedTeam = null;
+        currentView = 'personal';
+        currentTasks.clear();
+        personalTasks.clear();
+        teamTasks.clear();
+      }
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e('Error deleting team', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
   Future<void> inviteToTeam({
     required String teamId,
     String? email,
@@ -276,13 +279,8 @@ class TaskDatabase extends ChangeNotifier {
     try {
       final response = accept ? 'accepted' : 'declined';
       await _teamService!.respondToInvitation(invitationId, response);
-
       pendingInvitations.removeWhere((inv) => inv.id == invitationId);
-
-      if (accept) {
-        await _loadUserTeams();
-      }
-
+      if (accept) await _loadUserTeams();
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e(
@@ -297,7 +295,6 @@ class TaskDatabase extends ChangeNotifier {
   void selectTeam(Team? team) {
     selectedTeam = team;
     currentView = team != null ? 'team' : 'personal';
-    // Clear immediately so UI doesn't show stale tasks from previous context
     currentTasks.clear();
     personalTasks.clear();
     teamTasks.clear();
@@ -308,7 +305,6 @@ class TaskDatabase extends ChangeNotifier {
   void _organizeTasksByType() {
     personalTasks.clear();
     teamTasks.clear();
-
     for (final task in currentTasks) {
       if (task.isTeamTask) {
         teamTasks.add(task);
@@ -316,10 +312,6 @@ class TaskDatabase extends ChangeNotifier {
         personalTasks.add(task);
       }
     }
-
-    logger.d(
-      'Organized tasks: ${personalTasks.length} personal, ${teamTasks.length} team',
-    );
   }
 
   Future<void> _loadHistoricalCompletions() async {
@@ -328,9 +320,6 @@ class TaskDatabase extends ChangeNotifier {
           await _taskService?.getTaskHistory(teamId: selectedTeam?.id) ?? [];
       _historicalCompletions.clear();
       _historicalCompletions.addAll(historicalData);
-      logger.i(
-        'Loaded ${_historicalCompletions.length} historical completions',
-      );
     } catch (e, stackTrace) {
       logger.w(
         'Could not load historical completions (non-critical)',
@@ -351,14 +340,7 @@ class TaskDatabase extends ChangeNotifier {
     String assignmentType = 'individual',
   }) async {
     try {
-      logger.i(
-        'TaskDatabase.createTask called with: name=$name, teamId=$teamId, priority=$priority',
-      );
-
-      if (_taskService == null) {
-        logger.e('TaskService is not initialized');
-        throw Exception('Task service not initialized');
-      }
+      if (_taskService == null) throw Exception('Task service not initialized');
 
       String? validTeamId;
       if (teamId != null && teamId.isNotEmpty) {
@@ -367,7 +349,6 @@ class TaskDatabase extends ChangeNotifier {
           orElse: () => throw Exception('Selected team not found'),
         );
         validTeamId = team.id;
-        logger.i('Using valid team ID: $validTeamId');
       }
 
       final task = await _taskService!.createTask(
@@ -381,27 +362,21 @@ class TaskDatabase extends ChangeNotifier {
         assignmentType: assignmentType,
       );
 
-      logger.i('Task created successfully via service: ${task.id}');
-
       if (task.isTeamTask && validTeamId != null) {
         teamTasks.add(task);
-        logger.i('Added to team tasks list');
       } else {
         personalTasks.add(task);
-        logger.i('Added to personal tasks list');
       }
-
       currentTasks.add(task);
-
       _organizeTasksByType();
-      logger.i('Local task lists updated, notifying listeners');
+
       await updateWidget();
       notifyListeners();
 
       Future.delayed(const Duration(milliseconds: 500), () {
-        _loadTasks().catchError((e) {
-          logger.w('Background task refresh failed (non-critical): $e');
-        });
+        _loadTasks().catchError(
+          (e) => logger.w('Background task refresh failed: $e'),
+        );
       });
 
       return task;
@@ -411,75 +386,59 @@ class TaskDatabase extends ChangeNotifier {
         error: e,
         stackTrace: stackTrace,
       );
-
       String userMessage;
-      if (e.toString().contains('Task service not initialized')) {
+      final msg = e.toString();
+      if (msg.contains('Task service not initialized')) {
         userMessage = 'App not ready - please restart and try again';
-      } else if (e.toString().contains('Selected team not found')) {
+      } else if (msg.contains('Selected team not found')) {
         userMessage = 'Selected team is no longer available';
-      } else if (e.toString().contains('Network error')) {
+      } else if (msg.contains('Network error')) {
         userMessage = 'Network error - check your connection';
-      } else if (e.toString().contains('timeout')) {
+      } else if (msg.contains('timeout')) {
         userMessage = 'Request timeout - please try again';
-      } else if (e.toString().contains('401') ||
-          e.toString().contains('unauthorized')) {
+      } else if (msg.contains('401') || msg.contains('unauthorized')) {
         userMessage = 'Session expired - please login again';
-      } else if (e.toString().contains('403') ||
-          e.toString().contains('permission')) {
-        userMessage = 'Permission denied - you may not be a team member';
+      } else if (msg.contains('403') || msg.contains('permission')) {
+        userMessage = 'Permission denied';
       } else {
         userMessage =
-            'Failed to create task: ${e.toString().replaceFirst('Exception: ', '')}';
+            'Failed to create task: ${msg.replaceFirst('Exception: ', '')}';
       }
-
       throw Exception(userMessage);
     }
   }
 
   Future<void> completeTask(String taskId, bool isCompleted) async {
     try {
-      logger.i('TaskDatabase.completeTask: $taskId, completed: $isCompleted');
-
-      if (_taskService == null) {
-        throw Exception('Task service not initialized');
-      }
+      if (_taskService == null) throw Exception('Task service not initialized');
 
       final updatedTask = await _taskService!.completeTask(taskId, isCompleted);
-      logger.i('Task completion API call successful: ${updatedTask.id}');
 
       bool taskFound = false;
-
       for (int i = 0; i < currentTasks.length; i++) {
         if (currentTasks[i].id == taskId) {
           currentTasks[i] = updatedTask;
           taskFound = true;
-          logger.d('Updated task in currentTasks at index $i');
           break;
         }
       }
-
       for (int i = 0; i < personalTasks.length; i++) {
         if (personalTasks[i].id == taskId) {
           personalTasks[i] = updatedTask;
-          logger.d('Updated task in personalTasks at index $i');
           break;
         }
       }
-
       for (int i = 0; i < teamTasks.length; i++) {
         if (teamTasks[i].id == taskId) {
           teamTasks[i] = updatedTask;
-          logger.d('Updated task in teamTasks at index $i');
           break;
         }
       }
 
       if (!taskFound) {
-        logger.w('Task $taskId not found in local lists, refreshing all tasks');
         await _loadTasks();
       } else {
         _organizeTasksByType();
-        logger.i('Task completion state updated successfully');
       }
 
       await updateWidget();
@@ -490,19 +449,16 @@ class TaskDatabase extends ChangeNotifier {
         error: e,
         stackTrace: stackTrace,
       );
-
       String userMessage =
           'Failed to ${isCompleted ? 'complete' : 'uncomplete'} task';
-
-      if (e.toString().contains('Network error')) {
+      final msg = e.toString();
+      if (msg.contains('Network error')) {
         userMessage = 'Network error - check your connection';
-      } else if (e.toString().contains('timeout')) {
+      } else if (msg.contains('timeout')) {
         userMessage = 'Request timeout - please try again';
-      } else if (e.toString().contains('401') ||
-          e.toString().contains('unauthorized')) {
+      } else if (msg.contains('401') || msg.contains('unauthorized')) {
         userMessage = 'Session expired - please login again';
       }
-
       throw Exception(userMessage);
     }
   }
@@ -510,7 +466,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> updateTask(String taskId, Map<String, dynamic> updates) async {
     try {
       final updatedTask = await _taskService!.updateTask(taskId, updates);
-
       final index = currentTasks.indexWhere((t) => t.id == taskId);
       if (index != -1) {
         currentTasks[index] = updatedTask;
@@ -527,10 +482,8 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> deleteTask(String taskId) async {
     try {
       await _taskService!.deleteTask(taskId);
-
       currentTasks.removeWhere((t) => t.id == taskId);
       _organizeTasksByType();
-
       await _loadHistoricalCompletions();
       await updateWidget();
       notifyListeners();
@@ -543,10 +496,9 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> markNotificationAsRead(String notificationId) async {
     try {
       await _notificationService?.markAsRead(notificationId);
-
       final index = notifications.indexWhere((n) => n.id == notificationId);
       if (index != -1) {
-        final updatedNotification = AppNotification(
+        notifications[index] = AppNotification(
           id: notifications[index].id,
           recipient: notifications[index].recipient,
           sender: notifications[index].sender,
@@ -560,8 +512,6 @@ class TaskDatabase extends ChangeNotifier {
           readAt: DateTime.now(),
           createdAt: notifications[index].createdAt,
         );
-
-        notifications[index] = updatedNotification;
         unreadNotificationCount = notifications.where((n) => !n.isRead).length;
         notifyListeners();
       }
@@ -577,7 +527,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> markAllNotificationsAsRead() async {
     try {
       await _notificationService?.markAllAsRead();
-
       for (int i = 0; i < notifications.length; i++) {
         if (!notifications[i].isRead) {
           notifications[i] = AppNotification(
@@ -596,7 +545,6 @@ class TaskDatabase extends ChangeNotifier {
           );
         }
       }
-
       unreadNotificationCount = 0;
       notifyListeners();
     } catch (e, stackTrace) {
@@ -609,10 +557,7 @@ class TaskDatabase extends ChangeNotifier {
   }
 
   void _startPolling() {
-    if (kIsWeb) {
-      logger.w('Polling disabled on web to reduce CPU load');
-      return;
-    }
+    if (kIsWeb) return;
     _timerService?.startPolling();
   }
 
@@ -624,13 +569,11 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> _refreshData() async {
     try {
       if (!_isInitialized) return;
-
       await Future.wait([
         _loadTasks(),
         _loadNotifications(),
         _loadPendingInvitations(),
       ]);
-
       await updateWidget();
     } catch (e, stackTrace) {
       logger.e('Error refreshing data', error: e, stackTrace: stackTrace);
@@ -640,7 +583,6 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> _handleMidnightCleanup() async {
     try {
       if (!_isInitialized) return;
-
       await _loadHistoricalCompletions();
       await _loadTasks();
       await updateWidget();
@@ -653,13 +595,10 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  Future<void> refreshData() async {
-    await _refreshData();
-  }
+  Future<void> refreshData() async => await _refreshData();
 
   Future<void> updateWidget() async {
     if (kIsWeb) return;
-
     try {
       await _widgetService.updateWidgetWithHistoricalData(
         _historicalCompletions,
@@ -697,22 +636,25 @@ class TaskDatabase extends ChangeNotifier {
 
   Map<String, int> calculateDashboardStats() {
     final now = DateTime.now();
-
-    final completedToday = currentTasks.where((task) {
-      return task.isCompletedToday();
-    }).length;
-
-    final overdueTasks = currentTasks.where((task) {
-      return task.dueDate != null &&
-          task.dueDate!.isBefore(now) &&
-          !task.isCompletedToday();
-    }).length;
-
-    final upcomingTasks = currentTasks.where((task) {
-      return task.dueDate != null &&
-          task.dueDate!.isAfter(now) &&
-          !task.isCompletedToday();
-    }).length;
+    final completedToday = currentTasks
+        .where((task) => task.isCompletedToday())
+        .length;
+    final overdueTasks = currentTasks
+        .where(
+          (task) =>
+              task.dueDate != null &&
+              task.dueDate!.isBefore(now) &&
+              !task.isCompletedToday(),
+        )
+        .length;
+    final upcomingTasks = currentTasks
+        .where(
+          (task) =>
+              task.dueDate != null &&
+              task.dueDate!.isAfter(now) &&
+              !task.isCompletedToday(),
+        )
+        .length;
 
     return {
       'totalTasks': currentTasks.length,
