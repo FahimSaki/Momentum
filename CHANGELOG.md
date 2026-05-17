@@ -17,12 +17,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
-## [0.9.0] – Current
+## [0.9.1] – Current
+
+### Fixed
+
+- Documentation corrected for `PATCH /tasks/:id/complete` (previously documented as `PUT`)
+- Documentation corrected for `PATCH /teams/invitations/:invitationId/respond` (previously documented as `PUT`)
+- Documentation corrected for `PATCH /notifications/:notificationId/read` and `PATCH /notifications/mark-all-read` (previously documented as `PUT`)
+- CORS configuration documented correctly to reflect `ALLOWED_ORIGINS` environment variable (previously described as a hardcoded array in source)
+- FCM token registration endpoint corrected to `POST /users/fcm-token` (previously documented as `/notifications/fcm-token`)
+
+---
+
+## [0.9.0]
 
 ### Added
 
 - **Android Home Screen Widget** (`MomentumHomeWidget.kt`)
-  - Shows up to 5 tasks with live completion status (✓ / ○)
+  - Shows up to 5 tasks with live completion status
   - Displays the currently selected team name in the header
   - Refresh and add-task tap targets in the widget header
   - Reads task data from `HomeWidgetPreferences` shared preferences
@@ -44,26 +56,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ### Changed
 
-- `TaskDatabase.activeTasks` getter now excludes tasks that are archived AND completed today (they move to `completedTasks`)
-- `TaskDatabase.completedTasks` getter returns only tasks that are both archived and completed today
+- `TaskDatabase.activeTasks` getter now excludes tasks completed today (they move to `completedTasks`)
+- `TaskDatabase.completedTasks` getter returns only tasks completed today
 - `TaskDatabase.calculateDashboardStats()` computes stats synchronously from in-memory lists instead of making an API call
-- `TaskService.completeTask` now hits `PUT /tasks/:id/complete` and returns the full updated `Task` object
+- `TaskService.completeTask` now hits `PATCH /tasks/:id/complete` and returns the full updated `Task` object
 - `SplashPage` validates stored JWT against `/auth/validate` before allowing entry; invalid tokens trigger logout and redirect to login
 - `api_base_url.dart` selects the correct host for web, Android emulator, iOS simulator, and production automatically
 - `ThemeProvider` persists and loads dark/light preference via `SharedPreferences`
 
 ### Backend Changes
 
-- `taskController.js` – permission helpers (`canUserCreateTask`, `canUserEditTask`, `canUserDeleteTask`) gate task mutations by team role
-- `teamController.js` – `inviteToTeam` deletes stale declined/expired invitations before re-creating; returns clean invitation objects
-- `teamController.js` – `getPendingInvitations` serialises team and inviter as plain objects to avoid Mongoose population issues on the client
-- `userController.js` – `getUserProfile` auto-generates `inviteId` for existing users who lack one
-- `userController.js` – `searchUsers` filters results by `profileVisibility` before responding
-- `notificationController.js` – always returns a flat array (handles both `{notifications:[]}` and `[]` response shapes from the service)
-- `cleanupScheduler.js` – three-step midnight job: (1) archive tasks completed before today, (2) delete archived tasks and save to `TaskHistory`, (3) remove old `completedDays` entries from active tasks
-- `User.js` – `inviteId` field with unique sparse index; pre-save middleware generates a collision-free human-readable ID with up to 10 retries
-- `Task.js` – added `team`, `isTeamTask`, `assignmentType`, `completedBy`, `priority`, `dueDate`, and `tags` fields
-- `TaskHistory.js` – added `teamId` field and compound index on `userId + taskName`
+- `taskController.ts` – permission helpers (`canUserCreateTask`, `canUserEditTask`, `canUserDeleteTask`) gate task mutations by team role
+- `teamController.ts` – `inviteToTeam` deletes stale declined/expired invitations before re-creating; returns clean invitation objects
+- `teamController.ts` – `getPendingInvitations` serialises team and inviter as plain objects to avoid Mongoose population issues on the client
+- `userController.ts` – `getUserProfile` auto-generates `inviteId` for existing users who lack one
+- `userController.ts` – `searchUsers` filters results by `profileVisibility` before responding
+- `notificationController.ts` – returns `{ notifications, pagination, unreadCount }` shape from `GET /notifications`
+- `cleanupScheduler.ts` – three-step midnight job: (1) archive tasks completed before today, (2) delete archived tasks and save to `TaskHistory`, (3) remove old `completedDays` entries from active tasks
+- `User.ts` – `inviteId` field with unique sparse index; pre-save middleware generates a collision-free human-readable ID with up to 10 retries
+- `Task.ts` – added `team`, `isTeamTask`, `assignmentType`, `completedBy`, `priority`, `dueDate`, and `tags` fields
+- `TaskHistory.ts` – added `teamId` field and compound index on `userId + taskName`
 
 ---
 

@@ -10,7 +10,7 @@ Notes on how Momentum handles performance on both the frontend and backend, and 
 
 `TaskDatabase` extends `ChangeNotifier` and calls `notifyListeners()` after every mutation. Widgets that subscribe with `Consumer<TaskDatabase>` or `context.watch<TaskDatabase>()` rebuild in full. For screens with a large number of tasks, use `context.select()` or `Consumer` on the smallest subtree that actually needs to update.
 
-The `activeTasks` and `completedTasks` getters iterate `currentTasks` on every access. If `currentTasks` grows large (hundreds of tasks), consider caching these lists and invalidating the cache on mutation rather than recomputing on every access.
+The `activeTasks` and `completedTasks` getters iterate `currentTasks` on every access, calling `isCompletedToday()` on each task. If `currentTasks` grows large (hundreds of tasks), consider caching these lists and invalidating the cache on mutation rather than recomputing on every access.
 
 ### Polling Frequency
 
@@ -36,7 +36,7 @@ The heatmap displays a maximum of 39 days. The `startDate` is clamped so it neve
 
 ### Image Assets
 
-The splash and drawer logo (`momentum_app_logo_main.png`) is loaded from `assets/images/`. The same file is used for both light and dark mode (see `splash_page.dart` where both branches reference the same path). If you add separate light/dark logos, use `Image.asset` with the `ThemeProvider` to select the correct one rather than loading both.
+The splash and drawer logo (`momentum_app_logo_main.png`) is loaded from `assets/images/`. The same file is used for both light and dark mode. If you add separate light/dark logos, use `Image.asset` with the `ThemeProvider` to select the correct one rather than loading both.
 
 ---
 
@@ -59,7 +59,7 @@ The most common query patterns (fetch tasks for a user, fetch notifications for 
 
 ### Cleanup Job Performance
 
-The daily cleanup job (`cleanupScheduler.js`) runs three sequential passes over the `Task` collection. Each pass uses `Task.find()` without a limit, which is fine at small scale but will become slow with tens of thousands of tasks. For high-volume deployments:
+The daily cleanup job (`cleanupScheduler.ts`) runs three sequential passes over the `Task` collection. Each pass uses `Task.find()` without a limit, which is fine at small scale but will become slow with tens of thousands of tasks. For high-volume deployments:
 
 - Add a `lastCompletedDate` index to speed up the archive step.
 - Process deletions in batches instead of one-by-one in a for loop.
@@ -81,7 +81,7 @@ await User.updateMany({}, {
 
 ### Notification Volume
 
-`sendBulkNotification` uses `Promise.allSettled` to send notifications to multiple users in parallel. For teams with many members, this can spike outbound Firebase requests. Firebase's free tier allows 500k messages/month and has no documented rate limit for server-side sends, but if you see FCM throttling errors, switch to batched multicast (`sendMulticast` already used) and add a delay between batches.
+`sendNotification` uses `Promise.allSettled` to send notifications to multiple tokens in parallel. For teams with many members, this can spike outbound Firebase requests. Firebase's free tier allows 500k messages/month and has no documented rate limit for server-side sends, but if you see FCM throttling errors, add a delay between batches.
 
 ### MongoDB Connection Pooling
 
@@ -96,7 +96,7 @@ await mongoose.connect(process.env.MONGODB_URI, {
 
 ### Response Payload Size
 
-`GET /tasks/assigned` populates `assignedTo`, `assignedBy`, `team`, and `completedBy.user` in a single query. For tasks with many assignees or completions, the response payload grows. Consider paginating this endpoint or limiting the fields returned with Mongoose `select` if payload size becomes an issue.
+`GET /tasks` populates `assignedTo`, `assignedBy`, `team`, and `completedBy.user` in a single query. For tasks with many assignees or completions, the response payload grows. Consider paginating this endpoint or limiting the fields returned with Mongoose `select` if payload size becomes an issue.
 
 ---
 
@@ -109,7 +109,7 @@ await mongoose.connect(process.env.MONGODB_URI, {
 
 ### Logging
 
-The backend logs every incoming request (method, URL, headers, body) to stdout. On Render this is visible in the Logs tab. For production, consider replacing `console.log` with a structured logger (e.g. `pino`) and shipping logs to a log aggregation service.
+The backend logs every incoming request (method, URL) to stdout. On Render this is visible in the Logs tab. For production, consider replacing `console.log` with a structured logger (e.g. `pino`) and shipping logs to a log aggregation service.
 
 On the Flutter side, all service calls use the `logger` package. In release builds, the `Logger` defaults to `Level.warning` – verbose debug logs are suppressed automatically.
 

@@ -41,7 +41,7 @@ Register a new user account.
     "inviteId": "swift-tiger-1234",
     "isPublic": true,
     "profileVisibility": { "showEmail": false, "showName": true, "showBio": true },
-    "notificationSettings": { "email": true, "push": true, "inApp": true, ... },
+    "notificationSettings": { "email": true, "push": true, "inApp": true, "taskAssigned": true, "taskCompleted": true, "teamInvitations": true, "dailyReminder": false },
     "teams": [],
     "createdAt": "...",
     "updatedAt": "..."
@@ -50,7 +50,7 @@ Register a new user account.
 }
 ```
 
-**Errors**: `400` missing fields / invalid email / password < 6 chars / email already exists
+**Errors**: `400` missing fields / password under 6 chars / email already exists
 
 ---
 
@@ -109,9 +109,9 @@ Verify a JWT is still valid and return the current user.
 
 ## Tasks  *(all protected)*
 
-### GET /tasks/assigned
+### GET /tasks
 
-Fetch all tasks assigned to the authenticated user.
+Fetch tasks assigned to the authenticated user.
 
 **Query parameters**
 
@@ -144,9 +144,7 @@ Create a new task.
 }
 ```
 
-`teamId`, `description`, `assignedTo`, `dueDate`, `tags` are all optional.  
-If `teamId` is absent the task is personal (assigned to the creating user).  
-If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically.
+`teamId`, `description`, `assignedTo`, `dueDate`, and `tags` are optional. If `teamId` is absent the task is personal (assigned to the creating user). If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically.
 
 **Permissions**: team tasks require the creator to be owner or admin of the team.
 
@@ -164,7 +162,7 @@ Update task fields (name, description, priority, dueDate, etc.).
 
 ---
 
-### PUT /tasks/:id/complete
+### PATCH /tasks/:id/complete
 
 Toggle the completion state of a task for the current day.
 
@@ -226,7 +224,7 @@ Retrieve historical completion data for the heatmap.
 
 ---
 
-### GET /tasks/stats
+### GET /tasks/dashboard-stats
 
 Dashboard statistics for the authenticated user.
 
@@ -242,6 +240,18 @@ Dashboard statistics for the authenticated user.
   "upcomingTasks": 4
 }
 ```
+
+---
+
+### GET /tasks/team/:teamId
+
+Get tasks for a specific team.
+
+**Query parameters**: `status` (`active` | `archived`, default: `active`)
+
+**Permissions**: team members only.
+
+**Response 200** – array of Task objects
 
 ---
 
@@ -276,7 +286,7 @@ Create a new team. The creator is automatically added as owner.
 
 Get full team details.
 
-**Permissions**: only team members.
+**Permissions**: team members only.
 
 **Response 200** – Team object with all members populated
 
@@ -304,7 +314,7 @@ Update team settings.
 }
 ```
 
-**Response 200** `{ "message": "Team settings updated successfully", "team": { ... } }`
+**Response 200** `{ "message": "Team settings updated", "team": { ... } }`
 
 ---
 
@@ -320,13 +330,13 @@ Soft-delete the team (sets `isActive: false`).
 
 ### POST /teams/:teamId/invite
 
-Send a team invitation.
+Send a team invitation. Provide either `email` or `inviteId`.
 
-**Request body** – provide one of `email` or `inviteId`:
+**Request body**
 
 ```json
 {
-  "email": "jane@example.com",
+  "inviteId": "swift-tiger-1234",
   "role": "member",
   "message": "Hey, join our team!"
 }
@@ -336,7 +346,7 @@ or
 
 ```json
 {
-  "inviteId": "swift-tiger-1234",
+  "email": "jane@example.com",
   "role": "admin"
 }
 ```
@@ -357,7 +367,7 @@ Get all pending invitations for the authenticated user.
 
 ---
 
-### PUT /teams/invitations/:invitationId/respond
+### PATCH /teams/invitations/:invitationId/respond
 
 Accept or decline an invitation.
 
@@ -367,9 +377,7 @@ Accept or decline an invitation.
 { "response": "accepted" }
 ```
 
-or `"declined"`.
-
-Accepting automatically adds the user to the team and sends a `team_member_joined` notification to existing members.
+or `"declined"`. Accepting automatically adds the user to the team and sends a `team_member_joined` notification to existing members.
 
 **Response 200** `{ "message": "Invitation accepted successfully", "invitation": { ... } }`
 
@@ -389,7 +397,7 @@ Remove a member from the team.
 
 Leave a team.
 
-**Permissions**: any member except the owner (use delete team instead).
+**Permissions**: any member except the owner (transfer ownership first).
 
 **Response 200** `{ "message": "Left team successfully" }`
 
@@ -405,6 +413,55 @@ Get the authenticated user's full profile.
 
 ---
 
+### PUT /users/profile
+
+Update profile fields including privacy and visibility settings.
+
+**Request body** – all fields optional
+
+```json
+{
+  "name": "Jane Doe",
+  "bio": "Task enthusiast",
+  "timezone": "Asia/Dhaka",
+  "avatar": "https://...",
+  "isPublic": true,
+  "profileVisibility": {
+    "showEmail": false,
+    "showName": true,
+    "showBio": true
+  }
+}
+```
+
+**Response 200** `{ "message": "Profile updated successfully", "user": { ... } }`
+
+---
+
+### PUT /users/notification-settings
+
+Update the user's in-app and push notification preferences.
+
+**Request body**
+
+```json
+{
+  "notificationSettings": {
+    "email": true,
+    "push": true,
+    "inApp": true,
+    "taskAssigned": true,
+    "taskCompleted": true,
+    "teamInvitations": true,
+    "dailyReminder": false
+  }
+}
+```
+
+**Response 200** `{ "message": "Notification settings updated", "user": { ... } }`
+
+---
+
 ### GET /users/search
 
 Search for users to invite to a team.
@@ -413,10 +470,10 @@ Search for users to invite to a team.
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `query` | string | Minimum 2 characters; matches name, email, or inviteId |
-| `limit` | number | Default 20 |
+| `q` | string | Minimum 2 characters; matches name, email, or inviteId |
+| `limit` | number | Default 20, max 50 |
 
-Results are filtered by `profileVisibility`. Users with `isPublic: false` do not appear.
+Results are filtered by `isPublic` and `profileVisibility`. Users with `isPublic: false` do not appear.
 
 **Response 200** – array of partial User objects:
 
@@ -427,6 +484,7 @@ Results are filtered by `profileVisibility`. Users with `isPublic: false` do not
     "name": "Jane Doe",
     "inviteId": "swift-tiger-1234",
     "avatar": null,
+    "bio": "...",
     "profileVisibility": { "showEmail": false, "showName": true, "showBio": true }
   }
 ]
@@ -436,7 +494,7 @@ Results are filtered by `profileVisibility`. Users with `isPublic: false` do not
 
 ### GET /users/invite/:inviteId
 
-Look up a user by their Invite ID.
+Look up a user by their Invite ID. Only returns users where `isPublic: true`.
 
 **Response 200** – partial User object (same shape as search result)
 
@@ -444,24 +502,59 @@ Look up a user by their Invite ID.
 
 ---
 
-### PUT /users/privacy
+### POST /users/fcm-token
 
-Update privacy settings.
+Register or refresh an FCM device token for push notifications.
 
 **Request body**
 
 ```json
 {
-  "isPublic": true,
-  "profileVisibility": {
-    "showEmail": false,
-    "showName": true,
-    "showBio": true
-  }
+  "token": "<fcm_registration_token>",
+  "platform": "android"
 }
 ```
 
-**Response 200** – updated User object
+`platform`: `android` | `ios` | `web`
+
+**Response 200** `{ "message": "FCM token registered successfully" }`
+
+---
+
+### DELETE /users/fcm-token
+
+Remove an FCM token (e.g. on logout from a specific device).
+
+**Request body** `{ "token": "<fcm_registration_token>" }`
+
+**Response 200** `{ "message": "FCM token removed" }`
+
+---
+
+### PUT /users/change-password
+
+Change the authenticated user's password.
+
+**Request body**
+
+```json
+{
+  "currentPassword": "old-password",
+  "newPassword": "new-password-min-6"
+}
+```
+
+**Response 200** `{ "message": "Password changed successfully" }`
+
+**Errors**: `400` current password incorrect, `400` Google accounts cannot use this endpoint
+
+---
+
+### DELETE /users/account
+
+Deactivate the user's account (sets `isActive: false`).
+
+**Response 200** `{ "message": "Account deactivated successfully" }`
 
 ---
 
@@ -475,34 +568,51 @@ Fetch notifications for the authenticated user.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `limit` | number | 50 | |
-| `offset` | number | 0 | |
-| `unreadOnly` | boolean | false | |
+| `page` | number | 1 | Page number |
+| `limit` | number | 20 | Results per page (max 50) |
+| `unreadOnly` | boolean | false | Return only unread notifications |
 
-**Response 200** – flat array of Notification objects:
+**Response 200**
 
 ```json
-[
-  {
-    "_id": "...",
-    "type": "task_assigned",
-    "title": "New Task Assigned",
-    "message": "Jane assigned you \"Write tests\" in Frontend Squad",
-    "isRead": false,
-    "createdAt": "...",
-    "sender": { "_id": "...", "name": "Jane Doe", "email": "...", "avatar": null },
-    "team": { "_id": "...", "name": "Frontend Squad" },
-    "task": { "_id": "...", "name": "Write tests" },
-    "data": { "type": "task_assigned", "taskId": "...", ... }
-  }
-]
+{
+  "notifications": [
+    {
+      "_id": "...",
+      "type": "task_assigned",
+      "title": "New Task Assigned",
+      "message": "Jane assigned you \"Write tests\" in Frontend Squad",
+      "isRead": false,
+      "createdAt": "...",
+      "sender": { "_id": "...", "name": "Jane Doe", "email": "...", "avatar": null },
+      "team": { "_id": "...", "name": "Frontend Squad" },
+      "task": { "_id": "...", "name": "Write tests" },
+      "data": { "type": "task_assigned", "taskId": "...", "taskName": "..." }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 42,
+    "pages": 3
+  },
+  "unreadCount": 5
+}
 ```
 
 Notification `type` values: `task_assigned`, `task_completed`, `team_invitation`, `team_member_joined`, `task_due_reminder`
 
 ---
 
-### PUT /notifications/:notificationId/read
+### GET /notifications/unread-count
+
+Get the count of unread notifications for the authenticated user.
+
+**Response 200** `{ "count": 5 }`
+
+---
+
+### PATCH /notifications/:notificationId/read
 
 Mark a single notification as read.
 
@@ -510,30 +620,19 @@ Mark a single notification as read.
 
 ---
 
-### PUT /notifications/read-all
+### PATCH /notifications/mark-all-read
 
 Mark all of the user's notifications as read.
 
-**Response 200** `{ "message": "N notifications marked as read" }`
+**Response 200** `{ "message": "N notifications marked as read", "count": N }`
 
 ---
 
-### POST /notifications/fcm-token
+### DELETE /notifications/:notificationId
 
-Register or refresh an FCM token.
+Delete a single notification.
 
-**Request body**
-
-```json
-{
-  "token": "<fcm_registration_token>",
-  "platform": "android"
-}
-```
-
-`platform`: `android` | `ios` | `web`
-
-**Response 200** `{ "message": "FCM token updated successfully", "result": { "success": true, "tokenCount": 2 } }`
+**Response 200** `{ "message": "Notification deleted" }`
 
 ---
 
@@ -543,7 +642,7 @@ Register or refresh an FCM token.
 
 Liveness check, no authentication required.
 
-**Response 200** `{ "status": "ok" }`
+**Response 200** `{ "status": "ok", "timestamp": "...", "uptime": 123.45 }`
 
 ---
 
@@ -555,18 +654,23 @@ Ping to wake a sleeping Render.com instance.
 
 ---
 
+### GET /manual-cleanup
+
 ### POST /manual-cleanup
 
-Trigger the daily cleanup job immediately (useful for testing or manual maintenance).
+Trigger the daily cleanup job immediately.
 
 **Response 200**
 
 ```json
 {
-  "message": "Manual cleanup completed successfully",
+  "message": "Manual cleanup completed",
+  "archivedTasks": 3,
+  "deletedAndPreservedTasks": 2,
+  "cleanedTasks": 5,
+  "processedDate": "Fri May 15 2026",
   "timestamp": "...",
-  "duration": "412ms",
-  "triggered_by": "external_cron"
+  "status": "success"
 }
 ```
 
@@ -608,8 +712,6 @@ All errors return:
   "message": "Human-readable description"
 }
 ```
-
-In development mode (`NODE_ENV=development`) a `stack` field is also included.
 
 | Status | Meaning |
 |--------|---------|

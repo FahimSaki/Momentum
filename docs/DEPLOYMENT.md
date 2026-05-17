@@ -31,8 +31,11 @@ The production backend is hosted at `https://momentum-to2e.onrender.com`.
 | `PORT` | `10000` |
 | `NODE_ENV` | `production` |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Paste the full contents of your Firebase service account JSON as a single-line string |
+| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (e.g. `https://yourapp.vercel.app,https://yourcustomdomain.com`) |
 
 > **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
+
+> If `ALLOWED_ORIGINS` is not set, the server defaults to allowing all origins (`*`). Set it explicitly in production.
 
 1. Click **Create Web Service**. Render runs `npm install && npm run build` to compile TypeScript, then starts the server with `npm start` (which runs `node dist/index.js`).
 
@@ -90,7 +93,7 @@ Or connect the GitHub repo in the Vercel dashboard and set:
 
 ### CORS
 
-The backend `src/index.ts` allows `*.vercel.app` origins. If you deploy to a custom domain, add it to the `allowedOrigins` array in `backend/src/index.ts`.
+The backend reads allowed origins from the `ALLOWED_ORIGINS` environment variable (comma-separated). Add your Vercel deployment URL and any custom domain to that variable on Render. If `ALLOWED_ORIGINS` is unset, all origins are allowed.
 
 ---
 
@@ -131,7 +134,7 @@ flutter build apk --release --split-per-abi
 flutter build appbundle --release
 ```
 
-APK files go to `build/app/outputs/flutter-apk/`.  
+APK files go to `build/app/outputs/flutter-apk/`.
 The AAB goes to `build/app/outputs/bundle/release/`.
 
 ### Google Services
@@ -199,7 +202,8 @@ The workflow at `.github/workflows/build.yml` runs on every push and pull reques
 | `JWT_SECRET` | Yes | Secret for signing JWTs |
 | `PORT` | No | Server port (default 10000) |
 | `NODE_ENV` | No | `development` or `production` |
+| `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins; defaults to `*` if unset |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | No* | Path to service account JSON file |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | No* | Full service account JSON as string |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | No* | Full service account JSON as a single-line string |
 
 \* One of these is required for push notifications. If neither is set the server starts normally but FCM calls are skipped.

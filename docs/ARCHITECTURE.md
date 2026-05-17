@@ -53,7 +53,7 @@ Widgets subscribe with `Consumer<TaskDatabase>` or `context.watch<TaskDatabase>(
 `TaskDatabase` responsibilities:
 
 - Holds `currentTasks`, `userTeams`, `pendingInvitations`, `notifications`
-- Exposes computed getters: `activeTasks`, `completedTasks`, `historicalCompletions`
+- Exposes computed getters: `activeTasks` (tasks not completed today), `completedTasks` (tasks completed today), `historicalCompletions`
 - Delegates HTTP calls to the service layer (`TaskService`, `TeamService`, etc.)
 - Calls `WidgetService.updateWidgetWithHistoricalData()` after every mutation
 - Starts/stops `TimerService` (polling + midnight cleanup)
@@ -64,7 +64,7 @@ Each domain has a dedicated service class that owns HTTP communication. Services
 
 | Service | Responsibility |
 |---------|---------------|
-| `TaskService` | CRUD for tasks, completion toggling, history fetch |
+| `TaskService` | CRUD for tasks, completion toggling via `PATCH /tasks/:id/complete`, history fetch |
 | `TeamService` | Team lifecycle, invitations, member management |
 | `UserService` | Profile fetch, search, privacy settings |
 | `NotificationService` | Firebase FCM init, in-app notification fetch/mark-read |
@@ -96,23 +96,23 @@ Team views (`TeamHomePage`, `TeamSelectionPage`, etc.) are pushed with `Navigato
 
 ## Backend Architecture
 
-### Express Application (`backend/index.js`)
+### Express Application (`backend/src/index.ts`)
 
 The entry point connects to MongoDB, registers middleware (CORS, JSON body parser, request logger), mounts authenticated route groups, and starts the cron scheduler.
 
 ```
 Request
-  → CORS middleware
+  → CORS middleware (origin controlled by ALLOWED_ORIGINS env var)
   → JSON body parser
   → Request logger
-  → Public routes: /health, /wake-up, /auth/*
+  → Public routes: /health, /wake-up, /manual-cleanup, /auth/*
   → authenticateToken middleware (JWT verify + User.findById)
   → Protected routes: /tasks, /teams, /notifications, /users
   → Error handler (500)
   → 404 handler
 ```
 
-### Authentication Middleware (`backend/middleware/middle_auth.js`)
+### Authentication Middleware (`backend/src/middleware/middle_auth.ts`)
 
 Verifies the `Authorization: Bearer <token>` header, resolves the full `User` document, and attaches `req.user` and `req.userId` for use in controllers.
 
@@ -120,7 +120,7 @@ Verifies the `Authorization: Bearer <token>` header, resolves the full `User` do
 
 Controllers are thin: they validate input, check permissions, call Mongoose models or services, and return a clean JSON response. Business logic (history saving, cleanup steps, notification dispatch) lives in service files.
 
-### Cleanup Scheduler (`backend/services/cleanupScheduler.js`)
+### Cleanup Scheduler (`backend/src/services/cleanupScheduler.ts`)
 
 Runs at **12:05 AM UTC** every day via `node-cron`:
 
@@ -130,10 +130,10 @@ Runs at **12:05 AM UTC** every day via `node-cron`:
 
 This design means the `Task` collection only ever contains tasks relevant to the current day. All historical data lives in `TaskHistory` and is never deleted.
 
-### Notification Service (`backend/services/notificationService.js`)
+### Notification Service (`backend/src/services/notificationService.ts`)
 
-- Detects the Firebase service account from env var path, JSON string, or well-known file locations
-- Sends FCM multicast messages to all valid tokens for a user (up to 5 per user, refreshed on each login)
+- Detects the Firebase service account from the `FIREBASE_SERVICE_ACCOUNT_JSON` env var, `FIREBASE_SERVICE_ACCOUNT_PATH`, or well-known file locations
+- Sends FCM messages to all valid tokens for a user (up to 5 per user, refreshed on each login)
 - Removes tokens that return `messaging/registration-token-not-registered`
 - Saves in-app `Notification` documents to MongoDB in parallel with the FCM send
 

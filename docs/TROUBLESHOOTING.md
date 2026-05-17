@@ -10,13 +10,13 @@ Common problems and how to fix them.
 
 The `SplashPage` validates the stored JWT by calling `GET /auth/validate`. If the backend is unreachable (e.g. Render free-tier is sleeping) the request times out and the app falls through to the login page.
 
-**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For permanent fix, upgrade to a paid Render plan or set up a keep-alive cron.
+**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For a permanent fix, upgrade to a paid Render plan or set up a keep-alive cron.
 
 ---
 
 ### `flutter pub get` fails with version conflicts
 
-```
+```bash
 flutter upgrade
 flutter pub get
 ```
@@ -89,7 +89,7 @@ The widget reads from `HomeWidgetPreferences` shared preferences. This file is w
 
 ### Notifications not received on Android
 
-1. Confirm `POST /notifications/fcm-token` is being called after login – check backend logs for the ✅ line.
+1. Confirm `POST /users/fcm-token` is being called after login – check backend logs for the confirmation line.
 2. Verify the device is not in battery saver mode (kills background FCM delivery on some OEMs).
 3. Check that `POST_NOTIFICATIONS` permission was granted (Android 13+).
 4. In the Firebase Console, use the **Send test message** tool with the device's FCM token to rule out a server-side issue.
@@ -117,7 +117,7 @@ flutter upgrade
 ### MongoDB connection refused on startup
 
 ```
-❌ MongoDB connection error: ...
+MongoDB connection error: ...
 ```
 
 **Local**: ensure `mongod` is running:
@@ -142,13 +142,7 @@ If you change `JWT_SECRET` in production, all existing tokens become invalid. Us
 
 ### Firebase not initialised – push notifications skipped
 
-The server logs:
-
-```
-⚠️ Firebase service account not found in any location
-```
-
-Set one of `FIREBASE_SERVICE_ACCOUNT_PATH` or `FIREBASE_SERVICE_ACCOUNT_JSON` in your `.env` (see [DEPLOYMENT.md](DEPLOYMENT.md)). The server still starts and works normally without Firebase – only push notifications are disabled.
+The server logs a warning that no service account was found. Set one of `FIREBASE_SERVICE_ACCOUNT_PATH` or `FIREBASE_SERVICE_ACCOUNT_JSON` in your `.env` (see [DEPLOYMENT.md](DEPLOYMENT.md)). The server still starts and works normally without Firebase – only push notifications are disabled.
 
 ---
 
@@ -157,8 +151,8 @@ Set one of `FIREBASE_SERVICE_ACCOUNT_PATH` or `FIREBASE_SERVICE_ACCOUNT_JSON` in
 The cron is scheduled at `5 0 * * *` UTC (12:05 AM). Verify:
 
 1. The server was running at that time (check Render logs).
-2. The `startScheduler()` call in `backend/index.js` is reached after DB connection.
-3. Trigger manually to confirm the logic works: `POST /manual-cleanup`.
+2. The `startScheduler()` call in `backend/src/index.ts` is reached after DB connection.
+3. Trigger manually to confirm the logic works: `POST /manual-cleanup` (or `GET /manual-cleanup`).
 
 ---
 
@@ -170,16 +164,13 @@ Atlas free clusters pause after 60 days of inactivity. Log in to Atlas and click
 
 ### CORS error in browser
 
-The browser console shows a CORS policy error when accessing the API from a web origin not in the allowed list. Add your origin to the `allowedOrigins` array in `backend/index.js`:
+The browser console shows a CORS policy error when accessing the API from an origin not in the allowed list. Set the `ALLOWED_ORIGINS` environment variable on your hosting platform to a comma-separated list of allowed origins:
 
-```js
-const allowedOrigins = [
-  'https://momentum-beryl-nine.vercel.app',
-  'http://localhost:10000',
-  'http://localhost:3000',
-  'https://your-custom-domain.com',   // ← add here
-];
 ```
+ALLOWED_ORIGINS=https://yourapp.vercel.app,https://yourcustomdomain.com
+```
+
+Restart the server after updating the variable. No code changes are needed.
 
 ---
 
@@ -191,7 +182,7 @@ A user already has a pending (not yet accepted or declined) invitation to this t
 
 ### "You can only complete tasks assigned to you" on a team task
 
-The `completeTask` controller checks `task.assignedTo` contains the requesting user. This happens when:
+The `completeTask` controller checks that `task.assignedTo` contains the requesting user. This happens when:
 
 - The task was assigned to the entire team but the `assignedTo` array was not populated correctly at creation time.
 - The user was removed from the team after the task was created.

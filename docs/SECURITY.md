@@ -39,7 +39,7 @@ There is no refresh token mechanism. When a token expires after 7 days, the user
 
 ### Backend Middleware
 
-Every protected route passes through `authenticateToken` (`backend/middleware/middle_auth.js`). This middleware:
+Every protected route passes through `authenticateToken` (`backend/src/middleware/middle_auth.ts`). This middleware:
 
 1. Extracts the `Authorization: Bearer <token>` header.
 2. Verifies the JWT signature with `JWT_SECRET`.
@@ -49,7 +49,7 @@ If any step fails, the request is rejected with `401` or `403` before reaching t
 
 ### Task Permissions
 
-Task creation, editing, and deletion are gated by three helper functions in `taskController.js`:
+Task creation, editing, and deletion are gated by helper functions in `backend/src/controllers/taskController.ts`:
 
 | Action | Who can perform it |
 |--------|--------------------|
@@ -81,11 +81,11 @@ User search (`GET /users/search` and `GET /users/invite/:inviteId`) only returns
 All controller inputs are validated before touching the database:
 
 - `name` fields are trimmed and checked for empty strings.
-- `email` is lowercased and trimmed; the auth controller does not apply format validation at login (only at registration).
+- `email` is lowercased and trimmed; format validation is applied at registration.
 - `password` minimum length is enforced at registration (6 characters).
 - Enum values (`priority`, `role`, `assignmentType`, `status`) are validated by Mongoose schema enums.
 - `profileVisibility` keys are checked against a whitelist before being saved.
-- MongoDB ObjectId parameters (`:teamId`, `:taskId`, etc.) are implicitly validated by Mongoose's `findById` – invalid IDs cause a `CastError` which the error handler returns as a 500 (could be improved to 400 in a future version).
+- MongoDB ObjectId parameters (`:teamId`, `:taskId`, etc.) are implicitly validated by Mongoose's `findById` – invalid IDs cause a `CastError`.
 
 ---
 
@@ -93,7 +93,7 @@ All controller inputs are validated before touching the database:
 
 ### Passwords
 
-Stored as bcrypt hashes with 12 rounds. The `User` model `select: false` is not set on the `password` field, but all profile endpoints explicitly `select('-password')` to exclude it from responses.
+Stored as bcrypt hashes with 12 rounds. All profile endpoints explicitly exclude the `password` field from responses.
 
 ### JWT Secret
 
@@ -119,7 +119,9 @@ Up to 5 FCM tokens are stored per user (one per device, sorted by `lastUsed`). T
 
 ## CORS
 
-The `allowedOrigins` list in `backend/index.js` includes the Vercel production domain and `localhost`. The current configuration also allows any `*.vercel.app` subdomain to support preview deployments. For a hardened production deployment, replace the pattern match with an explicit list of allowed origins.
+The server reads allowed origins from the `ALLOWED_ORIGINS` environment variable (comma-separated list). If `ALLOWED_ORIGINS` is not set, the server defaults to `*` (all origins allowed). Set this variable explicitly in production to restrict access to your known frontend domains.
+
+To update allowed origins, add or edit the `ALLOWED_ORIGINS` variable in your hosting environment – no code change is required.
 
 Credentials (`credentials: true`) are enabled so the browser can send the `Authorization` header cross-origin.
 
@@ -129,11 +131,12 @@ Credentials (`credentials: true`) are enabled so the browser can send the `Autho
 
 1. **Use HTTPS everywhere.** Render provides TLS automatically. For self-hosted servers, use Let's Encrypt via Caddy or Nginx.
 2. **Set `NODE_ENV=production`.** This disables stack traces in API error responses.
-3. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
-4. **Restrict MongoDB network access** to the server's IP only.
-5. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
-6. **Add rate limiting** to the auth endpoints (`/auth/login`, `/auth/register`) using `express-rate-limit` to prevent brute-force attacks. This is not currently implemented.
-7. **Store Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
+3. **Set `ALLOWED_ORIGINS`** to a comma-separated list of your frontend domains instead of relying on the `*` default.
+4. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
+5. **Restrict MongoDB network access** to the server's IP only.
+6. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
+7. **Add rate limiting** to the auth endpoints (`/auth/login`, `/auth/register`) using `express-rate-limit` to prevent brute-force attacks. This is not currently implemented.
+8. **Store Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
 
 ---
 
