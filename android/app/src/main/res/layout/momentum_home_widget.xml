@@ -10,9 +10,10 @@
                <TextView android:id="@+id/widget_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Stay focused" android:textColor="#B3C8D3FF" android:textSize="11sp" android:ellipsize="end" android:maxLines="1" />
           </LinearLayout>
 
-          <TextView android:id="@+id/widget_add" android:layout_width="34dp" android:layout_height="34dp" android:layout_marginEnd="6dp" android:background="@drawable/app_widget_inner_view_background" android:text="+" android:textColor="#FF7EC8FF" android:textSize="21sp" android:gravity="center" android:contentDescription="Add task" />
+          <ImageView android:id="@+id/widget_add" android:layout_width="32dp" android:layout_height="32dp" android:layout_marginEnd="10dp" android:src="@drawable/ic_widget_add" android:tint="#FF8ED4FF" android:padding="6dp" android:contentDescription="Add task" />
 
-          <TextView android:id="@+id/widget_refresh" android:layout_width="34dp" android:layout_height="34dp" android:background="@drawable/app_widget_inner_view_background" android:text="↻" android:textColor="#FFD1DAFF" android:textSize="16sp" android:gravity="center" android:contentDescription="Refresh" />
+          <ImageView android:id="@+id/widget_refresh" android:layout_width="32dp" android:layout_height="32dp" android:src="@drawable/ic_widget_refresh" android:tint="#FFDDE4FF" android:padding="6dp" android:contentDescription="Refresh" />
+
      </LinearLayout>
 
      <TextView android:id="@+id/widget_progress_text" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="0 of 0 completed" android:textColor="#FFE8EDFF" android:textSize="11sp" />
