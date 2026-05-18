@@ -1,4 +1,4 @@
-package com.example.momentum
+﻿package com.example.momentum
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -20,27 +20,51 @@ class MomentumHomeWidget : AppWidgetProvider() {
         private const val TAG = "MomentumWidget"
         private const val MAX_ROWS = 5
 
-        const val ACTION_REFRESH     = "com.example.momentum.WIDGET_REFRESH"
+        const val ACTION_REFRESH = "com.example.momentum.WIDGET_REFRESH"
         const val ACTION_TASK_TAPPED = "com.example.momentum.WIDGET_TASK_TAPPED"
-        const val EXTRA_TASK_ID      = "task_id"
+        const val EXTRA_TASK_ID = "task_id"
 
-        private val ROW_IDS   = intArrayOf(R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4)
-        private val CHECK_IDS = intArrayOf(R.id.check0, R.id.check1, R.id.check2, R.id.check3, R.id.check4)
-        private val NAME_IDS  = intArrayOf(R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4)
+        private val ROW_IDS = intArrayOf(
+            R.id.row0,
+            R.id.row1,
+            R.id.row2,
+            R.id.row3,
+            R.id.row4
+        )
+
+        private val CHECK_IDS = intArrayOf(
+            R.id.check0,
+            R.id.check1,
+            R.id.check2,
+            R.id.check3,
+            R.id.check4
+        )
+
+        private val NAME_IDS = intArrayOf(
+            R.id.name0,
+            R.id.name1,
+            R.id.name2,
+            R.id.name3,
+            R.id.name4
+        )
 
         private fun immutableFlag(): Int =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            else
+            } else {
                 PendingIntent.FLAG_UPDATE_CURRENT
+            }
 
         fun triggerUpdate(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, MomentumHomeWidget::class.java))
             Log.d(TAG, "triggerUpdate: ${ids.size} widget(s)")
             ids.forEach { id ->
-                try { updateAppWidget(context, mgr, id) }
-                catch (e: Exception) { Log.e(TAG, "triggerUpdate failed id=$id", e) }
+                try {
+                    updateAppWidget(context, mgr, id)
+                } catch (e: Exception) {
+                    Log.e(TAG, "triggerUpdate failed id=$id", e)
+                }
             }
         }
 
@@ -54,21 +78,43 @@ class MomentumHomeWidget : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_team_name, label)
 
                 // Header buttons
-                views.setOnClickPendingIntent(R.id.widget_refresh,
-                    makeRefreshIntent(context, widgetId))
-                views.setOnClickPendingIntent(R.id.widget_add,
-                    makeOpenAppIntent(context, widgetId * 10 + 2, "add_task"))
-                views.setOnClickPendingIntent(R.id.widget_team_name,
-                    makeOpenAppIntent(context, widgetId * 10 + 3, "select_team"))
+                views.setOnClickPendingIntent(
+                    R.id.widget_refresh,
+                    makeRefreshIntent(context, widgetId)
+                )
+                views.setOnClickPendingIntent(
+                    R.id.widget_add,
+                    makeOpenAppIntent(context, widgetId * 10 + 2, "add_task")
+                )
+                views.setOnClickPendingIntent(
+                    R.id.widget_team_name,
+                    makeOpenAppIntent(context, widgetId * 10 + 3, "select_team")
+                )
 
                 val tasks = parseTasks(rawTasks)
-                Log.d(TAG, "Rendering ${tasks.size} tasks from rawTasks length=${rawTasks.length}")
+                Log.d(
+                    TAG,
+                    "Rendering ${tasks.size} tasks from rawTasks length=${rawTasks.length}"
+                )
+
+                val completedCount = tasks.count { it.isCompleted }
+                val totalCount = tasks.size
+                val progressPercent = if (totalCount == 0) 0 else ((completedCount * 100f) / totalCount).toInt()
+
+                views.setTextViewText(R.id.widget_progress_text, "$completedCount of $totalCount completed")
+                views.setProgressBar(R.id.widget_progress_bar, 100, progressPercent, false)
+                views.setTextViewText(
+                    R.id.widget_subtitle,
+                    subtitleForProgress(completedCount, totalCount)
+                )
 
                 if (tasks.isEmpty()) {
                     views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
                     ROW_IDS.forEach { views.setViewVisibility(it, View.GONE) }
-                    views.setOnClickPendingIntent(R.id.widget_empty,
-                        makeOpenAppIntent(context, widgetId * 10 + 4, "add_task"))
+                    views.setOnClickPendingIntent(
+                        R.id.widget_empty,
+                        makeOpenAppIntent(context, widgetId * 10 + 4, "add_task")
+                    )
                 } else {
                     views.setViewVisibility(R.id.widget_empty, View.GONE)
 
@@ -77,17 +123,19 @@ class MomentumHomeWidget : AppWidgetProvider() {
                             val task = tasks[i]
                             views.setViewVisibility(ROW_IDS[i], View.VISIBLE)
 
-                            val checkText  = if (task.isCompleted) "✓" else "○"
+                            val checkText = if (task.isCompleted) "✓" else "○"
                             val checkColor = if (task.isCompleted) 0xFF4CAF50.toInt() else 0xFF888888.toInt()
-                            val nameColor  = if (task.isCompleted) 0x88FFFFFF.toInt() else 0xFFFFFFFF.toInt()
+                            val nameColor = if (task.isCompleted) 0x88FFFFFF.toInt() else 0xFFFFFFFF.toInt()
 
                             views.setTextViewText(CHECK_IDS[i], checkText)
                             views.setInt(CHECK_IDS[i], "setTextColor", checkColor)
                             views.setTextViewText(NAME_IDS[i], task.name)
                             views.setInt(NAME_IDS[i], "setTextColor", nameColor)
 
-                            views.setOnClickPendingIntent(ROW_IDS[i],
-                                makeOpenAppIntent(context, widgetId * 100 + i, "open_task"))
+                            views.setOnClickPendingIntent(
+                                ROW_IDS[i],
+                                makeOpenAppIntent(context, widgetId * 100 + i, "open_task")
+                            )
                         } else {
                             views.setViewVisibility(ROW_IDS[i], View.GONE)
                         }
@@ -96,7 +144,6 @@ class MomentumHomeWidget : AppWidgetProvider() {
 
                 mgr.updateAppWidget(widgetId, views)
                 Log.d(TAG, "Widget $widgetId updated OK")
-
             } catch (e: Exception) {
                 Log.e(TAG, "updateAppWidget crashed id=$widgetId", e)
                 renderFallback(context, mgr, widgetId)
@@ -107,6 +154,9 @@ class MomentumHomeWidget : AppWidgetProvider() {
             try {
                 val views = RemoteViews(context.packageName, R.layout.momentum_home_widget)
                 views.setTextViewText(R.id.widget_team_name, "Momentum")
+                views.setTextViewText(R.id.widget_subtitle, "Tap to open app")
+                views.setTextViewText(R.id.widget_progress_text, "0 of 0 completed")
+                views.setProgressBar(R.id.widget_progress_bar, 100, 0, false)
                 views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
                 views.setTextViewText(R.id.widget_empty, "Tap to open app")
                 ROW_IDS.forEach { views.setViewVisibility(it, View.GONE) }
@@ -121,7 +171,8 @@ class MomentumHomeWidget : AppWidgetProvider() {
 
         private fun makeRefreshIntent(context: Context, widgetId: Int): PendingIntent =
             PendingIntent.getBroadcast(
-                context, widgetId * 10 + 1,
+                context,
+                widgetId * 10 + 1,
                 Intent(context, MomentumHomeWidget::class.java).apply {
                     action = ACTION_REFRESH
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
@@ -133,16 +184,34 @@ class MomentumHomeWidget : AppWidgetProvider() {
             val uri = Uri.Builder()
                 .scheme("homeWidget")
                 .authority("widget")
-                .apply { action?.let { appendQueryParameter("widget_action", it) } }
+                .apply {
+                    action?.let { appendQueryParameter("widget_action", it) }
+                }
                 .build()
+
             val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 setPackage(context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
+
             return PendingIntent.getActivity(context, requestCode, intent, immutableFlag())
         }
 
-        data class WidgetTask(val id: String, val name: String, val isCompleted: Boolean)
+        private fun subtitleForProgress(completed: Int, total: Int): String {
+            if (total == 0) return "Plan your day with Momentum"
+            val remaining = total - completed
+            return when {
+                completed == total -> "All tasks done — great job"
+                completed == 0 -> "$remaining tasks ready to start"
+                else -> "$remaining tasks left to finish"
+            }
+        }
+
+        data class WidgetTask(
+            val id: String,
+            val name: String,
+            val isCompleted: Boolean
+        )
 
         private fun parseTasks(raw: String): List<WidgetTask> {
             if (raw.isBlank()) return emptyList()
@@ -151,8 +220,8 @@ class MomentumHomeWidget : AppWidgetProvider() {
                 (0 until arr.length()).mapNotNull { i ->
                     val obj = arr.optJSONObject(i) ?: return@mapNotNull null
                     WidgetTask(
-                        id          = obj.optString("id", i.toString()),
-                        name        = obj.optString("name", "Task"),
+                        id = obj.optString("id", i.toString()),
+                        name = obj.optString("name", "Task"),
                         isCompleted = obj.optBoolean("completed", false)
                     )
                 }.take(MAX_ROWS)
@@ -167,12 +236,11 @@ class MomentumHomeWidget : AppWidgetProvider() {
          * We try that first, then fall back to older naming conventions.
          */
         fun readPrefs(context: Context): Triple<String, String, String> {
-            // home_widget v0.9 uses this file name
             val candidates = listOf(
                 "HomeWidgetPreferences",
                 "${context.packageName}.home_widget",
                 context.packageName,
-                "FlutterSharedPreferences",
+                "FlutterSharedPreferences"
             )
 
             for (name in candidates) {
@@ -182,14 +250,14 @@ class MomentumHomeWidget : AppWidgetProvider() {
                     Log.d(TAG, "Checking prefs '$name' — keys: $allKeys")
 
                     val tasks = sp.getString("widget_tasks", null)
-                    val team  = sp.getString("widget_team_name", null)
+                    val team = sp.getString("widget_team_name", null)
 
                     if (!tasks.isNullOrBlank() || !team.isNullOrBlank()) {
                         Log.d(TAG, "Prefs found in '$name': tasks=${tasks?.take(50)}, team=$team")
                         return Triple(
                             sp.getString("heatmap_data", "") ?: "",
                             tasks ?: "",
-                            team  ?: ""
+                            team ?: ""
                         )
                     }
                 } catch (e: Exception) {
@@ -205,8 +273,11 @@ class MomentumHomeWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
         Log.d(TAG, "onUpdate: ${ids.toList()}")
         ids.forEach { id ->
-            try { updateAppWidget(context, mgr, id) }
-            catch (e: Exception) { Log.e(TAG, "onUpdate failed id=$id", e) }
+            try {
+                updateAppWidget(context, mgr, id)
+            } catch (e: Exception) {
+                Log.e(TAG, "onUpdate failed id=$id", e)
+            }
         }
     }
 
@@ -220,10 +291,12 @@ class MomentumHomeWidget : AppWidgetProvider() {
             ACTION_TASK_TAPPED -> {
                 val taskId = intent.getStringExtra(EXTRA_TASK_ID) ?: return
                 val uri = Uri.Builder()
-                    .scheme("homeWidget").authority("widget")
+                    .scheme("homeWidget")
+                    .authority("widget")
                     .appendQueryParameter("widget_action", "open_task")
                     .appendQueryParameter("task_id", taskId)
                     .build()
+
                 try {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, uri).apply {
