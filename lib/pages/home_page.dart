@@ -161,9 +161,21 @@ class _HomePageState extends State<HomePage>
             children: [
               // Tab bar
               Container(
-                color: Theme.of(context).colorScheme.surface,
+                margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 child: TabBar(
                   controller: _tabController,
+                  dividerColor: Colors.transparent,
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  labelColor: Colors.white,
                   tabs: const [
                     Tab(text: 'Dashboard'),
                     Tab(text: 'Tasks'),
@@ -302,6 +314,20 @@ class _HomePageState extends State<HomePage>
                         context,
                       ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      Chip(
+                        avatar: const Icon(Icons.track_changes, size: 16),
+                        label: Text('${db.activeTasks.length} active'),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.done_all, size: 16),
+                        label: Text('${db.completedTasks.length} completed'),
+                      ),
+                    ],
                   ),
                 ],
               ),

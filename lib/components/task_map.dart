@@ -95,15 +95,22 @@ class HeatMapComponent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header outside the container
-          Center(
-            child: Text(
-              'Activity Heatmap',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.inversePrimary,
+          Row(
+            children: [
+              Icon(
+                Icons.insights_outlined,
+                color: Theme.of(context).colorScheme.primaryContainer,
               ),
-            ),
+              const SizedBox(width: 8),
+              Text(
+                'Activity Heatmap',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.inversePrimary,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
 
@@ -111,9 +118,22 @@ class HeatMapComponent extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.surface,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(
+                  context,
+                ).colorScheme.secondary.withValues(alpha: 0.9),
+              ),
             ),
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             child: Center(
               child: HeatMap(
                 startDate: startDate,
@@ -125,7 +145,7 @@ class HeatMapComponent extends StatelessWidget {
                 showColorTip: false,
                 showText: true,
                 scrollable: false,
-                size: 30,
+                size: 26,
                 colorsets: isLightMode
                     ? {
                         1: Colors.green.shade200,

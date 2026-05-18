@@ -8,11 +8,20 @@ class SuccessFeedback {
     IconData icon = Icons.check_circle,
     Color color = Colors.green,
   }) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Icon(icon, color: Colors.white),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: Colors.white, size: 18),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -27,7 +36,7 @@ class SuccessFeedback {
                         fontSize: 16,
                       ),
                     ),
-                  Text(message),
+                  Text(message, style: const TextStyle(height: 1.25)),
                 ],
               ),
             ),
@@ -35,7 +44,12 @@ class SuccessFeedback {
         ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Dismiss',
+          textColor: Colors.white,
+          onPressed: () {},
+        ),
+        duration: const Duration(seconds: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),

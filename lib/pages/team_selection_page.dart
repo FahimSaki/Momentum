@@ -83,6 +83,30 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
           return ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.groups_2,
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Pick a workspace to switch context quickly.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
               // Personal tasks option
               Card(
                 child: ListTile(
