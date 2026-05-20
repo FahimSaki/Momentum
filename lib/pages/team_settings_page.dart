@@ -16,6 +16,8 @@ class TeamSettingsPage extends StatefulWidget {
 
 class _TeamSettingsPageState extends State<TeamSettingsPage> {
   final Logger _logger = Logger();
+  Team? _team;
+  bool _isLoadingTeam = true;
 
   late bool _allowMemberInvite;
   late bool _taskAutoDelete;
@@ -30,6 +32,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   @override
   void initState() {
     super.initState();
+    _team = widget.team;
     _allowMemberInvite = widget.team.settings.allowMemberInvite;
     _taskAutoDelete = widget.team.settings.taskAutoDelete;
     _notifyTaskAssigned =
@@ -38,6 +41,23 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
         widget.team.settings.notificationSettings.taskCompleted;
     _notifyMemberJoined =
         widget.team.settings.notificationSettings.memberJoined;
+    _loadLatestTeam();
+  }
+
+  Future<void> _loadLatestTeam() async {
+    try {
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      final freshTeam = await db.getTeamDetails(widget.team.id);
+      if (!mounted) return;
+      setState(() {
+        _team = freshTeam;
+        _isLoadingTeam = false;
+      });
+    } catch (e) {
+      _logger.e('Error loading latest team details', error: e);
+      if (!mounted) return;
+      setState(() => _isLoadingTeam = false);
+    }
   }
 
   void _markChanged() => setState(() => _hasChanges = true);
@@ -210,8 +230,9 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<TaskDatabase>(context, listen: false);
-    final isOwner = widget.team.isOwner(db.userId ?? '');
-    final isAdmin = widget.team.getMember(db.userId ?? '')?.role == 'admin';
+    final team = _team ?? widget.team;
+    final isOwner = team.isOwner(db.userId ?? '');
+    final isAdmin = team.getMember(db.userId ?? '')?.role == 'admin';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -247,155 +268,158 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildHeader(isDark),
-          const SizedBox(height: 20),
+      body: _isLoadingTeam
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                _buildHeader(isDark),
+                const SizedBox(height: 20),
 
-          _buildSection(
-            icon: Icons.group_work_rounded,
-            iconBg: const Color(0xFF6366F1),
-            title: 'Collaboration',
-            isDark: isDark,
-            children: [
-              _buildToggleTile(
-                title: 'Allow Member Invites',
-                subtitle: 'Members can invite others to this team',
-                value: _allowMemberInvite,
-                onChanged: (v) {
-                  setState(() => _allowMemberInvite = v);
-                  _markChanged();
-                },
-                isDark: isDark,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          _buildSection(
-            icon: Icons.task_alt_rounded,
-            iconBg: const Color(0xFF22C55E),
-            title: 'Tasks',
-            isDark: isDark,
-            children: [
-              _buildToggleTile(
-                title: 'Auto-Delete Completed Tasks',
-                subtitle: 'Tasks are cleared at midnight after completion',
-                value: _taskAutoDelete,
-                onChanged: (v) {
-                  setState(() => _taskAutoDelete = v);
-                  _markChanged();
-                },
-                isDark: isDark,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          _buildSection(
-            icon: Icons.notifications_rounded,
-            iconBg: const Color(0xFFF59E0B),
-            title: 'Notifications',
-            isDark: isDark,
-            children: [
-              _buildToggleTile(
-                title: 'Task Assigned',
-                subtitle: 'Alert when a task is assigned to a member',
-                value: _notifyTaskAssigned,
-                onChanged: (v) {
-                  setState(() => _notifyTaskAssigned = v);
-                  _markChanged();
-                },
-                isDark: isDark,
-              ),
-              _buildDivider(isDark),
-              _buildToggleTile(
-                title: 'Task Completed',
-                subtitle: 'Alert when a member completes a task',
-                value: _notifyTaskCompleted,
-                onChanged: (v) {
-                  setState(() => _notifyTaskCompleted = v);
-                  _markChanged();
-                },
-                isDark: isDark,
-              ),
-              _buildDivider(isDark),
-              _buildToggleTile(
-                title: 'Member Joined',
-                subtitle: 'Alert when someone accepts an invitation',
-                value: _notifyMemberJoined,
-                onChanged: (v) {
-                  setState(() => _notifyMemberJoined = v);
-                  _markChanged();
-                },
-                isDark: isDark,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          _buildSection(
-            icon: Icons.people_alt_rounded,
-            iconBg: const Color(0xFF3B82F6),
-            title: 'Members',
-            isDark: isDark,
-            children: widget.team.members.map((member) {
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                leading: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: _roleColor(
-                    member.role,
-                  ).withValues(alpha: 0.15),
-                  child: Text(
-                    member.user.initials,
-                    style: TextStyle(
-                      color: _roleColor(member.role),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-                title: Text(
-                  member.user.name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                    color: Theme.of(context).colorScheme.inversePrimary,
-                  ),
-                ),
-                subtitle: Text(
-                  member.user.email,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark
-                        ? const Color(0xFF9B99C8)
-                        : const Color(0xFF6B66A3),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: _buildRoleAction(
-                  member: member,
-                  isOwner: isOwner,
-                  isAdmin: isAdmin,
+                _buildSection(
+                  icon: Icons.group_work_rounded,
+                  iconBg: const Color(0xFF6366F1),
+                  title: 'Collaboration',
                   isDark: isDark,
+                  children: [
+                    _buildToggleTile(
+                      title: 'Allow Member Invites',
+                      subtitle: 'Members can invite others to this team',
+                      value: _allowMemberInvite,
+                      onChanged: (v) {
+                        setState(() => _allowMemberInvite = v);
+                        _markChanged();
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
                 ),
-              );
-            }).toList(),
-          ),
+                const SizedBox(height: 12),
 
-          if (isOwner) ...[
-            const SizedBox(height: 28),
-            _buildDangerZone(isDark),
-          ],
+                _buildSection(
+                  icon: Icons.task_alt_rounded,
+                  iconBg: const Color(0xFF22C55E),
+                  title: 'Tasks',
+                  isDark: isDark,
+                  children: [
+                    _buildToggleTile(
+                      title: 'Auto-Delete Completed Tasks',
+                      subtitle:
+                          'Tasks are cleared at midnight after completion',
+                      value: _taskAutoDelete,
+                      onChanged: (v) {
+                        setState(() => _taskAutoDelete = v);
+                        _markChanged();
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
 
-          const SizedBox(height: 40),
-        ],
-      ),
+                _buildSection(
+                  icon: Icons.notifications_rounded,
+                  iconBg: const Color(0xFFF59E0B),
+                  title: 'Notifications',
+                  isDark: isDark,
+                  children: [
+                    _buildToggleTile(
+                      title: 'Task Assigned',
+                      subtitle: 'Alert when a task is assigned to a member',
+                      value: _notifyTaskAssigned,
+                      onChanged: (v) {
+                        setState(() => _notifyTaskAssigned = v);
+                        _markChanged();
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildDivider(isDark),
+                    _buildToggleTile(
+                      title: 'Task Completed',
+                      subtitle: 'Alert when a member completes a task',
+                      value: _notifyTaskCompleted,
+                      onChanged: (v) {
+                        setState(() => _notifyTaskCompleted = v);
+                        _markChanged();
+                      },
+                      isDark: isDark,
+                    ),
+                    _buildDivider(isDark),
+                    _buildToggleTile(
+                      title: 'Member Joined',
+                      subtitle: 'Alert when someone accepts an invitation',
+                      value: _notifyMemberJoined,
+                      onChanged: (v) {
+                        setState(() => _notifyMemberJoined = v);
+                        _markChanged();
+                      },
+                      isDark: isDark,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                _buildSection(
+                  icon: Icons.people_alt_rounded,
+                  iconBg: const Color(0xFF3B82F6),
+                  title: 'Members',
+                  isDark: isDark,
+                  children: team.members.map((member) {
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: _roleColor(
+                          member.role,
+                        ).withValues(alpha: 0.15),
+                        child: Text(
+                          member.user.initials,
+                          style: TextStyle(
+                            color: _roleColor(member.role),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        member.user.name,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.inversePrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        member.user.email,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? const Color(0xFF9B99C8)
+                              : const Color(0xFF6B66A3),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: _buildRoleAction(
+                        member: member,
+                        isOwner: isOwner,
+                        isAdmin: isAdmin,
+                        isDark: isDark,
+                      ),
+                    );
+                  }).toList(),
+                ),
+
+                if (isOwner) ...[
+                  const SizedBox(height: 28),
+                  _buildDangerZone(isDark),
+                ],
+
+                const SizedBox(height: 40),
+              ],
+            ),
     );
   }
 
@@ -462,7 +486,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${widget.team.members.length} members',
+                      '${(_team ?? widget.team).members.length} members',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 13,
@@ -699,25 +723,41 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
 
     if (!canManageRole) return _buildRoleBadge(member.role);
 
-    return PopupMenuButton<String>(
-      enabled: !_isUpdatingRoles,
-      onSelected: (value) => _updateMemberRole(member.user.id, value),
-      itemBuilder: (context) => [
-        const PopupMenuItem(value: 'member', child: Text('Set as Member')),
-        const PopupMenuItem(value: 'admin', child: Text('Set as Admin')),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildRoleBadge(member.role),
-          const SizedBox(width: 6),
-          Icon(
-            Icons.expand_more_rounded,
-            size: 18,
-            color: isDark ? const Color(0xFF9B99C8) : const Color(0xFF6B66A3),
+    final canPromote = member.role == 'member';
+    final canDemote = isOwner && member.role == 'admin';
+
+    return Wrap(
+      spacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _buildRoleBadge(member.role),
+        if (canPromote)
+          OutlinedButton.icon(
+            onPressed: _isUpdatingRoles
+                ? null
+                : () => _updateMemberRole(member.user.id, 'admin'),
+            icon: const Icon(Icons.arrow_upward_rounded, size: 14),
+            label: const Text('Promote'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            ),
           ),
-        ],
-      ),
+        if (canDemote)
+          OutlinedButton.icon(
+            onPressed: _isUpdatingRoles
+                ? null
+                : () => _updateMemberRole(member.user.id, 'member'),
+            icon: const Icon(Icons.arrow_downward_rounded, size: 14),
+            label: const Text('Demote'),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+            ),
+          ),
+      ],
     );
   }
 
@@ -746,14 +786,15 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.updateTeamMemberRole(widget.team.id, memberId, role);
+      final freshTeam = await db.getTeamDetails(widget.team.id);
       if (!mounted) return;
+      setState(() => _team = freshTeam);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Role updated to ${role.toUpperCase()}'),
           backgroundColor: const Color(0xFF22C55E),
         ),
       );
-      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
