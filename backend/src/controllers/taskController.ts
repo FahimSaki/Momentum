@@ -352,8 +352,13 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
 
         const isMember = team.members.some((m) => m.user.toString() === userId);
         if (!isMember) { res.status(403).json({ message: 'Access denied' }); return; }
+        const member = team.members.find((m) => m.user.toString() === userId);
+        const isPrivilegedMember = member && ['owner', 'admin'].includes(member.role);
 
         const query: Record<string, any> = { team: teamId };
+        if (!isPrivilegedMember) {
+            query.assignedTo = userId;
+        }
         if (status === 'active') query.isArchived = false;
         else if (status === 'archived') query.isArchived = true;
 

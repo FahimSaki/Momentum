@@ -343,10 +343,28 @@ class _TeamHomePageState extends State<TeamHomePage> {
   Widget _buildTasksSection(TaskDatabase db, bool isDark) {
     final activeTasks = db.activeTasks;
     final completedTasks = db.completedTasks;
+    final isMemberRole = _userRole.toLowerCase() == 'member';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (isMemberRole) ...[
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(
+                0xFFDBEAFE,
+              ).withValues(alpha: isDark ? 0.18 : 0.9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'You can only view and complete tasks assigned to you. Owners/admins manage creation, deletion, and assignment.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
         if (activeTasks.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
