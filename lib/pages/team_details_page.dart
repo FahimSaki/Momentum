@@ -15,17 +15,42 @@ class TeamDetailsPage extends StatefulWidget {
 }
 
 class _TeamDetailsPageState extends State<TeamDetailsPage> {
+  Team? _team;
+  bool _isLoadingTeam = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _team = widget.team;
+    _loadLatestTeam();
+  }
+
+  Future<void> _loadLatestTeam() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    try {
+      final freshTeam = await db.getTeamDetails(widget.team.id);
+      if (!mounted) return;
+      setState(() {
+        _team = freshTeam;
+        _isLoadingTeam = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingTeam = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<TaskDatabase>(context, listen: false);
+    final team = _team ?? widget.team;
     final isOwnerOrAdmin =
-        widget.team.isAdmin(db.userId ?? '') ||
-        widget.team.isOwner(db.userId ?? '');
+        team.isAdmin(db.userId ?? '') || team.isOwner(db.userId ?? '');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.team.name),
+        title: Text(team.name),
         actions: [
           if (isOwnerOrAdmin)
             IconButton(
@@ -33,9 +58,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
               tooltip: 'Team Settings',
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => TeamSettingsPage(team: widget.team),
-                ),
+                MaterialPageRoute(builder: (_) => TeamSettingsPage(team: team)),
               ),
             ),
           if (isOwnerOrAdmin)
@@ -49,7 +72,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TeamSettingsPage(team: widget.team),
+                      builder: (_) => TeamSettingsPage(team: team),
                     ),
                   );
                 }
@@ -79,74 +102,76 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Team info card
-          _buildTeamInfoCard(isDark),
-          const SizedBox(height: 16),
-
-          // Members section header
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
+      body: _isLoadingTeam
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                Container(
-                  width: 4,
-                  height: 18,
-                  decoration: BoxDecoration(
+                // Team info card
+                _buildTeamInfoCard(team, isDark),
+                const SizedBox(height: 16),
+
+                // Members section header
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF6366F1),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Members (${team.members.length})',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: Theme.of(context).colorScheme.inversePrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Members list
+                ...team.members.map(
+                  (member) => _buildMemberCard(member, isDark),
+                ),
+                const SizedBox(height: 24),
+
+                // Quick actions
+                if (isOwnerOrAdmin) ...[
+                  _buildActionButton(
+                    icon: Icons.person_add_rounded,
+                    label: 'Invite Member',
                     color: const Color(0xFF6366F1),
-                    borderRadius: BorderRadius.circular(2),
+                    onTap: _showInviteDialog,
+                    isDark: isDark,
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Members (${widget.team.members.length})',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    color: Theme.of(context).colorScheme.inversePrimary,
+                  const SizedBox(height: 10),
+                  _buildActionButton(
+                    icon: Icons.settings_rounded,
+                    label: 'Team Settings',
+                    color: const Color(0xFF3B82F6),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TeamSettingsPage(team: team),
+                      ),
+                    ),
+                    isDark: isDark,
                   ),
-                ),
+                ],
               ],
             ),
-          ),
-
-          // Members list
-          ...widget.team.members.map(
-            (member) => _buildMemberCard(member, isDark),
-          ),
-          const SizedBox(height: 24),
-
-          // Quick actions
-          if (isOwnerOrAdmin) ...[
-            _buildActionButton(
-              icon: Icons.person_add_rounded,
-              label: 'Invite Member',
-              color: const Color(0xFF6366F1),
-              onTap: _showInviteDialog,
-              isDark: isDark,
-            ),
-            const SizedBox(height: 10),
-            _buildActionButton(
-              icon: Icons.settings_rounded,
-              label: 'Team Settings',
-              color: const Color(0xFF3B82F6),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => TeamSettingsPage(team: widget.team),
-                ),
-              ),
-              isDark: isDark,
-            ),
-          ],
-        ],
-      ),
     );
   }
 
-  Widget _buildTeamInfoCard(bool isDark) {
+  Widget _buildTeamInfoCard(Team team, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -178,19 +203,18 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.team.name,
+                  team.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (widget.team.description != null &&
-                    widget.team.description!.isNotEmpty)
+                if (team.description != null && team.description!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
                     child: Text(
-                      widget.team.description!,
+                      team.description!,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 13,
@@ -201,7 +225,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                 Row(
                   children: [
                     _statPill(
-                      '${widget.team.members.length}',
+                      '${team.members.length}',
                       'members',
                       Colors.white,
                     ),
