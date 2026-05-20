@@ -8,6 +8,7 @@ import {
     getPendingInvitations,
     updateTeamSettings,
     removeTeamMember,
+    updateTeamMemberRole,
     leaveTeam,
     deleteTeam,
 } from '../controllers/teamController';
@@ -26,6 +27,7 @@ router.delete('/:teamId', deleteTeam);
 router.post('/:teamId/invite', inviteToTeam);
 router.patch('/invitations/:invitationId/respond', respondToInvitation);
 router.delete('/:teamId/members/:memberId', removeTeamMember);
+router.patch('/:teamId/members/:memberId/role', updateTeamMemberRole);
 router.post('/:teamId/leave', leaveTeam);
 
 export default router;

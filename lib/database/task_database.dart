@@ -300,6 +300,25 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  Future<void> updateTeamMemberRole(
+    String teamId,
+    String memberId,
+    String role,
+  ) async {
+    try {
+      await _teamService!.updateTeamMemberRole(teamId, memberId, role);
+      await _loadUserTeams();
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e(
+        'Error updating team member role',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
   Future<void> respondToInvitation(String invitationId, bool accept) async {
     try {
       final response = accept ? 'accepted' : 'declined';

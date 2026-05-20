@@ -265,6 +265,35 @@ class TeamService {
     }
   }
 
+  // Update team member role
+  Future<void> updateTeamMemberRole(
+    String teamId,
+    String memberId,
+    String role,
+  ) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$apiBaseUrl/teams/$teamId/members/$memberId/role'),
+        headers: _headers,
+        body: json.encode({'role': role}),
+      );
+
+      if (response.statusCode != 200) {
+        final errorData = json.decode(response.body);
+        throw Exception(
+          errorData['message'] ?? 'Failed to update team member role',
+        );
+      }
+    } catch (e, stackTrace) {
+      _logger.e(
+        'Error updating team member role',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
+  }
+
   // Leave team
   Future<void> leaveTeam(String teamId) async {
     try {

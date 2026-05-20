@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:momentum/models/team.dart';
+import 'package:momentum/models/team_member.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
@@ -23,6 +24,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   late bool _notifyMemberJoined;
   bool _isSaving = false;
   bool _isDeleting = false;
+  bool _isUpdatingRoles = false;
   bool _hasChanges = false;
 
   @override
@@ -209,6 +211,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   Widget build(BuildContext context) {
     final db = Provider.of<TaskDatabase>(context, listen: false);
     final isOwner = widget.team.isOwner(db.userId ?? '');
+    final isAdmin = widget.team.getMember(db.userId ?? '')?.role == 'admin';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -375,24 +378,11 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _roleColor(member.role).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    member.role.toUpperCase(),
-                    style: TextStyle(
-                      color: _roleColor(member.role),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                trailing: _buildRoleAction(
+                  member: member,
+                  isOwner: isOwner,
+                  isAdmin: isAdmin,
+                  isDark: isDark,
                 ),
               );
             }).toList(),
@@ -695,6 +685,88 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildRoleAction({
+    required TeamMember member,
+    required bool isOwner,
+    required bool isAdmin,
+    required bool isDark,
+  }) {
+    final canManageRole =
+        (isOwner && member.role != 'owner') ||
+        (isAdmin && member.role == 'member');
+
+    if (!canManageRole) return _buildRoleBadge(member.role);
+
+    return PopupMenuButton<String>(
+      enabled: !_isUpdatingRoles,
+      onSelected: (value) => _updateMemberRole(member.user.id, value),
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: 'member', child: Text('Set as Member')),
+        const PopupMenuItem(value: 'admin', child: Text('Set as Admin')),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildRoleBadge(member.role),
+          const SizedBox(width: 6),
+          Icon(
+            Icons.expand_more_rounded,
+            size: 18,
+            color: isDark ? const Color(0xFF9B99C8) : const Color(0xFF6B66A3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleBadge(String role) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: _roleColor(role).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        role.toUpperCase(),
+        style: TextStyle(
+          color: _roleColor(role),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateMemberRole(String memberId, String role) async {
+    if (_isUpdatingRoles) return;
+    setState(() => _isUpdatingRoles = true);
+    try {
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      await db.updateTeamMemberRole(widget.team.id, memberId, role);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Role updated to ${role.toUpperCase()}'),
+          backgroundColor: const Color(0xFF22C55E),
+        ),
+      );
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to update role: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUpdatingRoles = false);
+    }
   }
 
   Color _roleColor(String role) {

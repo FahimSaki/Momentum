@@ -328,6 +328,46 @@ export const removeTeamMember = async (req: Request, res: Response): Promise<voi
     }
 };
 
+// ── Update team member role ──────────────────────────────────────────────
+
+export const updateTeamMemberRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { teamId, memberId } = req.params;
+        const { role } = req.body as { role?: 'admin' | 'member' };
+        const userId = req.userId;
+
+        if (!role || !['admin', 'member'].includes(role)) {
+            res.status(400).json({ message: 'Role must be either admin or member' }); return;
+        }
+
+        const team = await Team.findById(teamId);
+        if (!team) { res.status(404).json({ message: 'Team not found' }); return; }
+
+        const currentMember = team.members.find((m) => m.user.toString() === userId);
+        if (!currentMember) { res.status(403).json({ message: 'You are not a team member' }); return; }
+
+        const targetMember = team.members.find((m) => m.user.toString() === memberId);
+        if (!targetMember) { res.status(404).json({ message: 'Member not found in team' }); return; }
+        if (targetMember.role === 'owner') { res.status(400).json({ message: 'Cannot change owner role' }); return; }
+
+        const canUpdateRole =
+            currentMember.role === 'owner' ||
+            (currentMember.role === 'admin' && targetMember.role === 'member' && role === 'admin');
+        if (!canUpdateRole) {
+            res.status(403).json({ message: 'You do not have permission to change this member role' }); return;
+        }
+
+        targetMember.role = role;
+        await team.save();
+
+        res.json({ message: 'Member role updated successfully', member: targetMember });
+    } catch (err) {
+        console.error('Update team member role error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+
 // ── Leave team ────────────────────────────────────────────────────────────
 
 export const leaveTeam = async (req: Request, res: Response): Promise<void> => {
