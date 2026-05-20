@@ -48,8 +48,9 @@ class TaskDatabase extends ChangeNotifier {
       List.unmodifiable(_historicalCompletions);
   bool get isInitialized => _isInitialized;
 
-  List<Task> get activeTasks =>
-      currentTasks.where((task) => !task.isCompletedToday()).toList();
+  List<Task> get activeTasks => currentTasks
+      .where((task) => !task.isCompletedToday() && !task.isArchived)
+      .toList();
 
   List<Task> get completedTasks =>
       currentTasks.where((task) => task.isCompletedToday()).toList();
@@ -141,8 +142,32 @@ class TaskDatabase extends ChangeNotifier {
         tasks = await _taskService!.getUserTasks();
       }
 
+      // ── FILTER: only keep tasks relevant to today ──────────────────────
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+
+      final filtered = tasks.where((task) {
+        // Always show non-archived tasks
+        if (!task.isArchived) return true;
+
+        // Show archived tasks ONLY if they were archived today
+        // (completed today — user should see them in the completed section)
+        if (task.archivedAt != null) {
+          final archivedLocal = task.archivedAt!.toLocal();
+          final archivedDay = DateTime(
+            archivedLocal.year,
+            archivedLocal.month,
+            archivedLocal.day,
+          );
+          return archivedDay.isAtSameMomentAs(todayStart);
+        }
+
+        // If archived but no archivedAt date, check completedDays
+        return task.isCompletedToday();
+      }).toList();
+
       currentTasks.clear();
-      currentTasks.addAll(tasks);
+      currentTasks.addAll(filtered);
       _organizeTasksByType();
       notifyListeners();
     } catch (e, stackTrace) {
@@ -305,6 +330,9 @@ class TaskDatabase extends ChangeNotifier {
   void _organizeTasksByType() {
     personalTasks.clear();
     teamTasks.clear();
+
+    // Only organize tasks that made it through the _loadTasks filter
+    // (no archived-from-previous-days tasks should be here)
     for (final task in currentTasks) {
       if (task.isTeamTask) {
         teamTasks.add(task);

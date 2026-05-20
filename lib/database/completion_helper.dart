@@ -1,70 +1,62 @@
 import 'package:momentum/models/task.dart';
 
 class TaskCompletionHelper {
-  static DateTime _getTodayUtc() {
-    final localNow = DateTime.now();
-    return DateTime(localNow.year, localNow.month, localNow.day).toUtc();
-  }
-
   static bool isCompletedToday(Task task) {
-    final today = _getTodayUtc();
-    return task.completedDays.any(
-      (d) =>
-          d.toUtc().year == today.year &&
-          d.toUtc().month == today.month &&
-          d.toUtc().day == today.day,
-    );
+    final now = DateTime.now();
+    final todayLocal = DateTime(now.year, now.month, now.day);
+
+    return task.completedDays.any((d) {
+      final local = d.toLocal();
+      final completedDay = DateTime(local.year, local.month, local.day);
+      return completedDay.year == todayLocal.year &&
+          completedDay.month == todayLocal.month &&
+          completedDay.day == todayLocal.day;
+    });
   }
 
   static Map<String, dynamic>? processCompletionToggle(
     Task task,
     bool isCompleted,
   ) {
-    final today = _getTodayUtc();
+    final now = DateTime.now();
+    final todayLocal = DateTime(now.year, now.month, now.day);
+    final todayUtc = todayLocal.toUtc();
     bool changed = false;
 
     if (isCompleted) {
-      // Only add if today's date is not already present
-      if (!task.completedDays.any(
-        (d) =>
-            d.toUtc().year == today.year &&
-            d.toUtc().month == today.month &&
-            d.toUtc().day == today.day,
-      )) {
-        task.completedDays.add(today);
-        task.lastCompletedDate = today;
+      final alreadyToday = task.completedDays.any((d) {
+        final local = d.toLocal();
+        return local.year == todayLocal.year &&
+            local.month == todayLocal.month &&
+            local.day == todayLocal.day;
+      });
+
+      if (!alreadyToday) {
+        task.completedDays.add(todayUtc);
+        task.lastCompletedDate = todayUtc;
         task.isArchived = true;
-        task.archivedAt = today;
+        task.archivedAt = todayUtc;
         changed = true;
       }
     } else {
-      // Remove today's completion
       final before = task.completedDays.length;
-      task.completedDays.removeWhere(
-        (d) =>
-            d.toUtc().year == today.year &&
-            d.toUtc().month == today.month &&
-            d.toUtc().day == today.day,
-      );
+      task.completedDays.removeWhere((d) {
+        final local = d.toLocal();
+        return local.year == todayLocal.year &&
+            local.month == todayLocal.month &&
+            local.day == todayLocal.day;
+      });
 
       if (before != task.completedDays.length) {
-        final hasToday = task.completedDays.any(
-          (d) =>
-              d.toUtc().year == today.year &&
-              d.toUtc().month == today.month &&
-              d.toUtc().day == today.day,
-        );
-        if (!hasToday) {
-          task.isArchived = false;
-          task.archivedAt = null;
+        task.isArchived = false;
+        task.archivedAt = null;
 
-          if (task.completedDays.isNotEmpty) {
-            task.lastCompletedDate = task.completedDays.reduce(
-              (a, b) => a.isAfter(b) ? a : b,
-            );
-          } else {
-            task.lastCompletedDate = null;
-          }
+        if (task.completedDays.isNotEmpty) {
+          task.lastCompletedDate = task.completedDays.reduce(
+            (a, b) => a.isAfter(b) ? a : b,
+          );
+        } else {
+          task.lastCompletedDate = null;
         }
         changed = true;
       }

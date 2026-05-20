@@ -49,3 +49,10 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     implementation("androidx.multidex:multidex:2.0.1")
 }
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.glance:glance-appwidget:1.1.0")
+        force("androidx.compose.remote:remote-creation-android:1.0.0-alpha10")
+    }
+}
