@@ -359,8 +359,16 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
         if (!isPrivilegedMember) {
             query.assignedTo = userId;
         }
-        if (status === 'active') query.isArchived = false;
-        else if (status === 'archived') query.isArchived = true;
+        if (status === 'active') {
+            const todayStart = new Date();
+            todayStart.setUTCHours(0, 0, 0, 0);
+            query.$or = [
+                { isArchived: false },
+                { isArchived: true, archivedAt: { $gte: todayStart } },
+            ];
+        } else if (status === 'archived') {
+            query.isArchived = true;
+        }
 
         const tasks = await Task.find(query)
             .populate('assignedTo', 'name email avatar')

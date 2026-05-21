@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -67,10 +68,8 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isLightMode = !themeProvider.isDarkMode;
 
-    // Completion colors — vibrant emerald green (semantic: done = green)
-    const Color completedLight = Color(0xFF10B981); // emerald-500
-    const Color completedDark = Color(0xFF34D399); // emerald-400
-
+    const Color completedLight = Color(0xFF10B981);
+    const Color completedDark = Color(0xFF34D399);
     final completedColor = isLightMode ? completedLight : completedDark;
 
     return SlideTransition(
@@ -131,33 +130,84 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
             ),
             child: GestureDetector(
               onTap: _handleCompletion,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
+              child: widget.isCompleted
+                  ? _buildCompletedTile(completedColor, isLightMode)
+                  : _buildActiveTile(completedColor, isLightMode),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveTile(Color completedColor, bool isLightMode) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
+        color: isLightMode ? Colors.white : const Color(0xFF1A1929),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isLightMode
+              ? const Color(0xFFEDE9FE)
+              : const Color(0xFF2D2C44),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isLightMode
+                ? const Color(0x0D6366F1)
+                : Colors.black.withValues(alpha: 0.15),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        leading: GestureDetector(
+          onTap: _handleCompletion,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.transparent,
+              border: Border.all(
+                color: isLightMode
+                    ? const Color(0xFFB0ADDB)
+                    : const Color(0xFF5A587A),
+                width: 2,
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          widget.text,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.inversePrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletedTile(Color completedColor, bool isLightMode) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Stack(
+        children: [
+          // Blurred background content
+          ImageFiltered(
+            imageFilter: ImageFilter.blur(sigmaX: 2.5, sigmaY: 2.5),
+            child: Opacity(
+              opacity: 0.45,
+              child: Container(
                 decoration: BoxDecoration(
-                  color: widget.isCompleted
-                      ? completedColor.withValues(
-                          alpha: isLightMode ? 0.12 : 0.15,
-                        )
-                      : (isLightMode ? Colors.white : const Color(0xFF1A1929)),
+                  color: isLightMode ? Colors.white : const Color(0xFF1A1929),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: widget.isCompleted
-                        ? completedColor.withValues(alpha: 0.4)
-                        : (isLightMode
-                              ? const Color(0xFFEDE9FE)
-                              : const Color(0xFF2D2C44)),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    if (!widget.isCompleted)
-                      BoxShadow(
-                        color: isLightMode
-                            ? const Color(0x0D6366F1)
-                            : Colors.black.withValues(alpha: 0.15),
-                        offset: const Offset(0, 2),
-                        blurRadius: 8,
-                      ),
-                  ],
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: ListTile(
@@ -165,74 +215,79 @@ class _AnimatedTaskTileState extends State<AnimatedTaskTile>
                     horizontal: 8,
                     vertical: 2,
                   ),
-                  leading: GestureDetector(
-                    onTap: _handleCompletion,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: widget.isCompleted
-                            ? completedColor
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: widget.isCompleted
-                              ? completedColor
-                              : (isLightMode
-                                    ? const Color(0xFFB0ADDB)
-                                    : const Color(0xFF5A587A)),
-                          width: 2,
-                        ),
-                      ),
-                      child: widget.isCompleted
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: Colors.white,
-                              size: 16,
-                            )
-                          : null,
-                    ),
+                  leading: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: const BoxDecoration(shape: BoxShape.circle),
                   ),
                   title: Text(
                     widget.text,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
-                      color: widget.isCompleted
-                          ? completedColor
-                          : Theme.of(context).colorScheme.inversePrimary,
-                      decoration: widget.isCompleted
-                          ? TextDecoration.lineThrough
-                          : null,
-                      decorationColor: completedColor,
                     ),
                   ),
-                  trailing: widget.isCompleted
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: completedColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            'Done',
-                            style: TextStyle(
-                              color: completedColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        )
-                      : null,
                 ),
               ),
             ),
           ),
-        ),
+          // Green border overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: completedColor.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+          // Completed pill
+          Positioned.fill(
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: completedColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: completedColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Completed',
+                      style: TextStyle(
+                        color: completedColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Tap to uncomplete
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: _handleCompletion,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
