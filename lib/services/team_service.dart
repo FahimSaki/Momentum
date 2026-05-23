@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:momentum/constants/api_base_url.dart';
+import 'package:momentum/config/api_base_url.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_invitation.dart';
 import 'package:logger/logger.dart';

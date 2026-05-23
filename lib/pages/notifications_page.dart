@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/notification_tile.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team_invitation.dart';
 import 'package:provider/provider.dart';
@@ -21,9 +22,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _refreshData();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
 
   @override
@@ -32,29 +31,15 @@ class _NotificationsPageState extends State<NotificationsPage>
     super.dispose();
   }
 
-  Future<void> _refreshData() async {
+  Future<void> _refresh() async {
     if (_isLoading) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.refreshData();
-      _logger.i('Notifications data refreshed');
-    } catch (e, stackTrace) {
-      _logger.e(
-        'Error refreshing notifications data',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      await Provider.of<TaskDatabase>(context, listen: false).refreshData();
+    } catch (e, st) {
+      _logger.e('Error refreshing notifications', error: e, stackTrace: st);
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -78,21 +63,17 @@ class _NotificationsPageState extends State<NotificationsPage>
               final hasUnread =
                   db.unreadNotificationCount > 0 ||
                   db.pendingInvitations.isNotEmpty;
-
               if (hasUnread) {
                 return PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    switch (value) {
-                      case 'mark_all_read':
-                        await db.markAllNotificationsAsRead();
-                        break;
-                      case 'refresh':
-                        await _refreshData();
-                        break;
+                  onSelected: (v) async {
+                    if (v == 'mark_all_read') {
+                      await db.markAllNotificationsAsRead();
+                    } else {
+                      await _refresh();
                     }
                   },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
                       value: 'mark_all_read',
                       child: Row(
                         children: [
@@ -102,7 +83,7 @@ class _NotificationsPageState extends State<NotificationsPage>
                         ],
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'refresh',
                       child: Row(
                         children: [
@@ -117,28 +98,55 @@ class _NotificationsPageState extends State<NotificationsPage>
               }
               return IconButton(
                 icon: const Icon(Icons.refresh),
-                onPressed: _refreshData,
+                onPressed: _refresh,
               );
             },
           ),
         ],
       ),
       body: Consumer<TaskDatabase>(
-        builder: (context, db, _) {
-          return TabBarView(
-            controller: _tabController,
-            children: [_buildInvitationsTab(db), _buildActivityTab(db)],
-          );
-        },
+        builder: (context, db, _) => TabBarView(
+          controller: _tabController,
+          children: [
+            _InvitationsTab(db: db, isLoading: _isLoading, onRefresh: _refresh),
+            _ActivityTab(
+              db: db,
+              isLoading: _isLoading,
+              onRefresh: _refresh,
+              onTap: (n) {
+                if (!n.isRead) db.markNotificationAsRead(n.id);
+                switch (n.type) {
+                  case 'team_invitation':
+                    _tabController.animateTo(0);
+                    break;
+                  default:
+                    Navigator.pop(context);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildInvitationsTab(TaskDatabase db) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+// ── Invitations tab ──────────────────────────────────────────────────────
 
+class _InvitationsTab extends StatelessWidget {
+  final TaskDatabase db;
+  final bool isLoading;
+  final Future<void> Function() onRefresh;
+
+  const _InvitationsTab({
+    required this.db,
+    required this.isLoading,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) return const Center(child: CircularProgressIndicator());
     if (db.pendingInvitations.isEmpty) {
       return const Center(
         child: Column(
@@ -159,29 +167,76 @@ class _NotificationsPageState extends State<NotificationsPage>
         ),
       );
     }
-
     return RefreshIndicator(
-      onRefresh: _refreshData,
+      onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: db.pendingInvitations.length,
-        itemBuilder: (context, index) {
-          final invitation = db.pendingInvitations[index];
+        itemBuilder: (context, i) {
+          final inv = db.pendingInvitations[i];
           return _InvitationCard(
-            invitation: invitation,
-            onAccept: () => _handleInvitation(db, invitation, true),
-            onDecline: () => _handleInvitation(db, invitation, false),
+            invitation: inv,
+            onAccept: () => _respond(context, inv, true),
+            onDecline: () => _respond(context, inv, false),
           );
         },
       ),
     );
   }
 
-  Widget _buildActivityTab(TaskDatabase db) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+  Future<void> _respond(
+    BuildContext context,
+    TeamInvitation inv,
+    bool accept,
+  ) async {
+    try {
+      await db.respondToInvitation(inv.id, accept);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              accept
+                  ? 'Invitation accepted! Welcome to ${inv.team.name}! 🎉'
+                  : 'Invitation declined',
+            ),
+            backgroundColor: accept ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        await onRefresh();
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
+  }
+}
 
+// ── Activity tab ─────────────────────────────────────────────────────────
+
+class _ActivityTab extends StatelessWidget {
+  final TaskDatabase db;
+  final bool isLoading;
+  final Future<void> Function() onRefresh;
+  final void Function(dynamic) onTap;
+
+  const _ActivityTab({
+    required this.db,
+    required this.isLoading,
+    required this.onRefresh,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading) return const Center(child: CircularProgressIndicator());
     if (db.notifications.isEmpty) {
       return const Center(
         child: Column(
@@ -202,89 +257,20 @@ class _NotificationsPageState extends State<NotificationsPage>
         ),
       );
     }
-
     return RefreshIndicator(
-      onRefresh: _refreshData,
+      onRefresh: onRefresh,
       child: ListView.builder(
         itemCount: db.notifications.length,
-        itemBuilder: (context, index) {
-          final notification = db.notifications[index];
-          return _NotificationTile(
-            notification: notification,
-            onTap: () => _handleNotificationTap(notification, db),
-          );
-        },
+        itemBuilder: (_, i) => NotificationTile(
+          notification: db.notifications[i],
+          onTap: () => onTap(db.notifications[i]),
+        ),
       ),
     );
   }
-
-  Future<void> _handleInvitation(
-    TaskDatabase db,
-    TeamInvitation invitation,
-    bool accept,
-  ) async {
-    try {
-      _logger.i(
-        '${accept ? 'Accepting' : 'Declining'} invitation: ${invitation.id}',
-      );
-
-      await db.respondToInvitation(invitation.id, accept);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              accept
-                  ? 'Invitation accepted! Welcome to ${invitation.team.name}! 🎉'
-                  : 'Invitation declined',
-            ),
-            backgroundColor: accept ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-
-        // Refresh data after handling invitation
-        await _refreshData();
-      }
-    } catch (e, stackTrace) {
-      _logger.e('Error handling invitation', error: e, stackTrace: stackTrace);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-  }
-
-  void _handleNotificationTap(dynamic notification, TaskDatabase db) {
-    // Mark as read if not already
-    if (!notification.isRead) {
-      db.markNotificationAsRead(notification.id);
-    }
-
-    // Handle navigation based on notification type
-    switch (notification.type) {
-      case 'task_assigned':
-      case 'task_completed':
-        // Navigate back to home and switch to tasks tab
-        Navigator.pop(context);
-        break;
-      case 'team_invitation':
-        // Switch to invitations tab
-        _tabController.animateTo(0);
-        break;
-      case 'team_member_joined':
-        // Navigate back to home
-        Navigator.pop(context);
-        break;
-    }
-  }
 }
+
+// ── Invitation card ──────────────────────────────────────────────────────
 
 class _InvitationCard extends StatefulWidget {
   final TeamInvitation invitation;
@@ -302,10 +288,21 @@ class _InvitationCard extends StatefulWidget {
 }
 
 class _InvitationCardState extends State<_InvitationCard> {
-  bool _isProcessing = false;
+  bool _processing = false;
+
+  Future<void> _press(VoidCallback action) async {
+    setState(() => _processing = true);
+    try {
+      await Future.delayed(const Duration(milliseconds: 200));
+      action();
+    } finally {
+      if (mounted) setState(() => _processing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final inv = widget.invitation;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -330,15 +327,14 @@ class _InvitationCardState extends State<_InvitationCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.invitation.team.name,
+                        inv.team.name,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (widget.invitation.team.description != null &&
-                          widget.invitation.team.description!.isNotEmpty)
+                      if (inv.team.description?.isNotEmpty == true)
                         Text(
-                          widget.invitation.team.description!,
+                          inv.team.description!,
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: Colors.grey.shade600),
                           maxLines: 2,
@@ -349,9 +345,7 @@ class _InvitationCardState extends State<_InvitationCard> {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -365,7 +359,7 @@ class _InvitationCardState extends State<_InvitationCard> {
                       Icon(Icons.person, size: 16, color: Colors.grey[600]),
                       const SizedBox(width: 8),
                       Text(
-                        'Invited by ${widget.invitation.inviter.name}',
+                        'Invited by ${inv.inviter.name}',
                         style: TextStyle(color: Colors.grey[600]),
                       ),
                       const Spacer(),
@@ -379,7 +373,7 @@ class _InvitationCardState extends State<_InvitationCard> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          widget.invitation.role.toUpperCase(),
+                          inv.role.toUpperCase(),
                           style: const TextStyle(
                             color: Colors.blue,
                             fontSize: 12,
@@ -389,9 +383,7 @@ class _InvitationCardState extends State<_InvitationCard> {
                       ),
                     ],
                   ),
-
-                  if (widget.invitation.message != null &&
-                      widget.invitation.message!.isNotEmpty) ...[
+                  if (inv.message?.isNotEmpty == true) ...[
                     const SizedBox(height: 12),
                     const Divider(height: 1),
                     const SizedBox(height: 12),
@@ -402,7 +394,7 @@ class _InvitationCardState extends State<_InvitationCard> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            widget.invitation.message!,
+                            inv.message!,
                             style: TextStyle(
                               color: Colors.grey[700],
                               fontStyle: FontStyle.italic,
@@ -415,32 +407,14 @@ class _InvitationCardState extends State<_InvitationCard> {
                 ],
               ),
             ),
-
             const SizedBox(height: 16),
-
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _isProcessing
+                    onPressed: _processing
                         ? null
-                        : () async {
-                            setState(() {
-                              _isProcessing = true;
-                            });
-                            try {
-                              await Future.delayed(
-                                const Duration(milliseconds: 200),
-                              );
-                              widget.onDecline();
-                            } finally {
-                              if (mounted) {
-                                setState(() {
-                                  _isProcessing = false;
-                                });
-                              }
-                            }
-                          },
+                        : () => _press(widget.onDecline),
                     icon: const Icon(Icons.close),
                     label: const Text('Decline'),
                     style: OutlinedButton.styleFrom(
@@ -451,26 +425,10 @@ class _InvitationCardState extends State<_InvitationCard> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _isProcessing
+                    onPressed: _processing
                         ? null
-                        : () async {
-                            setState(() {
-                              _isProcessing = true;
-                            });
-                            try {
-                              await Future.delayed(
-                                const Duration(milliseconds: 200),
-                              );
-                              widget.onAccept();
-                            } finally {
-                              if (mounted) {
-                                setState(() {
-                                  _isProcessing = false;
-                                });
-                              }
-                            }
-                          },
-                    icon: _isProcessing
+                        : () => _press(widget.onAccept),
+                    icon: _processing
                         ? const SizedBox(
                             width: 16,
                             height: 16,
@@ -489,107 +447,6 @@ class _InvitationCardState extends State<_InvitationCard> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _NotificationTile extends StatelessWidget {
-  final dynamic notification;
-  final VoidCallback onTap;
-
-  const _NotificationTile({required this.notification, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      color: notification.isRead
-          ? Theme.of(context).colorScheme.surface
-          : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-      child: ListTile(
-        leading: _getNotificationIcon(),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: notification.isRead
-                ? FontWeight.normal
-                : FontWeight.bold,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(notification.message),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  notification.timeAgo,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-                if (notification.sender != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(Icons.person, size: 12, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    notification.sender!.name,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        onTap: onTap,
-        trailing: notification.isRead
-            ? null
-            : Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.blue,
-                  shape: BoxShape.circle,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _getNotificationIcon() {
-    IconData iconData;
-    Color iconColor;
-
-    switch (notification.type) {
-      case 'task_assigned':
-        iconData = Icons.assignment;
-        iconColor = Colors.blue;
-        break;
-      case 'task_completed':
-        iconData = Icons.check_circle;
-        iconColor = Colors.green;
-        break;
-      case 'team_invitation':
-        iconData = Icons.group_add;
-        iconColor = Colors.orange;
-        break;
-      case 'team_member_joined':
-        iconData = Icons.group;
-        iconColor = Colors.purple;
-        break;
-      default:
-        iconData = Icons.notifications;
-        iconColor = Colors.grey;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: iconColor.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(iconData, color: iconColor, size: 20),
     );
   }
 }

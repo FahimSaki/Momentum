@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:momentum/models/task.dart';
+import 'package:momentum/utils/date_helpers.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -26,33 +27,22 @@ class TaskTile extends StatefulWidget {
 class _TaskTileState extends State<TaskTile> {
   bool _isLoading = false;
 
-  // FIXED: Proper completion handling with loading state
   Future<void> _handleToggle(bool? newValue) async {
-    if (_isLoading) return; // Prevent multiple simultaneous calls
-
-    final bool shouldComplete = newValue ?? false;
-
-    setState(() {
-      _isLoading = true;
-    });
-
+    if (_isLoading) return;
+    final complete = newValue ?? false;
+    setState(() => _isLoading = true);
     try {
-      await widget.onToggle(shouldComplete);
-
-      // Show success feedback
+      await widget.onToggle(complete);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
-            ),
-            backgroundColor: shouldComplete ? Colors.green : Colors.orange,
+            content: Text(complete ? '✅ Task completed!' : '↩️ Task unmarked'),
+            backgroundColor: complete ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
-      // Show error feedback
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -65,18 +55,13 @@ class _TaskTileState extends State<TaskTile> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isLightMode = !themeProvider.isDarkMode;
+    final isLightMode = !Provider.of<ThemeProvider>(context).isDarkMode;
     final isCompleted = widget.task.isCompletedToday();
     final completedColor = isLightMode
         ? const Color(0xFF10B981)
@@ -105,13 +90,159 @@ class _TaskTileState extends State<TaskTile> {
           ],
         ),
         child: isCompleted
-            ? _buildCompletedCard(completedColor, isLightMode)
-            : _buildActiveCard(isLightMode),
+            ? _CompletedCard(
+                task: widget.task,
+                completedColor: completedColor,
+                isLoading: _isLoading,
+                onTap: () => _handleToggle(false),
+              )
+            : _ActiveCard(
+                task: widget.task,
+                isLightMode: isLightMode,
+                isLoading: _isLoading,
+                onToggle: _handleToggle,
+              ),
       ),
     );
   }
+}
 
-  Widget _buildCompletedCard(Color completedColor, bool isLightMode) {
+// ── Active card ──────────────────────────────────────────────────────────
+
+class _ActiveCard extends StatelessWidget {
+  final Task task;
+  final bool isLightMode;
+  final bool isLoading;
+  final Function(bool?) onToggle;
+
+  const _ActiveCard({
+    required this.task,
+    required this.isLightMode,
+    required this.isLoading,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      color: Theme.of(context).colorScheme.surface,
+      child: ListTile(
+        leading: isLoading
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isLightMode ? Colors.green : Colors.teal,
+                  ),
+                ),
+              )
+            : Checkbox(
+                value: false,
+                onChanged: isLoading ? null : onToggle,
+                activeColor: isLightMode ? Colors.green : Colors.teal,
+              ),
+        title: Text(
+          task.name,
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        subtitle: _Subtitle(task: task),
+        trailing: task.isOverdue
+            ? const Icon(Icons.warning, color: Colors.orange)
+            : task.isDueSoon
+            ? const Icon(Icons.access_time, color: Colors.amber)
+            : null,
+        onTap: isLoading ? null : () => onToggle(true),
+      ),
+    );
+  }
+}
+
+class _Subtitle extends StatelessWidget {
+  final Task task;
+  const _Subtitle({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDesc = task.description != null && task.description!.isNotEmpty;
+    final hasDue = task.dueDate != null;
+    final hasTeam = task.isTeamTask && task.team != null;
+
+    if (!hasDesc && !hasDue && !hasTeam) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasDesc)
+          Text(
+            task.description!,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+          ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            _PriorityChip(priority: task.priority),
+            if (hasDue) ...[
+              const SizedBox(width: 8),
+              Icon(
+                Icons.schedule,
+                size: 12,
+                color: task.isOverdue ? Colors.red : Colors.grey,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                DateHelpers.shortDueLabel(task.dueDate!),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: task.isOverdue ? Colors.red : Colors.grey,
+                  fontWeight: task.isOverdue
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+            ],
+            if (hasTeam) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.group, size: 12, color: Colors.blue),
+              const SizedBox(width: 2),
+              Text(
+                task.team!.name,
+                style: const TextStyle(fontSize: 12, color: Colors.blue),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Completed card ───────────────────────────────────────────────────────
+
+class _CompletedCard extends StatelessWidget {
+  final Task task;
+  final Color completedColor;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  const _CompletedCard({
+    required this.task,
+    required this.completedColor,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Stack(
@@ -128,14 +259,9 @@ class _TaskTileState extends State<TaskTile> {
                 child: ListTile(
                   leading: const SizedBox(width: 24, height: 24),
                   title: Text(
-                    widget.task.name,
+                    task.name,
                     style: const TextStyle(fontWeight: FontWeight.w500),
                   ),
-                  subtitle:
-                      widget.task.description != null &&
-                          widget.task.description!.isNotEmpty
-                      ? Text(widget.task.description!)
-                      : null,
                 ),
               ),
             ),
@@ -189,7 +315,7 @@ class _TaskTileState extends State<TaskTile> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: _isLoading ? null : () => _handleToggle(false),
+                onTap: isLoading ? null : onTap,
               ),
             ),
           ),
@@ -197,138 +323,38 @@ class _TaskTileState extends State<TaskTile> {
       ),
     );
   }
+}
 
-  Widget _buildActiveCard(bool isLightMode) {
-    return Card(
-      elevation: 2,
-      color: Theme.of(context).colorScheme.surface,
-      child: ListTile(
-        leading: _isLoading
-            ? SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    isLightMode ? Colors.green : Colors.teal,
-                  ),
-                ),
-              )
-            : Checkbox(
-                value: false,
-                onChanged: _isLoading ? null : _handleToggle,
-                activeColor: isLightMode ? Colors.green : Colors.teal,
-              ),
-        title: Text(
-          widget.task.name,
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+// ── Priority chip ────────────────────────────────────────────────────────
+
+class _PriorityChip extends StatelessWidget {
+  final String priority;
+  const _PriorityChip({required this.priority});
+
+  static const _colors = <String, Color>{
+    'low': Colors.green,
+    'medium': Colors.orange,
+    'high': Colors.red,
+    'urgent': Colors.purple,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[priority.toLowerCase()] ?? Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        priority.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.task.description != null &&
-                widget.task.description!.isNotEmpty)
-              Text(
-                widget.task.description!,
-                style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getPriorityColor(widget.task.priority),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    widget.task.priority.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (widget.task.dueDate != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.schedule,
-                    size: 12,
-                    color: widget.task.isOverdue ? Colors.red : Colors.grey,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    _formatDueDate(widget.task.dueDate!),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: widget.task.isOverdue ? Colors.red : Colors.grey,
-                      fontWeight: widget.task.isOverdue
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                    ),
-                  ),
-                ],
-                if (widget.task.isTeamTask) ...[
-                  const SizedBox(width: 8),
-                  const Icon(Icons.group, size: 12, color: Colors.blue),
-                  if (widget.task.team != null) ...[
-                    const SizedBox(width: 2),
-                    Text(
-                      widget.task.team!.name,
-                      style: const TextStyle(fontSize: 12, color: Colors.blue),
-                    ),
-                  ],
-                ],
-              ],
-            ),
-          ],
-        ),
-        trailing: widget.task.isOverdue
-            ? const Icon(Icons.warning, color: Colors.orange)
-            : widget.task.isDueSoon
-            ? const Icon(Icons.access_time, color: Colors.amber)
-            : null,
-        onTap: _isLoading ? null : () => _handleToggle(true),
       ),
     );
-  }
-
-  Color _getPriorityColor(String priority) {
-    switch (priority.toLowerCase()) {
-      case 'low':
-        return Colors.green;
-      case 'medium':
-        return Colors.orange;
-      case 'high':
-        return Colors.red;
-      case 'urgent':
-        return Colors.purple;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatDueDate(DateTime dueDate) {
-    final now = DateTime.now();
-    final difference = dueDate.difference(now).inDays;
-
-    if (difference == 0) return 'Today';
-    if (difference == 1) return 'Tomorrow';
-    if (difference == -1) return 'Yesterday';
-    if (difference < 0) return '${-difference}d overdue';
-    if (difference <= 7) return '${difference}d left';
-
-    return '${dueDate.month}/${dueDate.day}';
   }
 }

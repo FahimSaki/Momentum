@@ -4,6 +4,7 @@ import 'package:momentum/models/team_member.dart';
 import 'package:momentum/pages/team_settings_page.dart';
 import 'package:momentum/pages/user_search_page.dart';
 import 'package:momentum/database/task_database.dart';
+import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 
 class TeamDetailsPage extends StatefulWidget {
@@ -268,7 +269,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   Widget _buildMemberCard(TeamMember member, bool isDark) {
-    final roleColor = _roleColor(member.role);
+    final roleColor = RoleHelpers.color(member.role);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -371,17 +372,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
         ),
       ),
     );
-  }
-
-  Color _roleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'owner':
-        return const Color(0xFF8B5CF6);
-      case 'admin':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF3B82F6);
-    }
   }
 
   void _showInviteDialog() {

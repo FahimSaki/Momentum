@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:logger/logger.dart';
-import 'package:momentum/constants/api_base_url.dart';
+import 'package:momentum/config/api_base_url.dart';
 
 /// Keys used by [AuthService] in [FlutterSecureStorage].
 /// These are the ONLY keys used for JWT/auth storage.

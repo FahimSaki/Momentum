@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/util/task_util.dart';
+import 'package:momentum/utils/task_util.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:developer' as developer;

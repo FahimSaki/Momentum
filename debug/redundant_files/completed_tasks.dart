@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/models/task.dart';
-import 'package:momentum/components/animated_task_tile.dart';
+import 'animated_task_tile.dart';
 
 class CompletedTasks extends StatelessWidget {
   final List<Task> completedTasks;

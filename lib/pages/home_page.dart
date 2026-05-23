@@ -12,6 +12,7 @@ import 'package:momentum/services/initialization_service.dart';
 import 'package:provider/provider.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/components/quick_invite_widget.dart';
+import 'package:momentum/utils/date_helpers.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -436,7 +437,7 @@ class _HomePageState extends State<HomePage>
           subtitle: task.team != null
               ? Text('Team: ${task.team!.name}')
               : task.dueDate != null
-              ? Text(_formatDueDate(task.dueDate!))
+              ? Text(DateHelpers.formatDueDate(task.dueDate!))
               : null,
           trailing: task.isOverdue
               ? const Icon(Icons.warning, color: Colors.orange, size: 20)
@@ -485,20 +486,6 @@ class _HomePageState extends State<HomePage>
         ),
       );
     }
-  }
-
-  // Helper Method for due date formatting:
-  String _formatDueDate(DateTime dueDate) {
-    final now = DateTime.now();
-    final difference = dueDate.difference(now).inDays;
-
-    if (difference == 0) return 'Due today';
-    if (difference == 1) return 'Due tomorrow';
-    if (difference == -1) return 'Due yesterday';
-    if (difference < 0) return 'Overdue by ${-difference}d';
-    if (difference <= 7) return 'Due in ${difference}d';
-
-    return 'Due ${dueDate.month}/${dueDate.day}';
   }
 
   Widget _buildTasksTab(TaskDatabase db) {

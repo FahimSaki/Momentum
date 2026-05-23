@@ -1,6 +1,6 @@
-import 'package:momentum/models/user.dart';
-import 'package:momentum/models/team.dart';
 import 'package:momentum/models/completion_record.dart';
+import 'package:momentum/models/team.dart';
+import 'package:momentum/models/user.dart';
 
 class Task {
   final String id;
@@ -50,14 +50,13 @@ class Task {
       description: json['description'],
       assignedTo:
           (json['assignedTo'] as List<dynamic>?)
-              ?.map((user) => User.fromJson(user))
+              ?.map((u) => User.fromJson(u))
               .toList() ??
           [],
       assignedBy: json['assignedBy'] != null
           ? User.fromJson(json['assignedBy'])
           : null,
-      // Handle null team safely
-      team: json['team'] != null && json['team'] is Map<String, dynamic>
+      team: json['team'] is Map<String, dynamic>
           ? Team.fromJson(json['team'])
           : null,
       priority: json['priority'] ?? 'medium',
@@ -65,9 +64,7 @@ class Task {
           ? DateTime.parse(json['dueDate']).toLocal()
           : null,
       tags:
-          (json['tags'] as List<dynamic>?)
-              ?.map((tag) => tag.toString())
-              .toList() ??
+          (json['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ??
           [],
       completedDays:
           (json['completedDays'] as List<dynamic>?)
@@ -76,7 +73,7 @@ class Task {
           [],
       completedBy:
           (json['completedBy'] as List<dynamic>?)
-              ?.map((completion) => CompletionRecord.fromJson(completion))
+              ?.map((c) => CompletionRecord.fromJson(c))
               .toList() ??
           [],
       lastCompletedDate: json['lastCompletedDate'] != null
@@ -93,115 +90,78 @@ class Task {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'description': description,
-      'assignedTo': assignedTo.map((user) => user.toJson()).toList(),
-      'assignedBy': assignedBy?.toJson(),
-      'team': team?.toJson(),
-      'priority': priority,
-      'dueDate': dueDate?.toIso8601String(),
-      'tags': tags,
-      'completedDays': completedDays.map((e) => e.toIso8601String()).toList(),
-      'completedBy': completedBy.map((c) => c.toJson()).toList(),
-      'lastCompletedDate': lastCompletedDate?.toIso8601String(),
-      'isArchived': isArchived,
-      'archivedAt': archivedAt?.toIso8601String(),
-      'isTeamTask': isTeamTask,
-      'assignmentType': assignmentType,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toJson() => {
+    '_id': id,
+    'name': name,
+    'description': description,
+    'assignedTo': assignedTo.map((u) => u.toJson()).toList(),
+    'assignedBy': assignedBy?.toJson(),
+    'team': team?.toJson(),
+    'priority': priority,
+    'dueDate': dueDate?.toIso8601String(),
+    'tags': tags,
+    'completedDays': completedDays.map((e) => e.toIso8601String()).toList(),
+    'completedBy': completedBy.map((c) => c.toJson()).toList(),
+    'lastCompletedDate': lastCompletedDate?.toIso8601String(),
+    'isArchived': isArchived,
+    'archivedAt': archivedAt?.toIso8601String(),
+    'isTeamTask': isTeamTask,
+    'assignmentType': assignmentType,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 
-  // Helper methods
-  bool isAssignedTo(String userId) {
-    return assignedTo.any((user) => user.id == userId);
-  }
+  bool isAssignedTo(String userId) => assignedTo.any((u) => u.id == userId);
 
-  bool isCompletedBy(String userId) {
-    return completedBy.any((completion) => completion.user.id == userId);
-  }
+  bool isCompletedBy(String userId) =>
+      completedBy.any((c) => c.user.id == userId);
 
-  // Better completion checking
   bool isCompletedToday() {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    return completedDays.any((completedDate) {
-      final localDate = completedDate.toLocal();
-      final completedDay = DateTime(
-        localDate.year,
-        localDate.month,
-        localDate.day,
-      );
-      return completedDay.isAtSameMomentAs(today);
-    });
+    final today = _localToday();
+    return completedDays.any((d) => _sameDay(d.toLocal(), today));
   }
 
-  // Check if task is completed by specific user today
   bool isCompletedByUserToday(String userId) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    return completedBy.any((completion) {
-      if (completion.user.id != userId) return false;
-
-      final completedDate = completion.completedAt.toLocal();
-      final completedDay = DateTime(
-        completedDate.year,
-        completedDate.month,
-        completedDate.day,
-      );
-      return completedDay.isAtSameMomentAs(today);
+    final today = _localToday();
+    return completedBy.any((c) {
+      if (c.user.id != userId) return false;
+      return _sameDay(c.completedAt.toLocal(), today);
     });
   }
 
-  // Better overdue logic
   bool get isOverdue {
     if (dueDate == null || isArchived) return false;
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
-
-    // Task is overdue if due date has passed and it's not completed today
-    return dueDay.isBefore(today) && !isCompletedToday();
+    return _localDay(dueDate!).isBefore(_localToday()) && !isCompletedToday();
   }
 
-  // Better due soon logic
   bool get isDueSoon {
     if (dueDate == null || isArchived) return false;
-
-    final now = DateTime.now();
-    final tomorrow = now.add(const Duration(days: 1));
-    final dueDay = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
-    final tomorrowDay = DateTime(tomorrow.year, tomorrow.month, tomorrow.day);
-
-    // Task is due soon if due tomorrow and not completed today
-    return dueDay.isAtSameMomentAs(tomorrowDay) && !isCompletedToday();
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    return _localDay(dueDate!) == _localDay(tomorrow) && !isCompletedToday();
   }
 
   String get priorityColor {
-    switch (priority.toLowerCase()) {
-      case 'low':
-        return '#4CAF50'; // Green
-      case 'medium':
-        return '#FF9800'; // Orange
-      case 'high':
-        return '#FF5722'; // Red-Orange
-      case 'urgent':
-        return '#F44336'; // Red
-      default:
-        return '#FF9800'; // Default orange
-    }
+    const map = {
+      'low': '#4CAF50',
+      'medium': '#FF9800',
+      'high': '#FF5722',
+      'urgent': '#F44336',
+    };
+    return map[priority] ?? '#FF9800';
   }
 }
 
-extension DateTimeComparison on DateTime {
-  bool isAtSameMomentAs(DateTime other) {
-    return year == other.year && month == other.month && day == other.day;
-  }
+// ── Private date helpers (file-private) ─────────────────────────────────
+
+DateTime _localToday() {
+  final n = DateTime.now();
+  return DateTime(n.year, n.month, n.day);
 }
+
+DateTime _localDay(DateTime dt) {
+  final l = dt.toLocal();
+  return DateTime(l.year, l.month, l.day);
+}
+
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;

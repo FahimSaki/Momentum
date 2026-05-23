@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:momentum/models/task.dart';
-import 'package:momentum/util/task_util.dart';
+import 'package:momentum/utils/task_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // DateTime extension to compare only year/month/day

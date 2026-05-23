@@ -8,7 +8,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:logger/logger.dart';
-import 'package:momentum/constants/api_base_url.dart';
+import 'package:momentum/config/api_base_url.dart';
 import 'package:momentum/firebase_options.dart';
 import 'package:momentum/models/app_notification.dart';
 

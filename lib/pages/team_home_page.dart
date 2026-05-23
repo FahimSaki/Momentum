@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_permissions.dart';
 import 'package:momentum/helpers/permission_helper.dart';
 import 'package:momentum/components/task_tile.dart';
 import 'package:momentum/components/error_handler.dart';
 import 'package:momentum/components/dashboard_stats.dart';
+import 'package:momentum/components/task_edit_delete_dialogs.dart';
 import 'package:momentum/pages/team_details_page.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/team_settings_page.dart';
+import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -150,13 +151,13 @@ class _TeamHomePageState extends State<TeamHomePage> {
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: _getRoleColor().withValues(alpha: 0.15),
+              color: RoleHelpers.color(_userRole).withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               PermissionHelper.getRoleDisplayName(_userRole),
               style: TextStyle(
-                color: _getRoleColor(),
+                color: RoleHelpers.color(_userRole),
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
                 letterSpacing: 0.3,
@@ -294,7 +295,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: _getRoleGradient(),
+          colors: RoleHelpers.gradient(_userRole),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -309,7 +310,11 @@ class _TeamHomePageState extends State<TeamHomePage> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(_getRoleIcon(), color: Colors.white, size: 24),
+            child: Icon(
+              RoleHelpers.icon(_userRole),
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -326,7 +331,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  _getRoleDescription(),
+                  RoleHelpers.description(_userRole),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.82),
                     fontSize: 12,
@@ -420,10 +425,10 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 }
               },
               onEdit: canEdit
-                  ? () => _editTaskDialog(context, task, db)
+                  ? () => showEditTaskDialog(context, task, db)
                   : () => _showNoPermissionDialog('edit'),
               onDelete: canDelete
-                  ? () => _deleteTaskDialog(context, task, db)
+                  ? () => showDeleteTaskDialog(context, task, db)
                   : () => _showNoPermissionDialog('delete'),
             );
           }),
@@ -601,119 +606,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
     showDialog(context: context, builder: (_) => const TaskCreationDialog());
   }
 
-  void _editTaskDialog(BuildContext context, Task task, TaskDatabase db) {
-    final nameController = TextEditingController(text: task.name);
-    final descController = TextEditingController(text: task.description ?? '');
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Edit Task'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: 'Task Name'),
-              autofocus: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              try {
-                await db.updateTask(task.id, {
-                  'name': nameController.text.trim(),
-                  'description': descController.text.trim(),
-                });
-                if (dialogCtx.mounted) {
-                  Navigator.pop(dialogCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Task updated'),
-                      backgroundColor: Color(0xFF22C55E),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (dialogCtx.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _deleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
-    showDialog(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete Task'),
-        content: Text('Delete "${task.name}"? This cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await db.deleteTask(task.id);
-                if (dialogCtx.mounted) {
-                  Navigator.pop(dialogCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Task deleted'),
-                      backgroundColor: Color(0xFF22C55E),
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (dialogCtx.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showNoPermissionDialog(String action) {
     showDialog(
       context: context,
@@ -737,49 +629,5 @@ class _TeamHomePageState extends State<TeamHomePage> {
         ],
       ),
     );
-  }
-
-  Color _getRoleColor() {
-    switch (_userRole.toLowerCase()) {
-      case 'owner':
-        return const Color(0xFF8B5CF6);
-      case 'admin':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF3B82F6);
-    }
-  }
-
-  List<Color> _getRoleGradient() {
-    switch (_userRole.toLowerCase()) {
-      case 'owner':
-        return [const Color(0xFF7C3AED), const Color(0xFF9D4EDD)];
-      case 'admin':
-        return [const Color(0xFFD97706), const Color(0xFFF59E0B)];
-      default:
-        return [const Color(0xFF2563EB), const Color(0xFF3B82F6)];
-    }
-  }
-
-  IconData _getRoleIcon() {
-    switch (_userRole.toLowerCase()) {
-      case 'owner':
-        return Icons.star_rounded;
-      case 'admin':
-        return Icons.admin_panel_settings_rounded;
-      default:
-        return Icons.person_rounded;
-    }
-  }
-
-  String _getRoleDescription() {
-    switch (_userRole.toLowerCase()) {
-      case 'owner':
-        return 'Full control over team, settings, members, and tasks';
-      case 'admin':
-        return 'Can create, edit, delete tasks and invite members';
-      default:
-        return 'Can view and complete tasks assigned to you';
-    }
   }
 }

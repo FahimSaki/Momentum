@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
 import 'package:momentum/database/task_database.dart';
+import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -372,13 +373,13 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                       ),
                       leading: CircleAvatar(
                         radius: 20,
-                        backgroundColor: _roleColor(
+                        backgroundColor: RoleHelpers.color(
                           member.role,
                         ).withValues(alpha: 0.15),
                         child: Text(
                           member.user.initials,
                           style: TextStyle(
-                            color: _roleColor(member.role),
+                            color: RoleHelpers.color(member.role),
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
@@ -721,7 +722,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
         (isOwner && member.role != 'owner') ||
         (isAdmin && member.role == 'member');
 
-    if (!canManageRole) return _buildRoleBadge(member.role);
+    if (!canManageRole) return RoleBadge(role: member.role);
 
     final canPromote = member.role == 'member';
     final canDemote = isOwner && member.role == 'admin';
@@ -730,7 +731,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       spacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _buildRoleBadge(member.role),
+        RoleBadge(role: member.role),
         if (canPromote)
           OutlinedButton.icon(
             onPressed: _isUpdatingRoles
@@ -761,25 +762,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     );
   }
 
-  Widget _buildRoleBadge(String role) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _roleColor(role).withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        role.toUpperCase(),
-        style: TextStyle(
-          color: _roleColor(role),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
   Future<void> _updateMemberRole(String memberId, String role) async {
     if (_isUpdatingRoles) return;
     setState(() => _isUpdatingRoles = true);
@@ -807,17 +789,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       );
     } finally {
       if (mounted) setState(() => _isUpdatingRoles = false);
-    }
-  }
-
-  Color _roleColor(String role) {
-    switch (role.toLowerCase()) {
-      case 'owner':
-        return const Color(0xFF8B5CF6);
-      case 'admin':
-        return const Color(0xFFF59E0B);
-      default:
-        return const Color(0xFF3B82F6);
     }
   }
 }
