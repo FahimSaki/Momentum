@@ -13,7 +13,7 @@ class TaskList extends StatefulWidget {
 }
 
 class _TaskListState extends State<TaskList> {
-  bool _showCompletedTasks = false;
+  bool _showCompleted = false;
   String _filterBy = 'all';
   String _sortBy = 'created';
 
@@ -21,19 +21,23 @@ class _TaskListState extends State<TaskList> {
   Widget build(BuildContext context) {
     return Consumer<TaskDatabase>(
       builder: (context, db, _) {
-        final filteredTasks = _filterTasks(db.activeTasks);
-        final sortedTasks = _sortTasks(filteredTasks);
-        final completedTasks = db.completedTasks;
+        final sorted = _sortTasks(_filterTasks(db.activeTasks));
+        final completed = db.completedTasks;
 
         return Column(
           children: [
-            _buildFilterSortRow(),
+            _FilterSortRow(
+              filterBy: _filterBy,
+              sortBy: _sortBy,
+              onFilterChanged: (v) => setState(() => _filterBy = v),
+              onSortChanged: (v) => setState(() => _sortBy = v),
+            ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: db.refreshData,
                 child: ListView(
                   children: [
-                    if (sortedTasks.isEmpty && completedTasks.isEmpty)
+                    if (sorted.isEmpty && completed.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(top: 80, left: 16, right: 16),
                         child: Center(
@@ -44,19 +48,19 @@ class _TaskListState extends State<TaskList> {
                         ),
                       )
                     else ...[
-                      if (sortedTasks.isNotEmpty) ...[
+                      if (sorted.isNotEmpty) ...[
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 8,
                           ),
                           child: Text(
-                            'Active Tasks (${sortedTasks.length})',
+                            'Active Tasks (${sorted.length})',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        ...sortedTasks.map(
+                        ...sorted.map(
                           (task) => TaskTile(
                             key: ValueKey(task.id),
                             task: task,
@@ -68,7 +72,7 @@ class _TaskListState extends State<TaskList> {
                         ),
                       ],
                       const SizedBox(height: 16),
-                      if (completedTasks.isNotEmpty)
+                      if (completed.isNotEmpty)
                         Theme(
                           data: Theme.of(
                             context,
@@ -82,21 +86,19 @@ class _TaskListState extends State<TaskList> {
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
-                                Text(
-                                  'Completed Today (${completedTasks.length})',
-                                ),
+                                Text('Completed Today (${completed.length})'),
                               ],
                             ),
                             subtitle: Text(
-                              completedTasks.length == 1
+                              completed.length == 1
                                   ? 'Great job! 1 task completed today.'
-                                  : 'Amazing! ${completedTasks.length} tasks completed today.',
+                                  : 'Amazing! ${completed.length} tasks completed today.',
                               style: TextStyle(color: Colors.green.shade600),
                             ),
-                            initiallyExpanded: _showCompletedTasks,
+                            initiallyExpanded: _showCompleted,
                             onExpansionChanged: (v) =>
-                                setState(() => _showCompletedTasks = v),
-                            children: completedTasks
+                                setState(() => _showCompleted = v),
+                            children: completed
                                 .map(
                                   (task) => TaskTile(
                                     key: ValueKey('completed_${task.id}'),
@@ -123,14 +125,76 @@ class _TaskListState extends State<TaskList> {
     );
   }
 
-  Widget _buildFilterSortRow() {
+  List<Task> _filterTasks(List<Task> tasks) {
+    final today = DateTime.now();
+    final todayDay = DateTime(today.year, today.month, today.day);
+    switch (_filterBy) {
+      case 'overdue':
+        return tasks.where((t) => t.isOverdue).toList();
+      case 'today':
+        return tasks.where((t) {
+          if (t.dueDate == null) return false;
+          return DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day) ==
+              todayDay;
+        }).toList();
+      case 'upcoming':
+        return tasks
+            .where((t) => t.dueDate != null && t.dueDate!.isAfter(todayDay))
+            .toList();
+      default:
+        return tasks;
+    }
+  }
+
+  List<Task> _sortTasks(List<Task> tasks) {
+    final list = List<Task>.from(tasks);
+    switch (_sortBy) {
+      case 'due':
+        list.sort((a, b) {
+          if (a.dueDate == null && b.dueDate == null) return 0;
+          if (a.dueDate == null) return 1;
+          if (b.dueDate == null) return -1;
+          return a.dueDate!.compareTo(b.dueDate!);
+        });
+        break;
+      case 'priority':
+        const order = {'urgent': 4, 'high': 3, 'medium': 2, 'low': 1};
+        list.sort(
+          (a, b) => (order[b.priority] ?? 2).compareTo(order[a.priority] ?? 2),
+        );
+        break;
+      case 'name':
+        list.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      default:
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+    return list;
+  }
+}
+
+class _FilterSortRow extends StatelessWidget {
+  final String filterBy;
+  final String sortBy;
+  final ValueChanged<String> onFilterChanged;
+  final ValueChanged<String> onSortChanged;
+
+  const _FilterSortRow({
+    required this.filterBy,
+    required this.sortBy,
+    required this.onFilterChanged,
+    required this.onSortChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: _filterBy,
+              initialValue: filterBy,
               decoration: const InputDecoration(
                 labelText: 'Filter',
                 contentPadding: EdgeInsets.symmetric(
@@ -145,13 +209,13 @@ class _TaskListState extends State<TaskList> {
                 DropdownMenuItem(value: 'today', child: Text('Due Today')),
                 DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
               ],
-              onChanged: (v) => setState(() => _filterBy = v ?? 'all'),
+              onChanged: (v) => onFilterChanged(v ?? 'all'),
             ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: _sortBy,
+              initialValue: sortBy,
               decoration: const InputDecoration(
                 labelText: 'Sort',
                 contentPadding: EdgeInsets.symmetric(
@@ -166,58 +230,11 @@ class _TaskListState extends State<TaskList> {
                 DropdownMenuItem(value: 'priority', child: Text('Priority')),
                 DropdownMenuItem(value: 'name', child: Text('Name')),
               ],
-              onChanged: (v) => setState(() => _sortBy = v ?? 'created'),
+              onChanged: (v) => onSortChanged(v ?? 'created'),
             ),
           ),
         ],
       ),
     );
-  }
-
-  List<Task> _filterTasks(List<Task> tasks) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    switch (_filterBy) {
-      case 'overdue':
-        return tasks.where((t) => t.isOverdue).toList();
-      case 'today':
-        return tasks.where((t) {
-          if (t.dueDate == null) return false;
-          return DateTime(t.dueDate!.year, t.dueDate!.month, t.dueDate!.day) ==
-              today;
-        }).toList();
-      case 'upcoming':
-        return tasks
-            .where((t) => t.dueDate != null && t.dueDate!.isAfter(today))
-            .toList();
-      default:
-        return tasks;
-    }
-  }
-
-  List<Task> _sortTasks(List<Task> tasks) {
-    final sorted = List<Task>.from(tasks);
-    switch (_sortBy) {
-      case 'due':
-        sorted.sort((a, b) {
-          if (a.dueDate == null && b.dueDate == null) return 0;
-          if (a.dueDate == null) return 1;
-          if (b.dueDate == null) return -1;
-          return a.dueDate!.compareTo(b.dueDate!);
-        });
-        break;
-      case 'priority':
-        const order = {'urgent': 4, 'high': 3, 'medium': 2, 'low': 1};
-        sorted.sort(
-          (a, b) => (order[b.priority] ?? 2).compareTo(order[a.priority] ?? 2),
-        );
-        break;
-      case 'name':
-        sorted.sort((a, b) => a.name.compareTo(b.name));
-        break;
-      default: // created
-        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    }
-    return sorted;
   }
 }

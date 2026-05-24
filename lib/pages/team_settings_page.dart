@@ -1,9 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:momentum/utils/role_helpers.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -17,23 +17,23 @@ class TeamSettingsPage extends StatefulWidget {
 
 class _TeamSettingsPageState extends State<TeamSettingsPage> {
   final Logger _logger = Logger();
+
   Team? _team;
   bool _isLoadingTeam = true;
+  bool _isSaving = false;
+  bool _isDeleting = false;
+  bool _isUpdatingRoles = false;
+  bool _hasChanges = false;
 
   late bool _allowMemberInvite;
   late bool _taskAutoDelete;
   late bool _notifyTaskAssigned;
   late bool _notifyTaskCompleted;
   late bool _notifyMemberJoined;
-  bool _isSaving = false;
-  bool _isDeleting = false;
-  bool _isUpdatingRoles = false;
-  bool _hasChanges = false;
 
   @override
   void initState() {
     super.initState();
-    _team = widget.team;
     _allowMemberInvite = widget.team.settings.allowMemberInvite;
     _taskAutoDelete = widget.team.settings.taskAutoDelete;
     _notifyTaskAssigned =
@@ -42,22 +42,22 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
         widget.team.settings.notificationSettings.taskCompleted;
     _notifyMemberJoined =
         widget.team.settings.notificationSettings.memberJoined;
-    _loadLatestTeam();
+    _loadLatest();
   }
 
-  Future<void> _loadLatestTeam() async {
+  Future<void> _loadLatest() async {
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
-      final freshTeam = await db.getTeamDetails(widget.team.id);
-      if (!mounted) return;
-      setState(() {
-        _team = freshTeam;
-        _isLoadingTeam = false;
-      });
+      final fresh = await db.getTeamDetails(widget.team.id);
+      if (mounted) {
+        setState(() {
+          _team = fresh;
+          _isLoadingTeam = false;
+        });
+      }
     } catch (e) {
-      _logger.e('Error loading latest team details', error: e);
-      if (!mounted) return;
-      setState(() => _isLoadingTeam = false);
+      _logger.e('Error loading team', error: e);
+      if (mounted) setState(() => _isLoadingTeam = false);
     }
   }
 
@@ -96,7 +96,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
         );
       }
     } catch (e) {
-      _logger.e('Error saving team settings', error: e);
+      _logger.e('Error saving settings', error: e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -114,8 +114,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
 
   Future<void> _deleteTeam() async {
     final db = Provider.of<TaskDatabase>(context, listen: false);
-    final isOwner = widget.team.isOwner(db.userId ?? '');
-    if (!isOwner) return;
+    if (!widget.team.isOwner(db.userId ?? '')) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -203,14 +202,11 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     );
 
     if (confirmed != true || !mounted) return;
-
     setState(() => _isDeleting = true);
     try {
       await db.deleteTeam(widget.team.id);
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil('/home', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
       }
     } catch (e) {
       _logger.e('Error deleting team', error: e);
@@ -274,157 +270,162 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                _buildHeader(isDark),
+                _HeaderCard(team: team),
                 const SizedBox(height: 20),
-
-                _buildSection(
+                _SettingsSection(
                   icon: Icons.group_work_rounded,
                   iconBg: const Color(0xFF6366F1),
                   title: 'Collaboration',
                   isDark: isDark,
                   children: [
-                    _buildToggleTile(
+                    _ToggleTile(
                       title: 'Allow Member Invites',
                       subtitle: 'Members can invite others to this team',
                       value: _allowMemberInvite,
+                      isDark: isDark,
                       onChanged: (v) {
                         setState(() => _allowMemberInvite = v);
                         _markChanged();
                       },
-                      isDark: isDark,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                _buildSection(
+                _SettingsSection(
                   icon: Icons.task_alt_rounded,
                   iconBg: const Color(0xFF22C55E),
                   title: 'Tasks',
                   isDark: isDark,
                   children: [
-                    _buildToggleTile(
+                    _ToggleTile(
                       title: 'Auto-Delete Completed Tasks',
                       subtitle:
                           'Tasks are cleared at midnight after completion',
                       value: _taskAutoDelete,
+                      isDark: isDark,
                       onChanged: (v) {
                         setState(() => _taskAutoDelete = v);
                         _markChanged();
                       },
-                      isDark: isDark,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                _buildSection(
+                _SettingsSection(
                   icon: Icons.notifications_rounded,
                   iconBg: const Color(0xFFF59E0B),
                   title: 'Notifications',
                   isDark: isDark,
                   children: [
-                    _buildToggleTile(
+                    _ToggleTile(
                       title: 'Task Assigned',
                       subtitle: 'Alert when a task is assigned to a member',
                       value: _notifyTaskAssigned,
+                      isDark: isDark,
                       onChanged: (v) {
                         setState(() => _notifyTaskAssigned = v);
                         _markChanged();
                       },
-                      isDark: isDark,
                     ),
-                    _buildDivider(isDark),
-                    _buildToggleTile(
+                    _Divider(isDark: isDark),
+                    _ToggleTile(
                       title: 'Task Completed',
                       subtitle: 'Alert when a member completes a task',
                       value: _notifyTaskCompleted,
+                      isDark: isDark,
                       onChanged: (v) {
                         setState(() => _notifyTaskCompleted = v);
                         _markChanged();
                       },
-                      isDark: isDark,
                     ),
-                    _buildDivider(isDark),
-                    _buildToggleTile(
+                    _Divider(isDark: isDark),
+                    _ToggleTile(
                       title: 'Member Joined',
                       subtitle: 'Alert when someone accepts an invitation',
                       value: _notifyMemberJoined,
+                      isDark: isDark,
                       onChanged: (v) {
                         setState(() => _notifyMemberJoined = v);
                         _markChanged();
                       },
-                      isDark: isDark,
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                _buildSection(
+                _SettingsSection(
                   icon: Icons.people_alt_rounded,
                   iconBg: const Color(0xFF3B82F6),
                   title: 'Members',
                   isDark: isDark,
-                  children: team.members.map((member) {
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      leading: CircleAvatar(
-                        radius: 20,
-                        backgroundColor: RoleHelpers.color(
-                          member.role,
-                        ).withValues(alpha: 0.15),
-                        child: Text(
-                          member.user.initials,
-                          style: TextStyle(
-                            color: RoleHelpers.color(member.role),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
+                  children: team.members
+                      .map(
+                        (m) => _MemberTile(
+                          member: m,
+                          isDark: isDark,
+                          isOwner: isOwner,
+                          isAdmin: isAdmin,
+                          isUpdating: _isUpdatingRoles,
+                          onUpdateRole: (memberId, role) =>
+                              _updateRole(memberId, role),
                         ),
-                      ),
-                      title: Text(
-                        member.user.name,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                          color: Theme.of(context).colorScheme.inversePrimary,
-                        ),
-                      ),
-                      subtitle: Text(
-                        member.user.email,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? const Color(0xFF9B99C8)
-                              : const Color(0xFF6B66A3),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: _buildRoleAction(
-                        member: member,
-                        isOwner: isOwner,
-                        isAdmin: isAdmin,
-                        isDark: isDark,
-                      ),
-                    );
-                  }).toList(),
+                      )
+                      .toList(),
                 ),
-
                 if (isOwner) ...[
                   const SizedBox(height: 28),
-                  _buildDangerZone(isDark),
+                  _DangerZone(
+                    isDark: isDark,
+                    isDeleting: _isDeleting,
+                    onDelete: _deleteTeam,
+                  ),
                 ],
-
                 const SizedBox(height: 40),
               ],
             ),
     );
   }
 
-  Widget _buildHeader(bool isDark) {
+  Future<void> _updateRole(String memberId, String role) async {
+    if (_isUpdatingRoles) return;
+    setState(() => _isUpdatingRoles = true);
+    try {
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      await db.updateTeamMemberRole(widget.team.id, memberId, role);
+      final fresh = await db.getTeamDetails(widget.team.id);
+      if (mounted) setState(() => _team = fresh);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Role updated to ${role.toUpperCase()}'),
+            backgroundColor: const Color(0xFF22C55E),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to update role: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdatingRoles = false);
+    }
+  }
+}
+
+// ── Reusable sub-widgets ─────────────────────────────────────────────────
+
+class _HeaderCard extends StatelessWidget {
+  final Team team;
+  const _HeaderCard({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -456,19 +457,18 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.team.name,
+                  team.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (widget.team.description != null &&
-                    widget.team.description!.isNotEmpty)
+                if (team.description?.isNotEmpty == true)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
-                      widget.team.description!,
+                      team.description!,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 13,
@@ -487,7 +487,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${(_team ?? widget.team).members.length} members',
+                      '${team.members.length} members',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 13,
@@ -502,14 +502,25 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       ),
     );
   }
+}
 
-  Widget _buildSection({
-    required IconData icon,
-    required Color iconBg,
-    required String title,
-    required bool isDark,
-    required List<Widget> children,
-  }) {
+class _SettingsSection extends StatelessWidget {
+  final IconData icon;
+  final Color iconBg;
+  final String title;
+  final bool isDark;
+  final List<Widget> children;
+
+  const _SettingsSection({
+    required this.icon,
+    required this.iconBg,
+    required this.title,
+    required this.isDark,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1929) : Colors.white,
@@ -557,14 +568,25 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       ),
     );
   }
+}
 
-  Widget _buildToggleTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-    required bool isDark,
-  }) {
+class _ToggleTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool value;
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  const _ToggleTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.isDark,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
@@ -610,8 +632,14 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       ),
     );
   }
+}
 
-  Widget _buildDivider(bool isDark) {
+class _Divider extends StatelessWidget {
+  final bool isDark;
+  const _Divider({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
     return Divider(
       height: 1,
       indent: 16,
@@ -619,8 +647,110 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       color: isDark ? const Color(0xFF2D2C44) : const Color(0xFFEDE9FE),
     );
   }
+}
 
-  Widget _buildDangerZone(bool isDark) {
+class _MemberTile extends StatelessWidget {
+  final TeamMember member;
+  final bool isDark;
+  final bool isOwner;
+  final bool isAdmin;
+  final bool isUpdating;
+  final void Function(String memberId, String role) onUpdateRole;
+
+  const _MemberTile({
+    required this.member,
+    required this.isDark,
+    required this.isOwner,
+    required this.isAdmin,
+    required this.isUpdating,
+    required this.onUpdateRole,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final canPromote = (isOwner || isAdmin) && member.role == 'member';
+    final canDemote = isOwner && member.role == 'admin';
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: CircleAvatar(
+        radius: 20,
+        backgroundColor: RoleHelpers.color(member.role).withValues(alpha: 0.15),
+        child: Text(
+          member.user.initials,
+          style: TextStyle(
+            color: RoleHelpers.color(member.role),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
+      title: Text(
+        member.user.name,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.inversePrimary,
+        ),
+      ),
+      subtitle: Text(
+        member.user.email,
+        style: TextStyle(
+          fontSize: 12,
+          color: isDark ? const Color(0xFF9B99C8) : const Color(0xFF6B66A3),
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Wrap(
+        spacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          RoleBadge(role: member.role),
+          if (canPromote)
+            OutlinedButton.icon(
+              onPressed: isUpdating
+                  ? null
+                  : () => onUpdateRole(member.user.id, 'admin'),
+              icon: const Icon(Icons.arrow_upward_rounded, size: 14),
+              label: const Text('Promote'),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(0, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+          if (canDemote)
+            OutlinedButton.icon(
+              onPressed: isUpdating
+                  ? null
+                  : () => onUpdateRole(member.user.id, 'member'),
+              icon: const Icon(Icons.arrow_downward_rounded, size: 14),
+              label: const Text('Demote'),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                minimumSize: const Size(0, 30),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DangerZone extends StatelessWidget {
+  final bool isDark;
+  final bool isDeleting;
+  final VoidCallback onDelete;
+
+  const _DangerZone({
+    required this.isDark,
+    required this.isDeleting,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1929) : Colors.white,
@@ -695,7 +825,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                     : const Color(0xFF6B66A3),
               ),
             ),
-            trailing: _isDeleting
+            trailing: isDeleting
                 ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -705,90 +835,10 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                     ),
                   )
                 : const Icon(Icons.chevron_right, color: Color(0xFFE53E3E)),
-            onTap: _isDeleting ? null : _deleteTeam,
+            onTap: isDeleting ? null : onDelete,
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildRoleAction({
-    required TeamMember member,
-    required bool isOwner,
-    required bool isAdmin,
-    required bool isDark,
-  }) {
-    final canManageRole =
-        (isOwner && member.role != 'owner') ||
-        (isAdmin && member.role == 'member');
-
-    if (!canManageRole) return RoleBadge(role: member.role);
-
-    final canPromote = member.role == 'member';
-    final canDemote = isOwner && member.role == 'admin';
-
-    return Wrap(
-      spacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        RoleBadge(role: member.role),
-        if (canPromote)
-          OutlinedButton.icon(
-            onPressed: _isUpdatingRoles
-                ? null
-                : () => _updateMemberRole(member.user.id, 'admin'),
-            icon: const Icon(Icons.arrow_upward_rounded, size: 14),
-            label: const Text('Promote'),
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              minimumSize: const Size(0, 30),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-            ),
-          ),
-        if (canDemote)
-          OutlinedButton.icon(
-            onPressed: _isUpdatingRoles
-                ? null
-                : () => _updateMemberRole(member.user.id, 'member'),
-            icon: const Icon(Icons.arrow_downward_rounded, size: 14),
-            label: const Text('Demote'),
-            style: OutlinedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              minimumSize: const Size(0, 30),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Future<void> _updateMemberRole(String memberId, String role) async {
-    if (_isUpdatingRoles) return;
-    setState(() => _isUpdatingRoles = true);
-    try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.updateTeamMemberRole(widget.team.id, memberId, role);
-      final freshTeam = await db.getTeamDetails(widget.team.id);
-      if (!mounted) return;
-      setState(() => _team = freshTeam);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Role updated to ${role.toUpperCase()}'),
-          backgroundColor: const Color(0xFF22C55E),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to update role: ${e.toString().replaceFirst('Exception: ', '')}',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isUpdatingRoles = false);
-    }
   }
 }

@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/drawer.dart';
-import 'package:momentum/components/task_map.dart';
-import 'package:momentum/components/task_list.dart';
 import 'package:momentum/components/dashboard_stats.dart';
+import 'package:momentum/components/quick_invite_widget.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
+import 'package:momentum/components/task_list.dart';
+import 'package:momentum/components/task_map.dart';
 import 'package:momentum/database/task_database.dart';
-import 'package:momentum/pages/team_selection_page.dart';
+import 'package:momentum/models/task.dart';
 import 'package:momentum/pages/notifications_page.dart';
+import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/services/initialization_service.dart';
-import 'package:provider/provider.dart';
-import 'package:momentum/models/task.dart';
-import 'package:momentum/components/quick_invite_widget.dart';
 import 'package:momentum/utils/date_helpers.dart';
+import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -32,7 +32,6 @@ class _HomePageState extends State<HomePage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _ensureInitialized();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final db = Provider.of<TaskDatabase>(context, listen: false);
@@ -48,57 +47,46 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _ensureInitialized() async {
     final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (db.isInitialized || _initializationFailed) return;
 
-    if (!db.isInitialized && !_initializationFailed) {
-      setState(() {
-        _isInitializing = true;
-      });
-
-      try {
-        final authData = await AuthService.instance.getStoredAuthData();
-
-        if (authData != null && mounted) {
-          final isValidToken = await AuthService.instance.validateToken();
-
-          if (isValidToken && mounted) {
-            await db.initialize(
-              jwt: authData['token'],
-              userId: authData['userId'],
-            );
-          } else {
-            if (mounted) {
-              final navigator = Navigator.of(context);
-              await AuthService.instance.logout();
-              navigator.pushNamedAndRemoveUntil('/login', (route) => false);
-              return;
-            }
-          }
+    setState(() => _isInitializing = true);
+    try {
+      final authData = await AuthService.instance.getStoredAuthData();
+      if (authData != null && mounted) {
+        final valid = await AuthService.instance.validateToken();
+        if (valid && mounted) {
+          await db.initialize(
+            jwt: authData['token'],
+            userId: authData['userId'],
+          );
         } else {
           if (mounted) {
-            Navigator.of(
-              context,
-            ).pushNamedAndRemoveUntil('/login', (route) => false);
-            return;
+            await AuthService.instance.logout();
+            if (mounted) {
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (r) => false);
+            }
           }
-        }
-      } catch (e) {
-        if (mounted) {
-          setState(() {
-            _initializationFailed = true;
-          });
-
-          final navigator = Navigator.of(context);
-          await AuthService.instance.logout();
-          navigator.pushNamedAndRemoveUntil('/login', (route) => false);
           return;
         }
-      } finally {
+      } else {
         if (mounted) {
-          setState(() {
-            _isInitializing = false;
-          });
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
         }
+        return;
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _initializationFailed = true);
+        await AuthService.instance.logout();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+        }
+        return;
+      }
+    } finally {
+      if (mounted) setState(() => _isInitializing = false);
     }
   }
 
@@ -141,7 +129,7 @@ class _HomePageState extends State<HomePage>
             if (mounted) {
               Navigator.of(
                 context,
-              ).pushNamedAndRemoveUntil('/login', (route) => false);
+              ).pushNamedAndRemoveUntil('/login', (r) => false);
             }
           });
           return const SizedBox.shrink();
@@ -152,7 +140,10 @@ class _HomePageState extends State<HomePage>
           appBar: _buildAppBar(db),
           drawer: const MyDrawer(),
           floatingActionButton: FloatingActionButton(
-            onPressed: () => _showTaskCreationDialog(),
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const TaskCreationDialog(),
+            ),
             child: Icon(
               Icons.add,
               color: Theme.of(context).colorScheme.onTertiary,
@@ -160,39 +151,17 @@ class _HomePageState extends State<HomePage>
           ),
           body: Column(
             children: [
-              // Tab bar
-              Container(
-                margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  dividerColor: Colors.transparent,
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  indicator: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  labelColor: Colors.white,
-                  tabs: const [
-                    Tab(text: 'Dashboard'),
-                    Tab(text: 'Tasks'),
-                    Tab(text: 'Analytics'),
-                  ],
-                ),
-              ),
-
-              // Tab content
+              _TabBar(controller: _tabController),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildDashboardTab(db),
-                    _buildTasksTab(db),
-                    _buildAnalyticsTab(db),
+                    _DashboardTab(
+                      db: db,
+                      onViewAllTasks: () => _tabController.animateTo(1),
+                    ),
+                    const TaskList(),
+                    _AnalyticsTab(db: db),
                   ],
                 ),
               ),
@@ -209,12 +178,10 @@ class _HomePageState extends State<HomePage>
       backgroundColor: Colors.transparent,
       foregroundColor: Theme.of(context).colorScheme.inversePrimary,
       title: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TeamSelectionPage()),
-          );
-        },
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TeamSelectionPage()),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -232,19 +199,14 @@ class _HomePageState extends State<HomePage>
         ),
       ),
       actions: [
-        // Notifications
         Stack(
           children: [
             IconButton(
               icon: const Icon(Icons.notifications_outlined),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const NotificationsPage(),
-                  ),
-                );
-              },
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationsPage()),
+              ),
             ),
             if (db.unreadNotificationCount > 0)
               Positioned(
@@ -269,35 +231,71 @@ class _HomePageState extends State<HomePage>
               ),
           ],
         ),
-
-        // Team selector
         IconButton(
           icon: const Icon(Icons.swap_horiz),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const TeamSelectionPage(),
-              ),
-            );
-          },
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TeamSelectionPage()),
+          ),
         ),
       ],
     );
   }
+}
 
-  Widget _buildDashboardTab(TaskDatabase db) {
+// ── Tab bar ──────────────────────────────────────────────────────────────
+
+class _TabBar extends StatelessWidget {
+  final TabController controller;
+  const _TabBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: TabBar(
+        controller: controller,
+        dividerColor: Colors.transparent,
+        indicatorSize: TabBarIndicatorSize.tab,
+        indicator: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        labelColor: Colors.white,
+        tabs: const [
+          Tab(text: 'Dashboard'),
+          Tab(text: 'Tasks'),
+          Tab(text: 'Analytics'),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Dashboard tab ─────────────────────────────────────────────────────────
+
+class _DashboardTab extends StatelessWidget {
+  final TaskDatabase db;
+  final VoidCallback onViewAllTasks;
+
+  const _DashboardTab({required this.db, required this.onViewAllTasks});
+
+  @override
+  Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: () async {
-        await db.refreshData();
-      },
+      onRefresh: db.refreshData,
       child: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         children: [
-          // Welcome message
+          // Welcome card
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -309,7 +307,7 @@ class _HomePageState extends State<HomePage>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _getWelcomeMessage(),
+                    _welcomeMessage(),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(
                         context,
@@ -334,23 +332,14 @@ class _HomePageState extends State<HomePage>
               ),
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Quick Invite Widget
           const QuickInviteWidget(),
-
           const SizedBox(height: 16),
-
-          // Dashboard stats
           const DashboardStats(),
-
           const SizedBox(height: 16),
-
-          // WITH COMPLETION FUNCTIONALITY
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -362,18 +351,15 @@ class _HomePageState extends State<HomePage>
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       TextButton(
-                        onPressed: () => _tabController.animateTo(1),
+                        onPressed: onViewAllTasks,
                         child: const Text('View All'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Use interactive task tiles instead of simple ListTiles
                   ...db.activeTasks
                       .take(3)
-                      .map((task) => _buildInteractiveTaskTile(task, db)),
-
+                      .map((task) => _TaskRow(task: task, db: db)),
                   if (db.activeTasks.isEmpty)
                     const Center(
                       child: Padding(
@@ -390,11 +376,25 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildInteractiveTaskTile(Task task, TaskDatabase db) {
-    final isCompleted = task.isCompletedToday();
+  String _welcomeMessage() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning! Ready to tackle your tasks?';
+    if (hour < 17) return 'Good afternoon! Keep up the momentum!';
+    return 'Good evening! Time to wrap up your day.';
+  }
+}
 
+class _TaskRow extends StatelessWidget {
+  final Task task;
+  final TaskDatabase db;
+
+  const _TaskRow({required this.task, required this.db});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompleted = task.isCompletedToday();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Container(
         decoration: BoxDecoration(
           color: isCompleted
@@ -408,7 +408,7 @@ class _HomePageState extends State<HomePage>
             vertical: 4,
           ),
           leading: GestureDetector(
-            onTap: () => _handleTaskCompletion(task, db, !isCompleted),
+            onTap: () => _toggle(context, !isCompleted),
             child: Container(
               width: 24,
               height: 24,
@@ -444,65 +444,57 @@ class _HomePageState extends State<HomePage>
               : task.isDueSoon
               ? const Icon(Icons.access_time, color: Colors.amber, size: 20)
               : null,
-
-          onTap: () => _handleTaskCompletion(task, db, !isCompleted),
+          onTap: () => _toggle(context, !isCompleted),
         ),
       ),
     );
   }
 
-  //  Method to handle task completion in dashboard:
-  Future<void> _handleTaskCompletion(
-    Task task,
-    TaskDatabase db,
-    bool shouldComplete,
-  ) async {
+  Future<void> _toggle(BuildContext context, bool complete) async {
     try {
-      await db.completeTask(task.id, shouldComplete);
-
-      // Force refresh so DashboardStats updates right away
+      await db.completeTask(task.id, complete);
       await db.refreshData();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            shouldComplete ? '✅ Task completed!' : '↩️ Task unmarked',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(complete ? '✅ Task completed!' : '↩️ Task unmarked'),
+            backgroundColor: complete ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 2),
           ),
-          backgroundColor: shouldComplete ? Colors.green : Colors.orange,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        );
+      }
     }
   }
+}
 
-  Widget _buildTasksTab(TaskDatabase db) {
-    return const TaskList();
-  }
+// ── Analytics tab ─────────────────────────────────────────────────────────
 
-  Widget _buildAnalyticsTab(TaskDatabase db) {
+class _AnalyticsTab extends StatelessWidget {
+  final TaskDatabase db;
+  const _AnalyticsTab({required this.db});
+
+  @override
+  Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       children: [
         const HeatMapComponent(),
         const SizedBox(height: 16),
-
-        // Additional analytics
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -511,26 +503,28 @@ class _HomePageState extends State<HomePage>
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
-                _buildInsightTile(
-                  'Streak',
-                  '${_calculateCurrentStreak(db.historicalCompletions, db.currentTasks)} days',
-                  Icons.local_fire_department,
-                  Colors.orange,
+                _InsightRow(
+                  label: 'Streak',
+                  value:
+                      '${_streak(db.historicalCompletions, db.currentTasks)} days',
+                  icon: Icons.local_fire_department,
+                  color: Colors.orange,
                 ),
-                _buildInsightTile(
-                  'This Week',
-                  '${_getThisWeekCompletions(db.historicalCompletions, db.currentTasks)} tasks',
-                  Icons.calendar_today,
-                  Colors.blue,
+                _InsightRow(
+                  label: 'This Week',
+                  value:
+                      '${_thisWeek(db.historicalCompletions, db.currentTasks)} tasks',
+                  icon: Icons.calendar_today,
+                  color: Colors.blue,
                 ),
-                _buildInsightTile(
-                  'Average per Day',
-                  _getAveragePerDay(
+                _InsightRow(
+                  label: 'Average per Day',
+                  value: _avgPerDay(
                     db.historicalCompletions,
                     db.currentTasks,
                   ).toStringAsFixed(1),
-                  Icons.trending_up,
-                  Colors.green,
+                  icon: Icons.trending_up,
+                  color: Colors.green,
                 ),
               ],
             ),
@@ -540,19 +534,87 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  Widget _buildInsightTile(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
+  int _streak(List<DateTime> historical, List<Task> current) {
+    final all = <DateTime>{};
+    all.addAll(historical);
+    for (final t in current) {
+      all.addAll(t.completedDays);
+    }
+    if (all.isEmpty) return 0;
+
+    final days =
+        all
+            .map((d) {
+              final l = d.toLocal();
+              return DateTime(l.year, l.month, l.day);
+            })
+            .toSet()
+            .toList()
+          ..sort();
+
+    int streak = 0;
+    final now = DateTime.now();
+    var check = DateTime(now.year, now.month, now.day);
+    if (!days.contains(check)) {
+      check = check.subtract(const Duration(days: 1));
+    }
+    while (days.contains(check)) {
+      streak++;
+      check = check.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  int _thisWeek(List<DateTime> historical, List<Task> current) {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
+
+    int count = 0;
+    for (final d in historical) {
+      final l = d.toLocal();
+      if (!DateTime(l.year, l.month, l.day).isBefore(start)) count++;
+    }
+    for (final t in current) {
+      for (final d in t.completedDays) {
+        final l = d.toLocal();
+        if (!DateTime(l.year, l.month, l.day).isBefore(start)) count++;
+      }
+    }
+    return count;
+  }
+
+  double _avgPerDay(List<DateTime> historical, List<Task> current) {
+    final all = [...historical, ...current.expand((t) => t.completedDays)];
+    if (all.isEmpty) return 0;
+    final earliest = all.reduce((a, b) => a.isBefore(b) ? a : b);
+    final days = DateTime.now().difference(earliest).inDays + 1;
+    return days > 0 ? all.length / days : 0;
+  }
+}
+
+class _InsightRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _InsightRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Icon(icon, color: color, size: 20),
           const SizedBox(width: 12),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
           const Spacer(),
           Text(
             value,
@@ -560,111 +622,6 @@ class _HomePageState extends State<HomePage>
           ),
         ],
       ),
-    );
-  }
-
-  String _getWelcomeMessage() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning! Ready to tackle your tasks?';
-    if (hour < 17) return 'Good afternoon! Keep up the momentum!';
-    return 'Good evening! Time to wrap up your day.';
-  }
-
-  // ANALYTICS METHODS
-
-  int _calculateCurrentStreak(List<DateTime> historical, List<Task> current) {
-    final allCompletions = <DateTime>{};
-
-    allCompletions.addAll(historical);
-
-    for (final task in current) {
-      allCompletions.addAll(task.completedDays);
-    }
-
-    if (allCompletions.isEmpty) return 0;
-
-    final sortedDates =
-        allCompletions
-            .map((d) {
-              final local = d.toLocal();
-              return DateTime(local.year, local.month, local.day);
-            })
-            .toSet()
-            .toList()
-          ..sort();
-
-    int streak = 0;
-    final today = DateTime.now();
-    var checkDate = DateTime(today.year, today.month, today.day);
-
-    if (!sortedDates.contains(checkDate)) {
-      checkDate = checkDate.subtract(const Duration(days: 1));
-    }
-
-    while (sortedDates.contains(checkDate)) {
-      streak++;
-      checkDate = checkDate.subtract(const Duration(days: 1));
-    }
-
-    return streak;
-  }
-
-  int _getThisWeekCompletions(List<DateTime> historical, List<Task> current) {
-    final now = DateTime.now();
-    final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    final weekStartDate = DateTime(
-      weekStart.year,
-      weekStart.month,
-      weekStart.day,
-    );
-
-    int count = 0;
-
-    count += historical.where((date) {
-      final local = date.toLocal();
-      final dayOnly = DateTime(local.year, local.month, local.day);
-      return dayOnly.isAfter(weekStartDate.subtract(const Duration(days: 1)));
-    }).length;
-
-    for (final task in current) {
-      count += task.completedDays.where((date) {
-        final local = date.toLocal();
-        final dayOnly = DateTime(local.year, local.month, local.day);
-        return dayOnly.isAfter(weekStartDate.subtract(const Duration(days: 1)));
-      }).length;
-    }
-
-    return count;
-  }
-
-  double _getAveragePerDay(List<DateTime> historical, List<Task> current) {
-    final allCompletions = <DateTime>[];
-    allCompletions.addAll(historical);
-
-    for (final task in current) {
-      allCompletions.addAll(task.completedDays);
-    }
-
-    if (allCompletions.isEmpty) return 0.0;
-
-    DateTime earliestDate = allCompletions.first;
-    for (final date in allCompletions) {
-      if (date.isBefore(earliestDate)) {
-        earliestDate = date;
-      }
-    }
-
-    final daysSinceStart = DateTime.now().difference(earliestDate).inDays + 1;
-
-    if (daysSinceStart <= 0) return 0.0;
-
-    return allCompletions.length / daysSinceStart;
-  }
-
-  void _showTaskCreationDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => const TaskCreationDialog(),
     );
   }
 }

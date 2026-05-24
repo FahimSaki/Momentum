@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
 
-/// Shows a dialog to edit a task's name and description.
-/// Used by TaskList (personal) and TeamHomePage (team).
+/// Edit-task dialog shared by TaskList and TeamHomePage.
 void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
-  final nameController = TextEditingController(text: task.name);
-  final descController = TextEditingController(text: task.description ?? '');
+  final nameCtrl = TextEditingController(text: task.name);
+  final descCtrl = TextEditingController(text: task.description ?? '');
 
   showDialog(
     context: context,
@@ -17,13 +16,13 @@ void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
-            controller: nameController,
+            controller: nameCtrl,
             decoration: const InputDecoration(labelText: 'Task Name'),
             autofocus: true,
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: descController,
+            controller: descCtrl,
             decoration: const InputDecoration(
               labelText: 'Description (optional)',
             ),
@@ -38,12 +37,12 @@ void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
         ),
         ElevatedButton(
           onPressed: () async {
-            final name = nameController.text.trim();
+            final name = nameCtrl.text.trim();
             if (name.isEmpty) return;
             try {
               await db.updateTask(task.id, {
                 'name': name,
-                'description': descController.text.trim(),
+                'description': descCtrl.text.trim(),
               });
               if (ctx.mounted) {
                 Navigator.pop(ctx);
@@ -66,8 +65,7 @@ void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
   );
 }
 
-/// Shows a confirmation dialog to delete a task.
-/// Used by TaskList (personal) and TeamHomePage (team).
+/// Delete-task confirmation dialog shared by TaskList and TeamHomePage.
 void showDeleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
   showDialog(
     context: context,
@@ -92,8 +90,8 @@ void showDeleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'This task was completed today. Deleting it will move '
-                      'the completion to your history.',
+                      'This task was completed today. Deleting it will '
+                      'move the completion to your history.',
                       style: TextStyle(
                         color: Colors.orange.shade700,
                         fontSize: 12,

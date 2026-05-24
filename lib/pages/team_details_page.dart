@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/utils/role_helpers.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
 import 'package:momentum/pages/team_settings_page.dart';
 import 'package:momentum/pages/user_search_page.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 
 class TeamDetailsPage extends StatefulWidget {
@@ -17,27 +17,27 @@ class TeamDetailsPage extends StatefulWidget {
 
 class _TeamDetailsPageState extends State<TeamDetailsPage> {
   Team? _team;
-  bool _isLoadingTeam = true;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _team = widget.team;
-    _loadLatestTeam();
+    _loadLatest();
   }
 
-  Future<void> _loadLatestTeam() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+  Future<void> _loadLatest() async {
     try {
-      final freshTeam = await db.getTeamDetails(widget.team.id);
-      if (!mounted) return;
-      setState(() {
-        _team = freshTeam;
-        _isLoadingTeam = false;
-      });
+      final db = Provider.of<TaskDatabase>(context, listen: false);
+      final fresh = await db.getTeamDetails(widget.team.id);
+      if (mounted) {
+        setState(() {
+          _team = fresh;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _isLoadingTeam = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -45,7 +45,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   Widget build(BuildContext context) {
     final db = Provider.of<TaskDatabase>(context, listen: false);
     final team = _team ?? widget.team;
-    final isOwnerOrAdmin =
+    final canManage =
         team.isAdmin(db.userId ?? '') || team.isOwner(db.userId ?? '');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -53,23 +53,22 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       appBar: AppBar(
         title: Text(team.name),
         actions: [
-          if (isOwnerOrAdmin)
+          if (canManage)
             IconButton(
               icon: const Icon(Icons.settings_rounded),
-              tooltip: 'Team Settings',
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => TeamSettingsPage(team: team)),
               ),
             ),
-          if (isOwnerOrAdmin)
+          if (canManage)
             PopupMenuButton<String>(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              onSelected: (value) {
-                if (value == 'invite') _showInviteDialog();
-                if (value == 'settings') {
+              onSelected: (v) {
+                if (v == 'invite') _showInvite();
+                if (v == 'settings') {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -78,8 +77,8 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                   );
                 }
               },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
+              itemBuilder: (_) => const [
+                PopupMenuItem(
                   value: 'invite',
                   child: Row(
                     children: [
@@ -89,7 +88,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     ],
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'settings',
                   child: Row(
                     children: [
@@ -103,16 +102,13 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
             ),
         ],
       ),
-      body: _isLoadingTeam
+      body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Team info card
-                _buildTeamInfoCard(team, isDark),
+                _TeamInfoCard(team: team),
                 const SizedBox(height: 16),
-
-                // Members section header
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
@@ -137,34 +133,30 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     ],
                   ),
                 ),
-
-                // Members list
                 ...team.members.map(
-                  (member) => _buildMemberCard(member, isDark),
+                  (m) => _MemberCard(member: m, isDark: isDark),
                 ),
                 const SizedBox(height: 24),
-
-                // Quick actions
-                if (isOwnerOrAdmin) ...[
-                  _buildActionButton(
+                if (canManage) ...[
+                  _ActionButton(
                     icon: Icons.person_add_rounded,
                     label: 'Invite Member',
                     color: const Color(0xFF6366F1),
-                    onTap: _showInviteDialog,
                     isDark: isDark,
+                    onTap: _showInvite,
                   ),
                   const SizedBox(height: 10),
-                  _buildActionButton(
+                  _ActionButton(
                     icon: Icons.settings_rounded,
                     label: 'Team Settings',
                     color: const Color(0xFF3B82F6),
+                    isDark: isDark,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => TeamSettingsPage(team: team),
                       ),
                     ),
-                    isDark: isDark,
                   ),
                 ],
               ],
@@ -172,7 +164,23 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     );
   }
 
-  Widget _buildTeamInfoCard(Team team, bool isDark) {
+  void _showInvite() => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          UserSearchPage(teamId: widget.team.id, teamName: widget.team.name),
+    ),
+  );
+}
+
+// ── Sub-widgets ──────────────────────────────────────────────────────────
+
+class _TeamInfoCard extends StatelessWidget {
+  final Team team;
+  const _TeamInfoCard({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -211,7 +219,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                if (team.description != null && team.description!.isNotEmpty)
+                if (team.description?.isNotEmpty == true)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
                     child: Text(
@@ -223,14 +231,36 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     ),
                   ),
                 const SizedBox(height: 10),
-                Row(
-                  children: [
-                    _statPill(
-                      '${team.members.length}',
-                      'members',
-                      Colors.white,
-                    ),
-                  ],
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${team.members.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'members',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -239,37 +269,16 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       ),
     );
   }
+}
 
-  Widget _statPill(String value, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
+class _MemberCard extends StatelessWidget {
+  final TeamMember member;
+  final bool isDark;
+  const _MemberCard({required this.member, required this.isDark});
 
-  Widget _buildMemberCard(TeamMember member, bool isDark) {
-    final roleColor = RoleHelpers.color(member.role);
+  @override
+  Widget build(BuildContext context) {
+    final color = RoleHelpers.color(member.role);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -283,11 +292,11 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         leading: CircleAvatar(
           radius: 22,
-          backgroundColor: roleColor.withValues(alpha: 0.15),
+          backgroundColor: color.withValues(alpha: 0.15),
           child: Text(
             member.user.initials,
             style: TextStyle(
-              color: roleColor,
+              color: color,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
@@ -305,33 +314,29 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
           ),
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: roleColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            member.role.toUpperCase(),
-            style: TextStyle(
-              color: roleColor,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
+        trailing: RoleBadge(role: member.role),
       ),
     );
   }
+}
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -370,16 +375,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showInviteDialog() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            UserSearchPage(teamId: widget.team.id, teamName: widget.team.name),
       ),
     );
   }

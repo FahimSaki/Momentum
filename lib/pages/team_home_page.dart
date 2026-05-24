@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/dashboard_stats.dart';
+import 'package:momentum/components/error_handler.dart';
+import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
+import 'package:momentum/components/task_edit_delete_dialogs.dart';
+import 'package:momentum/components/task_tile.dart';
 import 'package:momentum/database/task_database.dart';
+import 'package:momentum/helpers/permission_helper.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_permissions.dart';
-import 'package:momentum/helpers/permission_helper.dart';
-import 'package:momentum/components/task_tile.dart';
-import 'package:momentum/components/error_handler.dart';
-import 'package:momentum/components/dashboard_stats.dart';
-import 'package:momentum/components/task_edit_delete_dialogs.dart';
 import 'package:momentum/pages/team_details_page.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/team_settings_page.dart';
-import 'package:momentum/utils/role_helpers.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -39,15 +39,13 @@ class _TeamHomePageState extends State<TeamHomePage> {
     try {
       final db = Provider.of<TaskDatabase>(context, listen: false);
       if (db.userId == null) throw Exception('User not authenticated');
-
-      final freshTeam = await db.getTeamDetails(widget.team.id);
-      _userRole = PermissionHelper.getUserRole(freshTeam, db.userId!);
+      final fresh = await db.getTeamDetails(widget.team.id);
+      _userRole = PermissionHelper.getUserRole(fresh, db.userId!);
       _permissions = TeamPermissions.forRole(_userRole);
-      db.selectTeam(freshTeam);
-
+      db.selectTeam(fresh);
       setState(() => _isLoading = false);
-    } catch (e, stackTrace) {
-      _logger.e('Error loading team data', error: e, stackTrace: stackTrace);
+    } catch (e, st) {
+      _logger.e('Error loading team', error: e, stackTrace: st);
       if (mounted) {
         setState(() => _isLoading = false);
         ErrorHandler.showError(context, e, title: 'Failed to load team');
@@ -55,7 +53,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
     }
   }
 
-  Future<void> _showDeleteTeamDialog() async {
+  Future<void> _confirmDeleteTeam() async {
     final db = Provider.of<TaskDatabase>(context, listen: false);
     if (!widget.team.isOwner(db.userId ?? '')) return;
 
@@ -100,7 +98,9 @@ class _TeamHomePageState extends State<TeamHomePage> {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
       }
     } catch (e) {
-      if (mounted) ErrorHandler.showError(context, e, title: 'Delete failed');
+      if (mounted) {
+        ErrorHandler.showError(context, e, title: 'Delete failed');
+      }
     }
   }
 
@@ -146,7 +146,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
           ),
         ),
         actions: [
-          // Role badge
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -155,12 +154,11 @@ class _TeamHomePageState extends State<TeamHomePage> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              PermissionHelper.getRoleDisplayName(_userRole),
+              RoleHelpers.displayName(_userRole),
               style: TextStyle(
                 color: RoleHelpers.color(_userRole),
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
-                letterSpacing: 0.3,
               ),
             ),
           ),
@@ -170,8 +168,8 @@ class _TeamHomePageState extends State<TeamHomePage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
-            onSelected: (value) {
-              switch (value) {
+            onSelected: (v) {
+              switch (v) {
                 case 'details':
                   Navigator.push(
                     context,
@@ -197,11 +195,11 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   );
                   break;
                 case 'delete':
-                  _showDeleteTeamDialog();
+                  _confirmDeleteTeam();
                   break;
               }
             },
-            itemBuilder: (context) => [
+            itemBuilder: (_) => [
               const PopupMenuItem(
                 value: 'details',
                 child: Row(
@@ -260,7 +258,10 @@ class _TeamHomePageState extends State<TeamHomePage> {
       ),
       floatingActionButton: _permissions.canCreateTasks
           ? FloatingActionButton.extended(
-              onPressed: _showTaskCreationDialog,
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const TaskCreationDialog(),
+              ),
               icon: const Icon(Icons.add_rounded),
               label: const Text(
                 'New Task',
@@ -270,18 +271,32 @@ class _TeamHomePageState extends State<TeamHomePage> {
           : null,
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
-          if (!_permissions.canViewTasks) return _buildNoAccessView();
-          if (db.currentTasks.isEmpty) return _buildEmptyStateView();
+          if (!_permissions.canViewTasks) return _NoAccessView();
+          if (db.currentTasks.isEmpty) {
+            return _EmptyStateView(
+              canCreate: _permissions.canCreateTasks,
+              onCreate: () => showDialog(
+                context: context,
+                builder: (_) => const TaskCreationDialog(),
+              ),
+            );
+          }
           return RefreshIndicator(
-            onRefresh: () async => await db.refreshData(),
+            onRefresh: db.refreshData,
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
-                _buildWelcomeCard(isDark),
+                _RoleCard(userRole: _userRole),
                 const SizedBox(height: 16),
                 const DashboardStats(),
                 const SizedBox(height: 20),
-                _buildTasksSection(db, isDark),
+                _TasksSection(
+                  db: db,
+                  isDark: isDark,
+                  userRole: _userRole,
+                  permissions: _permissions,
+                  onNoPermission: _showNoPermissionDialog,
+                ),
               ],
             ),
           );
@@ -290,12 +305,45 @@ class _TeamHomePageState extends State<TeamHomePage> {
     );
   }
 
-  Widget _buildWelcomeCard(bool isDark) {
+  void _showNoPermissionDialog(String action) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Permission Required'),
+          ],
+        ),
+        content: Text(
+          "You don't have permission to $action.\n\nOnly owners and admins can do this.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sub-widgets ──────────────────────────────────────────────────────────
+
+class _RoleCard extends StatelessWidget {
+  final String userRole;
+  const _RoleCard({required this.userRole});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: RoleHelpers.gradient(_userRole),
+          colors: RoleHelpers.gradient(userRole),
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -311,7 +359,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              RoleHelpers.icon(_userRole),
+              RoleHelpers.icon(userRole),
               color: Colors.white,
               size: 24,
             ),
@@ -322,7 +370,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'You are a ${PermissionHelper.getRoleDisplayName(_userRole)}',
+                  'You are a ${RoleHelpers.displayName(userRole)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -331,7 +379,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  RoleHelpers.description(_userRole),
+                  RoleHelpers.description(userRole),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.82),
                     fontSize: 12,
@@ -344,16 +392,33 @@ class _TeamHomePageState extends State<TeamHomePage> {
       ),
     );
   }
+}
 
-  Widget _buildTasksSection(TaskDatabase db, bool isDark) {
-    final activeTasks = db.activeTasks;
-    final completedTasks = db.completedTasks;
-    final isMemberRole = _userRole.toLowerCase() == 'member';
+class _TasksSection extends StatelessWidget {
+  final TaskDatabase db;
+  final bool isDark;
+  final String userRole;
+  final TeamPermissions permissions;
+  final void Function(String) onNoPermission;
+
+  const _TasksSection({
+    required this.db,
+    required this.isDark,
+    required this.userRole,
+    required this.permissions,
+    required this.onNoPermission,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final active = db.activeTasks;
+    final completed = db.completedTasks;
+    final isMember = userRole.toLowerCase() == 'member';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (isMemberRole) ...[
+        if (isMember)
           Container(
             width: double.infinity,
             margin: const EdgeInsets.only(bottom: 12),
@@ -365,12 +430,12 @@ class _TeamHomePageState extends State<TeamHomePage> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(
-              'You can only view and complete tasks assigned to you. Owners/admins manage creation, deletion, and assignment.',
+              'You can only view and complete tasks assigned to you. '
+              'Owners/admins manage creation, deletion, and assignment.',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ),
-        ],
-        if (activeTasks.isNotEmpty) ...[
+        if (active.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
@@ -385,7 +450,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Active Tasks (${activeTasks.length})',
+                  'Active Tasks (${active.length})',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 15,
@@ -397,20 +462,20 @@ class _TeamHomePageState extends State<TeamHomePage> {
               ],
             ),
           ),
-          ...activeTasks.map((task) {
-            final canEdit = _permissions.canEditTask(
+          ...active.map((task) {
+            final canEdit = permissions.canEditTask(
               task.assignedBy?.id ?? '',
               db.userId ?? '',
             );
-            final canDelete = _permissions.canDeleteTask(
+            final canDelete = permissions.canDeleteTask(
               task.assignedBy?.id ?? '',
               db.userId ?? '',
             );
             return TaskTile(
               key: ValueKey(task.id),
               task: task,
-              onToggle: (isCompleted) async {
-                if (!_permissions.canCompleteTasks) {
+              onToggle: (v) async {
+                if (!permissions.canCompleteTasks) {
                   ErrorHandler.showSnackBarError(
                     context,
                     'You do not have permission to complete tasks',
@@ -418,23 +483,24 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   return;
                 }
                 try {
-                  await db.completeTask(task.id, isCompleted);
+                  await db.completeTask(task.id, v);
                 } catch (e) {
-                  if (mounted) ErrorHandler.showSnackBarError(context, e);
+                  if (context.mounted) {
+                    ErrorHandler.showSnackBarError(context, e);
+                  }
                   rethrow;
                 }
               },
               onEdit: canEdit
                   ? () => showEditTaskDialog(context, task, db)
-                  : () => _showNoPermissionDialog('edit'),
+                  : () => onNoPermission('edit'),
               onDelete: canDelete
                   ? () => showDeleteTaskDialog(context, task, db)
-                  : () => _showNoPermissionDialog('delete'),
+                  : () => onNoPermission('delete'),
             );
           }),
         ],
-
-        if (completedTasks.isNotEmpty) ...[
+        if (completed.isNotEmpty) ...[
           const SizedBox(height: 16),
           Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -463,7 +529,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ),
                 ),
                 title: Text(
-                  'Completed Today (${completedTasks.length})',
+                  'Completed Today (${completed.length})',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
@@ -473,21 +539,21 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ),
                 ),
                 subtitle: Text(
-                  completedTasks.length == 1
+                  completed.length == 1
                       ? 'Great work! 🎉'
-                      : 'Amazing! ${completedTasks.length} done! 🎉',
+                      : 'Amazing! ${completed.length} done! 🎉',
                   style: const TextStyle(
                     color: Color(0xFF22C55E),
                     fontSize: 12,
                   ),
                 ),
-                children: completedTasks
+                children: completed
                     .map(
                       (task) => TaskTile(
                         key: ValueKey('completed_${task.id}'),
                         task: task,
-                        onToggle: (isCompleted) async {
-                          if (!_permissions.canCompleteTasks) {
+                        onToggle: (v) async {
+                          if (!permissions.canCompleteTasks) {
                             ErrorHandler.showSnackBarError(
                               context,
                               'No permission to modify task completion',
@@ -495,17 +561,16 @@ class _TeamHomePageState extends State<TeamHomePage> {
                             return;
                           }
                           try {
-                            await db.completeTask(task.id, isCompleted);
+                            await db.completeTask(task.id, v);
                           } catch (e) {
-                            if (mounted) {
+                            if (context.mounted) {
                               ErrorHandler.showSnackBarError(context, e);
                             }
                             rethrow;
                           }
                         },
-                        onEdit: () =>
-                            _showNoPermissionDialog('edit a completed task'),
-                        onDelete: () => _showNoPermissionDialog('delete'),
+                        onEdit: () => onNoPermission('edit a completed task'),
+                        onDelete: () => onNoPermission('delete'),
                       ),
                     )
                     .toList(),
@@ -516,8 +581,15 @@ class _TeamHomePageState extends State<TeamHomePage> {
       ],
     );
   }
+}
 
-  Widget _buildEmptyStateView() {
+class _EmptyStateView extends StatelessWidget {
+  final bool canCreate;
+  final VoidCallback onCreate;
+  const _EmptyStateView({required this.canCreate, required this.onCreate});
+
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -544,16 +616,16 @@ class _TeamHomePageState extends State<TeamHomePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              _permissions.canCreateTasks
+              canCreate
                   ? 'Create the first task for your team'
                   : 'Tasks assigned by admins will appear here',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B66A3), fontSize: 14),
             ),
-            if (_permissions.canCreateTasks) ...[
+            if (canCreate) ...[
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: _showTaskCreationDialog,
+                onPressed: onCreate,
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Create Task'),
               ),
@@ -563,8 +635,11 @@ class _TeamHomePageState extends State<TeamHomePage> {
       ),
     );
   }
+}
 
-  Widget _buildNoAccessView() {
+class _NoAccessView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -589,42 +664,9 @@ class _TeamHomePageState extends State<TeamHomePage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'You don\'t have permission to view team tasks',
+            "You don't have permission to view team tasks",
             textAlign: TextAlign.center,
             style: TextStyle(color: Color(0xFF6B66A3)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTaskCreationDialog() {
-    if (!_permissions.canCreateTasks) {
-      _showNoPermissionDialog('create tasks');
-      return;
-    }
-    showDialog(context: context, builder: (_) => const TaskCreationDialog());
-  }
-
-  void _showNoPermissionDialog(String action) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.lock_rounded, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Permission Required'),
-          ],
-        ),
-        content: Text(
-          'You don\'t have permission to $action.\n\nOnly owners and admins can do this.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
           ),
         ],
       ),

@@ -19,7 +19,7 @@ class TeamInvitationsPage extends StatelessWidget {
             builder: (context, db, _) {
               if (db.unreadNotificationCount > 0) {
                 return TextButton(
-                  onPressed: () => db.markAllNotificationsAsRead(),
+                  onPressed: db.markAllNotificationsAsRead,
                   child: const Text('Mark all read'),
                 );
               }
@@ -42,17 +42,15 @@ class TeamInvitationsPage extends StatelessWidget {
               ),
             );
           }
-
           return RefreshIndicator(
-            onRefresh: () => db.refreshData(),
+            onRefresh: db.refreshData,
             child: ListView.builder(
               itemCount: db.notifications.length,
-              itemBuilder: (context, index) {
-                final notification = db.notifications[index];
+              itemBuilder: (context, i) {
+                final notification = db.notifications[i];
                 return NotificationTile(
                   notification: notification,
-                  onTap: () =>
-                      _handleNotificationTap(context, notification, db),
+                  onTap: () => _handleTap(context, notification, db),
                 );
               },
             ),
@@ -62,25 +60,21 @@ class TeamInvitationsPage extends StatelessWidget {
     );
   }
 
-  void _handleNotificationTap(
+  void _handleTap(
     BuildContext context,
     AppNotification notification,
     TaskDatabase db,
   ) {
     if (!notification.isRead) db.markNotificationAsRead(notification.id);
-
     switch (notification.type) {
-      case 'task_assigned':
-      case 'task_completed':
-      case 'team_member_joined':
-        Navigator.pop(context);
-        break;
       case 'team_invitation':
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const TeamInvitationsPage()),
         );
         break;
+      default:
+        Navigator.pop(context);
     }
   }
 }
