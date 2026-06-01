@@ -12,13 +12,13 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ── IMPORTANT: Register background handler BEFORE Firebase.initializeApp
-  // This must happen before any Firebase call so the handler is registered
-  // in the background isolate that Flutter spins up for terminated-state FCM.
+  // Register background handler BEFORE Firebase.initializeApp() — required
+  // so the handler is available in the background isolate Flutter spins up.
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  await InitializationService.initialize();
-
+  // Initialize Firebase BEFORE InitializationService so that returning users
+  // (who have a saved JWT) can safely use FirebaseMessaging inside
+  // InitializationService.initialize() without hitting an uninitialized app.
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -27,6 +27,8 @@ void main() async {
   } catch (e) {
     debugPrint('Firebase init skipped or failed (non-fatal): $e');
   }
+
+  await InitializationService.initialize();
 
   runApp(
     MultiProvider(

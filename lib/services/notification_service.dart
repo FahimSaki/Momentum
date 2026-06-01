@@ -70,14 +70,25 @@ class NotificationService {
       await _initLocalNotifications();
 
       if (!_isFirebaseInitialized) {
-        await _initFirebaseMessaging();
         _isFirebaseInitialized = true;
-      } else {
-        // App already running — just make sure the token is current
-        await _registerToken();
-      }
 
-      _logger.i('NotificationService initialised');
+        // Start FCM setup in background.
+        _initFirebaseMessaging().catchError((e, st) {
+          _logger.w(
+            'FCM initialization failed (non-critical)',
+            error: e,
+            stackTrace: st,
+          );
+        });
+      } else {
+        _registerToken().catchError((e, st) {
+          _logger.w(
+            'FCM token registration failed (non-critical)',
+            error: e,
+            stackTrace: st,
+          );
+        });
+      }
     } catch (e, st) {
       _logger.w(
         'NotificationService init failed (non-critical)',

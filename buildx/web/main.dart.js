@@ -29735,24 +29735,24 @@ s=q}for(;;)switch(s){case 0:if($.a3==null)A.arN()
 $.a3.toString
 $.aQ2=A.aVU()
 A.b0W().Ge(A.aVU())
-s=2
-return A.l(A.adF(),$async$a4V)
-case 2:q=4
-s=7
-return A.l(A.Pa(A.aPu()),$async$a4V)
-case 7:A.pR().$1("Firebase initialized successfully")
-q=1
+q=3
 s=6
+return A.l(A.Pa(A.aPu()),$async$a4V)
+case 6:A.pR().$1("Firebase initialized successfully")
+q=1
+s=5
 break
-case 4:q=3
+case 3:q=2
 e=p.pop()
 o=A.V(e)
 A.pR().$1("Firebase init skipped or failed (non-fatal): "+A.j(o))
-s=6
+s=5
 break
-case 3:s=1
+case 2:s=1
 break
-case 6:m=A.b2l(B.Vd,A.b([A.aP_(new A.aJj(),t.O),A.aP_(new A.aJk(),t.eC)],t.Ds))
+case 5:s=7
+return A.l(A.adF(),$async$a4V)
+case 7:m=A.b2l(B.Vd,A.b([A.aP_(new A.aJj(),t.O),A.aP_(new A.aJk(),t.eC)],t.Ds))
 if($.a3==null)A.arN()
 l=$.a3
 l.toString
