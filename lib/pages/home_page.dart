@@ -135,20 +135,25 @@ class _HomePageState extends State<HomePage>
           return const SizedBox.shrink();
         }
 
+        // Hide the FAB when the user is a plain member in a team workspace
+        final showFab = db.canCurrentUserCreateTasks;
+
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
           appBar: _buildAppBar(db),
           drawer: const MyDrawer(),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => const TaskCreationDialog(),
-            ),
-            child: Icon(
-              Icons.add,
-              color: Theme.of(context).colorScheme.onTertiary,
-            ),
-          ),
+          floatingActionButton: showFab
+              ? FloatingActionButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => const TaskCreationDialog(),
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: Theme.of(context).colorScheme.onTertiary,
+                  ),
+                )
+              : null,
           body: Column(
             children: [
               _TabBar(controller: _tabController),
@@ -333,8 +338,11 @@ class _DashboardTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const QuickInviteWidget(),
-          const SizedBox(height: 16),
+          // Only show invite widget in personal workspace or for admins/owners
+          if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+            const QuickInviteWidget(),
+          if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+            const SizedBox(height: 16),
           const DashboardStats(),
           const SizedBox(height: 16),
           Card(

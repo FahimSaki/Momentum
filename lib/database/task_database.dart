@@ -55,6 +55,22 @@ class TaskDatabase extends ChangeNotifier {
   List<Task> get completedTasks =>
       currentTasks.where((task) => task.isCompletedToday()).toList();
 
+  /// Returns the current user's role in [selectedTeam], or null if no team selected.
+  String? get currentUserRoleInSelectedTeam {
+    if (selectedTeam == null || userId == null) return null;
+    final member = selectedTeam!.getMember(userId!);
+    if (member != null) return member.role;
+    if (selectedTeam!.isOwner(userId!)) return 'owner';
+    return null;
+  }
+
+  /// Returns true if the current user can create tasks in the current context.
+  bool get canCurrentUserCreateTasks {
+    if (selectedTeam == null) return true; // personal workspace
+    final role = currentUserRoleInSelectedTeam;
+    return role == 'owner' || role == 'admin';
+  }
+
   TaskDatabase() {
     if (!kIsWeb) {
       _initializeTimerService();
@@ -147,11 +163,7 @@ class TaskDatabase extends ChangeNotifier {
       final todayStart = DateTime(now.year, now.month, now.day);
 
       final filtered = tasks.where((task) {
-        // Always show non-archived tasks
         if (!task.isArchived) return true;
-
-        // Show archived tasks ONLY if they were archived today
-        // (completed today — user should see them in the completed section)
         if (task.archivedAt != null) {
           final archivedLocal = task.archivedAt!.toLocal();
           final archivedDay = DateTime(
@@ -161,8 +173,6 @@ class TaskDatabase extends ChangeNotifier {
           );
           return archivedDay.isAtSameMomentAs(todayStart);
         }
-
-        // If archived but no archivedAt date, check completedDays
         return task.isCompletedToday();
       }).toList();
 
@@ -240,14 +250,12 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── NEW: Update team settings ──────────────────────────────────────────
   Future<void> updateTeamSettings(
     String teamId,
     Map<String, dynamic> settings,
   ) async {
     try {
       await _teamService!.updateTeamSettings(teamId, settings);
-      // Reload teams to reflect changes
       await _loadUserTeams();
       notifyListeners();
     } catch (e, stackTrace) {
@@ -260,7 +268,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── NEW: Delete team ───────────────────────────────────────────────────
   Future<void> deleteTeam(String teamId) async {
     try {
       await _teamService!.deleteTeam(teamId);
@@ -275,6 +282,42 @@ class TaskDatabase extends ChangeNotifier {
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e('Error deleting team', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Leave a team (for non-owner members).
+  Future<void> leaveTeam(String teamId) async {
+    try {
+      await _teamService!.leaveTeam(teamId);
+      userTeams.removeWhere((t) => t.id == teamId);
+      if (selectedTeam?.id == teamId) {
+        selectedTeam = null;
+        currentView = 'personal';
+        currentTasks.clear();
+        personalTasks.clear();
+        teamTasks.clear();
+      }
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e('Error leaving team', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Remove a member from a team (owner/admin only).
+  Future<void> removeTeamMember(String teamId, String memberId) async {
+    try {
+      await _teamService!.removeTeamMember(teamId, memberId);
+      await _loadUserTeams();
+      // Keep selectedTeam reference fresh
+      if (selectedTeam?.id == teamId) {
+        final updated = userTeams.where((t) => t.id == teamId).firstOrNull;
+        if (updated != null) selectedTeam = updated;
+      }
+      notifyListeners();
+    } catch (e, stackTrace) {
+      logger.e('Error removing team member', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -350,8 +393,6 @@ class TaskDatabase extends ChangeNotifier {
     personalTasks.clear();
     teamTasks.clear();
 
-    // Only organize tasks that made it through the _loadTasks filter
-    // (no archived-from-previous-days tasks should be here)
     for (final task in currentTasks) {
       if (task.isTeamTask) {
         teamTasks.add(task);

@@ -12,6 +12,7 @@ import 'package:momentum/models/team_permissions.dart';
 import 'package:momentum/pages/team_details_page.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/team_settings_page.dart';
+import 'package:momentum/pages/user_search_page.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -93,6 +94,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
     if (confirmed != true || !mounted) return;
     try {
+      final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.deleteTeam(widget.team.id);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
@@ -100,6 +102,63 @@ class _TeamHomePageState extends State<TeamHomePage> {
     } catch (e) {
       if (mounted) {
         ErrorHandler.showError(context, e, title: 'Delete failed');
+      }
+    }
+  }
+
+  Future<void> _confirmLeaveTeam() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.exit_to_app, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Leave Team'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave "${widget.team.name}"?\n\n'
+          'You will lose access to all team tasks and will need a new invitation to rejoin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    try {
+      await db.leaveTeam(widget.team.id);
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You have left "${widget.team.name}"'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ErrorHandler.showError(context, e, title: 'Could not leave team');
       }
     }
   }
@@ -115,6 +174,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
     final db = Provider.of<TaskDatabase>(context, listen: false);
     final isOwner = widget.team.isOwner(db.userId ?? '');
+    final isMemberRole = _userRole.toLowerCase() == 'member';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -146,6 +206,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
           ),
         ),
         actions: [
+          // Role badge
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -186,6 +247,17 @@ class _TeamHomePageState extends State<TeamHomePage> {
                     ),
                   );
                   break;
+                case 'invite':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserSearchPage(
+                        teamId: widget.team.id,
+                        teamName: widget.team.name,
+                      ),
+                    ),
+                  );
+                  break;
                 case 'switch':
                   Navigator.pushReplacement(
                     context,
@@ -193,6 +265,9 @@ class _TeamHomePageState extends State<TeamHomePage> {
                       builder: (_) => const TeamSelectionPage(),
                     ),
                   );
+                  break;
+                case 'leave':
+                  _confirmLeaveTeam();
                   break;
                 case 'delete':
                   _confirmDeleteTeam();
@@ -210,6 +285,18 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ],
                 ),
               ),
+              // Invite — only owners and admins
+              if (_permissions.canInviteMembers)
+                const PopupMenuItem(
+                  value: 'invite',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_add_rounded, size: 18),
+                      SizedBox(width: 12),
+                      Text('Invite Member'),
+                    ],
+                  ),
+                ),
               if (_permissions.canEditSettings)
                 const PopupMenuItem(
                   value: 'settings',
@@ -231,6 +318,28 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ],
                 ),
               ),
+              // Leave — everyone except the owner
+              if (!isOwner) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'leave',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.exit_to_app_rounded,
+                        size: 18,
+                        color: Colors.orange.shade400,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Leave Team',
+                        style: TextStyle(color: Colors.orange.shade400),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              // Delete — owner only
               if (isOwner) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -256,6 +365,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
           const SizedBox(width: 4),
         ],
       ),
+      // FAB only for owners and admins
       floatingActionButton: _permissions.canCreateTasks
           ? FloatingActionButton.extended(
               onPressed: () => showDialog(
@@ -275,6 +385,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
           if (db.currentTasks.isEmpty) {
             return _EmptyStateView(
               canCreate: _permissions.canCreateTasks,
+              isMemberRole: isMemberRole,
               onCreate: () => showDialog(
                 context: context,
                 builder: (_) => const TaskCreationDialog(),
@@ -585,8 +696,14 @@ class _TasksSection extends StatelessWidget {
 
 class _EmptyStateView extends StatelessWidget {
   final bool canCreate;
+  final bool isMemberRole;
   final VoidCallback onCreate;
-  const _EmptyStateView({required this.canCreate, required this.onCreate});
+
+  const _EmptyStateView({
+    required this.canCreate,
+    required this.isMemberRole,
+    required this.onCreate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -618,7 +735,7 @@ class _EmptyStateView extends StatelessWidget {
             Text(
               canCreate
                   ? 'Create the first task for your team'
-                  : 'Tasks assigned by admins will appear here',
+                  : 'Tasks assigned to you by admins will appear here',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B66A3), fontSize: 14),
             ),

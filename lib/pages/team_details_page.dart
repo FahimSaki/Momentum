@@ -41,12 +41,149 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     }
   }
 
+  Future<void> _confirmLeaveTeam() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final team = _team ?? widget.team;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.exit_to_app, color: Colors.orange),
+            SizedBox(width: 10),
+            Text('Leave Team'),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to leave "${team.name}"?\n\n'
+          'You will lose access to all team tasks and will need a new invitation to rejoin.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await db.leaveTeam(widget.team.id);
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You have left "${team.name}"'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to leave: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmRemoveMember(TeamMember member) async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final team = _team ?? widget.team;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.person_remove, color: Colors.red),
+            SizedBox(width: 10),
+            Text('Remove Member'),
+          ],
+        ),
+        content: Text(
+          'Remove "${member.user.name}" from "${team.name}"?\n\n'
+          'They will lose access to all team tasks immediately.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await db.removeTeamMember(widget.team.id, member.user.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${member.user.name} has been removed from the team'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Refresh the displayed team
+        await _loadLatest();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to remove: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final db = Provider.of<TaskDatabase>(context, listen: false);
     final team = _team ?? widget.team;
-    final canManage =
-        team.isAdmin(db.userId ?? '') || team.isOwner(db.userId ?? '');
+    final myUserId = db.userId ?? '';
+    final isOwner = team.isOwner(myUserId);
+    final isAdmin = team.getMember(myUserId)?.role == 'admin';
+    final canManage = isOwner || isAdmin;
+    // A member who is not owner can leave
+    final canLeave = !isOwner;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -109,6 +246,8 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
               children: [
                 _TeamInfoCard(team: team),
                 const SizedBox(height: 16),
+
+                // Members header
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
@@ -133,10 +272,25 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                     ],
                   ),
                 ),
+
+                // Member list with remove option for owners/admins
                 ...team.members.map(
-                  (m) => _MemberCard(member: m, isDark: isDark),
+                  (m) => _MemberCard(
+                    member: m,
+                    isDark: isDark,
+                    myUserId: myUserId,
+                    isOwner: isOwner,
+                    isAdmin: isAdmin,
+                    onRemove:
+                        canManage && m.role != 'owner' && m.user.id != myUserId
+                        ? () => _confirmRemoveMember(m)
+                        : null,
+                  ),
                 ),
+
                 const SizedBox(height: 24),
+
+                // Action buttons — invite only for owners/admins
                 if (canManage) ...[
                   _ActionButton(
                     icon: Icons.person_add_rounded,
@@ -157,6 +311,18 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                         builder: (_) => TeamSettingsPage(team: team),
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+
+                // Leave team — available to all non-owners
+                if (canLeave) ...[
+                  _ActionButton(
+                    icon: Icons.exit_to_app_rounded,
+                    label: 'Leave Team',
+                    color: Colors.orange,
+                    isDark: isDark,
+                    onTap: _confirmLeaveTeam,
                   ),
                 ],
               ],
@@ -274,18 +440,35 @@ class _TeamInfoCard extends StatelessWidget {
 class _MemberCard extends StatelessWidget {
   final TeamMember member;
   final bool isDark;
-  const _MemberCard({required this.member, required this.isDark});
+  final String myUserId;
+  final bool isOwner;
+  final bool isAdmin;
+  final VoidCallback? onRemove;
+
+  const _MemberCard({
+    required this.member,
+    required this.isDark,
+    required this.myUserId,
+    required this.isOwner,
+    required this.isAdmin,
+    this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
     final color = RoleHelpers.color(member.role);
+    final isMe = member.user.id == myUserId;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1929) : Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isDark ? const Color(0xFF2D2C44) : const Color(0xFFEDE9FE),
+          color: isMe
+              ? const Color(0xFF6366F1).withValues(alpha: 0.4)
+              : (isDark ? const Color(0xFF2D2C44) : const Color(0xFFEDE9FE)),
+          width: isMe ? 1.5 : 1.0,
         ),
       ),
       child: ListTile(
@@ -302,9 +485,18 @@ class _MemberCard extends StatelessWidget {
             ),
           ),
         ),
-        title: Text(
-          member.user.name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                member.user.name + (isMe ? ' (You)' : ''),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
         ),
         subtitle: Text(
           member.user.email,
@@ -314,7 +506,28 @@ class _MemberCard extends StatelessWidget {
           ),
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: RoleBadge(role: member.role),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RoleBadge(role: member.role),
+            // Show remove button for owners/admins (but not for the owner themselves,
+            // and not for yourself)
+            if (onRemove != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onRemove,
+                icon: const Icon(
+                  Icons.person_remove_rounded,
+                  size: 20,
+                  color: Colors.red,
+                ),
+                tooltip: 'Remove member',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
