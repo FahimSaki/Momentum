@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
@@ -74,111 +75,110 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Momentum',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+      body: ResponsiveCenter(
+        maxWidth: AppWidths.authForm,
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Momentum',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Welcome back!',
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(
+                  context,
+                ).colorScheme.inversePrimary.withValues(alpha: 0.7),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Welcome back!',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.inversePrimary.withValues(alpha: 0.7),
-                ),
+            ),
+            const SizedBox(height: 32),
+            TextField(
+              controller: emailController,
+              decoration: InputDecoration(
+                labelText: 'Email',
+                border: const UnderlineInputBorder(),
+                prefixIcon: const Icon(Icons.email),
+                errorText:
+                    error != null && error!.toLowerCase().contains('email')
+                    ? error
+                    : null,
               ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  border: const UnderlineInputBorder(),
-                  prefixIcon: const Icon(Icons.email),
-                  errorText:
-                      error != null && error!.toLowerCase().contains('email')
-                      ? error
-                      : null,
-                ),
-                keyboardType: TextInputType.emailAddress,
-                enabled: !isLoading,
-                onSubmitted: (_) => login(),
+              keyboardType: TextInputType.emailAddress,
+              enabled: !isLoading,
+              onSubmitted: (_) => login(),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: const UnderlineInputBorder(),
+                prefixIcon: const Icon(Icons.lock),
+                helperText: 'Must be at least 6 characters',
+                errorText:
+                    error != null && error!.toLowerCase().contains('password')
+                    ? error
+                    : null,
               ),
+              obscureText: true,
+              enabled: !isLoading,
+              onSubmitted: (_) => login(),
+            ),
+            if (error != null &&
+                !error!.toLowerCase().contains('email') &&
+                !error!.toLowerCase().contains('password')) ...[
               const SizedBox(height: 16),
-              TextField(
-                controller: passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: const UnderlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock),
-                  helperText: 'Must be at least 6 characters',
-                  errorText:
-                      error != null && error!.toLowerCase().contains('password')
-                      ? error
-                      : null,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
                 ),
-                obscureText: true,
-                enabled: !isLoading,
-                onSubmitted: (_) => login(),
-              ),
-              if (error != null &&
-                  !error!.toLowerCase().contains('email') &&
-                  !error!.toLowerCase().contains('password')) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          error!,
-                          style: TextStyle(color: Colors.red.shade700),
-                        ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        error!,
+                        style: TextStyle(color: Colors.red.shade700),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: isLoading ? null : login,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Login', style: TextStyle(fontSize: 16)),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () {
-                        Navigator.pushReplacementNamed(context, '/register');
-                      },
-                child: const Text("Don't have an account? Register"),
               ),
             ],
-          ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: isLoading ? null : login,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Login', style: TextStyle(fontSize: 16)),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      Navigator.pushReplacementNamed(context, '/register');
+                    },
+              child: const Text("Don't have an account? Register"),
+            ),
+          ],
         ),
       ),
     );

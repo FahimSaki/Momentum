@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
@@ -33,12 +34,13 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Padding(
+      body: ResponsiveCenter(
+        maxWidth: AppWidths.simpleForm,
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
                 'Team Details',
@@ -109,19 +111,16 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
                 ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 32),
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createTeam,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator()
-                      : const Text('Create Team'),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _createTeam,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
+                child: _isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Create Team'),
               ),
             ],
           ),

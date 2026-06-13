@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:logger/logger.dart';
 
@@ -156,127 +157,126 @@ class _RegisterPageState extends State<RegisterPage> {
           },
         ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Join Momentum',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+      body: ResponsiveCenter(
+        maxWidth: AppWidths.authForm,
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Join Momentum',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create your account to get started',
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(
+                  context,
+                ).colorScheme.inversePrimary.withValues(alpha: 0.7),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Create your account to get started',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.inversePrimary.withValues(alpha: 0.7),
-                ),
-              ),
-              const SizedBox(height: 32),
+            ),
+            const SizedBox(height: 32),
 
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Full Name',
-                  border: UnderlineInputBorder(),
-                  prefixIcon: Icon(Icons.person),
-                  helperText: 'Enter your first and last name',
-                ),
-                textCapitalization: TextCapitalization.words,
-                enabled: !isLoading,
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Full Name',
+                border: UnderlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
+                helperText: 'Enter your first and last name',
               ),
+              textCapitalization: TextCapitalization.words,
+              enabled: !isLoading,
+            ),
+            const SizedBox(height: 16),
+
+            // EMAIL FIELD
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: UnderlineInputBorder(),
+                prefixIcon: Icon(Icons.email),
+              ),
+              keyboardType: TextInputType.emailAddress,
+              enabled: !isLoading,
+            ),
+            const SizedBox(height: 16),
+
+            // PASSWORD FIELD
+            TextField(
+              controller: passwordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                border: UnderlineInputBorder(),
+                prefixIcon: Icon(Icons.lock),
+                helperText: 'Must be at least 6 characters',
+              ),
+              obscureText: true,
+              enabled: !isLoading,
+            ),
+
+            // ERROR DISPLAY
+            if (error != null) ...[
               const SizedBox(height: 16),
-
-              // EMAIL FIELD
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: UnderlineInputBorder(),
-                  prefixIcon: Icon(Icons.email),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
                 ),
-                keyboardType: TextInputType.emailAddress,
-                enabled: !isLoading,
-              ),
-              const SizedBox(height: 16),
-
-              // PASSWORD FIELD
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                  border: UnderlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock),
-                  helperText: 'Must be at least 6 characters',
-                ),
-                obscureText: true,
-                enabled: !isLoading,
-              ),
-
-              // ERROR DISPLAY
-              if (error != null) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          error!,
-                          style: TextStyle(color: Colors.red.shade700),
-                        ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        error!,
+                        style: TextStyle(color: Colors.red.shade700),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-
-              const SizedBox(height: 24),
-
-              // REGISTER BUTTON
-              ElevatedButton(
-                onPressed: isLoading ? null : register,
-                style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text(
-                        'Create Account',
-                        style: TextStyle(fontSize: 16),
-                      ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // LOGIN LINK
-              TextButton(
-                onPressed: isLoading
-                    ? null
-                    : () {
-                        Navigator.pushReplacementNamed(context, '/login');
-                      },
-                child: const Text("Already have an account? Login"),
               ),
             ],
-          ),
+
+            const SizedBox(height: 24),
+
+            // REGISTER BUTTON
+            ElevatedButton(
+              onPressed: isLoading ? null : register,
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Create Account',
+                      style: TextStyle(fontSize: 16),
+                    ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // LOGIN LINK
+            TextButton(
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
+              child: const Text("Already have an account? Login"),
+            ),
+          ],
         ),
       ),
     );
