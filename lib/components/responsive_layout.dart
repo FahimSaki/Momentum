@@ -44,6 +44,23 @@ class ResponsiveCenter extends StatelessWidget {
       return Padding(padding: padding, child: constrainedChild);
     }
 
-    return SingleChildScrollView(padding: padding, child: constrainedChild);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final resolvedPadding = padding.resolve(Directionality.of(context));
+        final minHeight = constraints.maxHeight.isFinite
+            ? (constraints.maxHeight - resolvedPadding.vertical)
+                  .clamp(0.0, double.infinity)
+                  .toDouble()
+            : 0.0;
+
+        return SingleChildScrollView(
+          padding: padding,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: constrainedChild,
+          ),
+        );
+      },
+    );
   }
 }
