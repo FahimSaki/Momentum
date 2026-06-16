@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/create_team_page.dart';
 import 'package:momentum/pages/home_page.dart';
@@ -80,171 +81,174 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
       ),
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
-          return ListView(
-            padding: const EdgeInsets.all(16.0),
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.groups_2,
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Pick a workspace to switch context quickly.',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              // Personal tasks option
-              Card(
-                child: ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.person,
-                      color: Theme.of(context).colorScheme.onPrimary,
-                    ),
+          // ── Wrap the entire ListView in ResponsiveBody so content is
+          //    centred and capped at AppWidths.content on wide screens. ──────
+          return ResponsiveBody(
+            child: ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  title: const Text('Personal Tasks'),
-                  subtitle: Text('${db.personalTasks.length} tasks'),
-                  trailing: db.selectedTeam == null
-                      ? const Icon(Icons.check_circle, color: Colors.green)
-                      : const Icon(Icons.chevron_right),
-                  onTap: () {
-                    db.selectTeam(null);
-
-                    // Go back to home page for personal tasks
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const HomePage()),
-                      (route) => false, // Remove all previous routes
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Teams section
-              if (db.userTeams.isNotEmpty) ...[
-                Text('Teams', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                ...db.userTeams.map(
-                  (team) => Card(
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.group, color: Colors.white),
-                      ),
-                      title: Text(team.name),
-                      subtitle: Text('${team.members.length} members'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (db.selectedTeam?.id == team.id)
-                            const Icon(Icons.check_circle, color: Colors.green),
-
-                          IconButton(
-                            icon: const Icon(Icons.info_outline),
-                            onPressed: () {
-                              // Navigate to team details
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      TeamDetailsPage(team: team),
-                                ),
-                              );
-                            },
-                            tooltip: 'Team Details',
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        db.selectTeam(team);
-
-                        // Navigate to team home page
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TeamHomePage(team: team),
-                          ),
-                        );
-                      },
-
-                      onLongPress: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => TeamDetailsPage(team: team),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ] else ...[
-                const SizedBox(height: 32),
-                Center(
-                  child: Column(
+                  child: Row(
                     children: [
                       Icon(
-                        Icons.group_outlined,
-                        size: 64,
-                        color: Colors.grey.shade400,
+                        Icons.groups_2,
+                        color: Theme.of(context).colorScheme.primaryContainer,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No teams yet',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey.shade600,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Pick a workspace to switch context quickly.',
+                          style: Theme.of(context).textTheme.bodyMedium,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Create a team or accept an invitation to get started',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const CreateTeamPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create Team'),
                       ),
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 16),
+
+                // Personal tasks option
+                Card(
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.person,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    ),
+                    title: const Text('Personal Tasks'),
+                    subtitle: Text('${db.personalTasks.length} tasks'),
+                    trailing: db.selectedTeam == null
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : const Icon(Icons.chevron_right),
+                    onTap: () {
+                      db.selectTeam(null);
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HomePage(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Teams section
+                if (db.userTeams.isNotEmpty) ...[
+                  Text('Teams', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  ...db.userTeams.map(
+                    (team) => Card(
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.group, color: Colors.white),
+                        ),
+                        title: Text(team.name),
+                        subtitle: Text('${team.members.length} members'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (db.selectedTeam?.id == team.id)
+                              const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.info_outline),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        TeamDetailsPage(team: team),
+                                  ),
+                                );
+                              },
+                              tooltip: 'Team Details',
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          db.selectTeam(team);
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TeamHomePage(team: team),
+                            ),
+                          );
+                        },
+                        onLongPress: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => TeamDetailsPage(team: team),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 32),
+                  Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.group_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No teams yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Create a team or accept an invitation to get started',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const CreateTeamPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Team'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           );
         },
       ),

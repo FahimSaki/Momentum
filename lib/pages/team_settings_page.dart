@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
@@ -267,120 +268,122 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
       ),
       body: _isLoadingTeam
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _HeaderCard(team: team),
-                const SizedBox(height: 20),
-                _SettingsSection(
-                  icon: Icons.group_work_rounded,
-                  iconBg: const Color(0xFF6366F1),
-                  title: 'Collaboration',
-                  isDark: isDark,
-                  children: [
-                    _ToggleTile(
-                      title: 'Allow Member Invites',
-                      subtitle: 'Members can invite others to this team',
-                      value: _allowMemberInvite,
-                      isDark: isDark,
-                      onChanged: (v) {
-                        setState(() => _allowMemberInvite = v);
-                        _markChanged();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _SettingsSection(
-                  icon: Icons.task_alt_rounded,
-                  iconBg: const Color(0xFF22C55E),
-                  title: 'Tasks',
-                  isDark: isDark,
-                  children: [
-                    _ToggleTile(
-                      title: 'Auto-Delete Completed Tasks',
-                      subtitle:
-                          'Tasks are cleared at midnight after completion',
-                      value: _taskAutoDelete,
-                      isDark: isDark,
-                      onChanged: (v) {
-                        setState(() => _taskAutoDelete = v);
-                        _markChanged();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _SettingsSection(
-                  icon: Icons.notifications_rounded,
-                  iconBg: const Color(0xFFF59E0B),
-                  title: 'Notifications',
-                  isDark: isDark,
-                  children: [
-                    _ToggleTile(
-                      title: 'Task Assigned',
-                      subtitle: 'Alert when a task is assigned to a member',
-                      value: _notifyTaskAssigned,
-                      isDark: isDark,
-                      onChanged: (v) {
-                        setState(() => _notifyTaskAssigned = v);
-                        _markChanged();
-                      },
-                    ),
-                    _Divider(isDark: isDark),
-                    _ToggleTile(
-                      title: 'Task Completed',
-                      subtitle: 'Alert when a member completes a task',
-                      value: _notifyTaskCompleted,
-                      isDark: isDark,
-                      onChanged: (v) {
-                        setState(() => _notifyTaskCompleted = v);
-                        _markChanged();
-                      },
-                    ),
-                    _Divider(isDark: isDark),
-                    _ToggleTile(
-                      title: 'Member Joined',
-                      subtitle: 'Alert when someone accepts an invitation',
-                      value: _notifyMemberJoined,
-                      isDark: isDark,
-                      onChanged: (v) {
-                        setState(() => _notifyMemberJoined = v);
-                        _markChanged();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _SettingsSection(
-                  icon: Icons.people_alt_rounded,
-                  iconBg: const Color(0xFF3B82F6),
-                  title: 'Members',
-                  isDark: isDark,
-                  children: team.members
-                      .map(
-                        (m) => _MemberTile(
-                          member: m,
-                          isDark: isDark,
-                          isOwner: isOwner,
-                          isAdmin: isAdmin,
-                          isUpdating: _isUpdatingRoles,
-                          onUpdateRole: (memberId, role) =>
-                              _updateRole(memberId, role),
-                        ),
-                      )
-                      .toList(),
-                ),
-                if (isOwner) ...[
-                  const SizedBox(height: 28),
-                  _DangerZone(
+          : ResponsiveBody(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _HeaderCard(team: team),
+                  const SizedBox(height: 20),
+                  _SettingsSection(
+                    icon: Icons.group_work_rounded,
+                    iconBg: const Color(0xFF6366F1),
+                    title: 'Collaboration',
                     isDark: isDark,
-                    isDeleting: _isDeleting,
-                    onDelete: _deleteTeam,
+                    children: [
+                      _ToggleTile(
+                        title: 'Allow Member Invites',
+                        subtitle: 'Members can invite others to this team',
+                        value: _allowMemberInvite,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          setState(() => _allowMemberInvite = v);
+                          _markChanged();
+                        },
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                  _SettingsSection(
+                    icon: Icons.task_alt_rounded,
+                    iconBg: const Color(0xFF22C55E),
+                    title: 'Tasks',
+                    isDark: isDark,
+                    children: [
+                      _ToggleTile(
+                        title: 'Auto-Delete Completed Tasks',
+                        subtitle:
+                            'Tasks are cleared at midnight after completion',
+                        value: _taskAutoDelete,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          setState(() => _taskAutoDelete = v);
+                          _markChanged();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsSection(
+                    icon: Icons.notifications_rounded,
+                    iconBg: const Color(0xFFF59E0B),
+                    title: 'Notifications',
+                    isDark: isDark,
+                    children: [
+                      _ToggleTile(
+                        title: 'Task Assigned',
+                        subtitle: 'Alert when a task is assigned to a member',
+                        value: _notifyTaskAssigned,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          setState(() => _notifyTaskAssigned = v);
+                          _markChanged();
+                        },
+                      ),
+                      _Divider(isDark: isDark),
+                      _ToggleTile(
+                        title: 'Task Completed',
+                        subtitle: 'Alert when a member completes a task',
+                        value: _notifyTaskCompleted,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          setState(() => _notifyTaskCompleted = v);
+                          _markChanged();
+                        },
+                      ),
+                      _Divider(isDark: isDark),
+                      _ToggleTile(
+                        title: 'Member Joined',
+                        subtitle: 'Alert when someone accepts an invitation',
+                        value: _notifyMemberJoined,
+                        isDark: isDark,
+                        onChanged: (v) {
+                          setState(() => _notifyMemberJoined = v);
+                          _markChanged();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _SettingsSection(
+                    icon: Icons.people_alt_rounded,
+                    iconBg: const Color(0xFF3B82F6),
+                    title: 'Members',
+                    isDark: isDark,
+                    children: team.members
+                        .map(
+                          (m) => _MemberTile(
+                            member: m,
+                            isDark: isDark,
+                            isOwner: isOwner,
+                            isAdmin: isAdmin,
+                            isUpdating: _isUpdatingRoles,
+                            onUpdateRole: (memberId, role) =>
+                                _updateRole(memberId, role),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  if (isOwner) ...[
+                    const SizedBox(height: 28),
+                    _DangerZone(
+                      isDark: isDark,
+                      isDeleting: _isDeleting,
+                      onDelete: _deleteTeam,
+                    ),
+                  ],
+                  const SizedBox(height: 40),
                 ],
-                const SizedBox(height: 40),
-              ],
+              ),
             ),
     );
   }
@@ -418,7 +421,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   }
 }
 
-// ── Reusable sub-widgets ─────────────────────────────────────────────────
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _HeaderCard extends StatelessWidget {
   final Team team;

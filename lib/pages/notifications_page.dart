@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/notification_tile.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team_invitation.dart';
 import 'package:provider/provider.dart';
@@ -131,7 +132,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   }
 }
 
-// ── Invitations tab ──────────────────────────────────────────────────────
+// ── Invitations tab ───────────────────────────────────────────────────────────
 
 class _InvitationsTab extends StatelessWidget {
   final TaskDatabase db;
@@ -147,6 +148,7 @@ class _InvitationsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) return const Center(child: CircularProgressIndicator());
+
     if (db.pendingInvitations.isEmpty) {
       return const Center(
         child: Column(
@@ -167,19 +169,23 @@ class _InvitationsTab extends StatelessWidget {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: db.pendingInvitations.length,
-        itemBuilder: (context, i) {
-          final inv = db.pendingInvitations[i];
-          return _InvitationCard(
-            invitation: inv,
-            onAccept: () => _respond(context, inv, true),
-            onDecline: () => _respond(context, inv, false),
-          );
-        },
+
+    // ── Centre + cap width of the list ────────────────────────────────────
+    return ResponsiveBody(
+      child: RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: db.pendingInvitations.length,
+          itemBuilder: (context, i) {
+            final inv = db.pendingInvitations[i];
+            return _InvitationCard(
+              invitation: inv,
+              onAccept: () => _respond(context, inv, true),
+              onDecline: () => _respond(context, inv, false),
+            );
+          },
+        ),
       ),
     );
   }
@@ -219,7 +225,7 @@ class _InvitationsTab extends StatelessWidget {
   }
 }
 
-// ── Activity tab ─────────────────────────────────────────────────────────
+// ── Activity tab ──────────────────────────────────────────────────────────────
 
 class _ActivityTab extends StatelessWidget {
   final TaskDatabase db;
@@ -237,6 +243,7 @@ class _ActivityTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isLoading) return const Center(child: CircularProgressIndicator());
+
     if (db.notifications.isEmpty) {
       return const Center(
         child: Column(
@@ -257,20 +264,24 @@ class _ActivityTab extends StatelessWidget {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView.builder(
-        itemCount: db.notifications.length,
-        itemBuilder: (_, i) => NotificationTile(
-          notification: db.notifications[i],
-          onTap: () => onTap(db.notifications[i]),
+
+    // ── Centre + cap width of the list ────────────────────────────────────
+    return ResponsiveBody(
+      child: RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView.builder(
+          itemCount: db.notifications.length,
+          itemBuilder: (_, i) => NotificationTile(
+            notification: db.notifications[i],
+            onTap: () => onTap(db.notifications[i]),
+          ),
         ),
       ),
     );
   }
 }
 
-// ── Invitation card ──────────────────────────────────────────────────────
+// ── Invitation card ───────────────────────────────────────────────────────────
 
 class _InvitationCard extends StatefulWidget {
   final TeamInvitation invitation;

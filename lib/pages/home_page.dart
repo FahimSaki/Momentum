@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/components/drawer.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/quick_invite_widget.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/components/task_list.dart';
 import 'package:momentum/components/task_map.dart';
@@ -135,12 +136,11 @@ class _HomePageState extends State<HomePage>
           return const SizedBox.shrink();
         }
 
-        // Hide the FAB when the user is a plain member in a team workspace
         final showFab = db.canCurrentUserCreateTasks;
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          appBar: _buildAppBar(db),
+          appBar: _buildAppBar(context, db),
           drawer: const MyDrawer(),
           floatingActionButton: showFab
               ? FloatingActionButton(
@@ -177,7 +177,7 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  PreferredSizeWidget _buildAppBar(TaskDatabase db) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, TaskDatabase db) {
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -248,7 +248,7 @@ class _HomePageState extends State<HomePage>
   }
 }
 
-// ── Tab bar ──────────────────────────────────────────────────────────────
+// ── Tab bar ───────────────────────────────────────────────────────────────────
 
 class _TabBar extends StatelessWidget {
   final TabController controller;
@@ -282,7 +282,7 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-// ── Dashboard tab ─────────────────────────────────────────────────────────
+// ── Dashboard tab ─────────────────────────────────────────────────────────────
 
 class _DashboardTab extends StatelessWidget {
   final TaskDatabase db;
@@ -292,94 +292,96 @@ class _DashboardTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: db.refreshData,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Welcome card
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    db.selectedTeam != null
-                        ? 'Team: ${db.selectedTeam!.name}'
-                        : 'Personal Workspace',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _welcomeMessage(),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.7),
+    // ── Centre + cap width of the dashboard list ────────────────────────────
+    return ResponsiveBody(
+      child: RefreshIndicator(
+        onRefresh: db.refreshData,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Welcome card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      db.selectedTeam != null
+                          ? 'Team: ${db.selectedTeam!.name}'
+                          : 'Personal Workspace',
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      Chip(
-                        avatar: const Icon(Icons.track_changes, size: 16),
-                        label: Text('${db.activeTasks.length} active'),
+                    const SizedBox(height: 8),
+                    Text(
+                      _welcomeMessage(),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
-                      Chip(
-                        avatar: const Icon(Icons.done_all, size: 16),
-                        label: Text('${db.completedTasks.length} completed'),
-                      ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        Chip(
+                          avatar: const Icon(Icons.track_changes, size: 16),
+                          label: Text('${db.activeTasks.length} active'),
+                        ),
+                        Chip(
+                          avatar: const Icon(Icons.done_all, size: 16),
+                          label: Text('${db.completedTasks.length} completed'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          // Only show invite widget in personal workspace or for admins/owners
-          if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
-            const QuickInviteWidget(),
-          if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
             const SizedBox(height: 16),
-          const DashboardStats(),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Recent Tasks',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      TextButton(
-                        onPressed: onViewAllTasks,
-                        child: const Text('View All'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ...db.activeTasks
-                      .take(3)
-                      .map((task) => _TaskRow(task: task, db: db)),
-                  if (db.activeTasks.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text('No active tasks'),
-                      ),
+            if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+              const QuickInviteWidget(),
+            if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+              const SizedBox(height: 16),
+            const DashboardStats(),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Recent Tasks',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        TextButton(
+                          onPressed: onViewAllTasks,
+                          child: const Text('View All'),
+                        ),
+                      ],
                     ),
-                ],
+                    const SizedBox(height: 12),
+                    ...db.activeTasks
+                        .take(3)
+                        .map((task) => _TaskRow(task: task, db: db)),
+                    if (db.activeTasks.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Text('No active tasks'),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -487,7 +489,7 @@ class _TaskRow extends StatelessWidget {
   }
 }
 
-// ── Analytics tab ─────────────────────────────────────────────────────────
+// ── Analytics tab ─────────────────────────────────────────────────────────────
 
 class _AnalyticsTab extends StatelessWidget {
   final TaskDatabase db;
@@ -495,50 +497,53 @@ class _AnalyticsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const HeatMapComponent(),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Productivity Insights',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                _InsightRow(
-                  label: 'Streak',
-                  value:
-                      '${_streak(db.historicalCompletions, db.currentTasks)} days',
-                  icon: Icons.local_fire_department,
-                  color: Colors.orange,
-                ),
-                _InsightRow(
-                  label: 'This Week',
-                  value:
-                      '${_thisWeek(db.historicalCompletions, db.currentTasks)} tasks',
-                  icon: Icons.calendar_today,
-                  color: Colors.blue,
-                ),
-                _InsightRow(
-                  label: 'Average per Day',
-                  value: _avgPerDay(
-                    db.historicalCompletions,
-                    db.currentTasks,
-                  ).toStringAsFixed(1),
-                  icon: Icons.trending_up,
-                  color: Colors.green,
-                ),
-              ],
+    // ── Centre + cap width of the analytics list ────────────────────────────
+    return ResponsiveBody(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const HeatMapComponent(),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Productivity Insights',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  _InsightRow(
+                    label: 'Streak',
+                    value:
+                        '${_streak(db.historicalCompletions, db.currentTasks)} days',
+                    icon: Icons.local_fire_department,
+                    color: Colors.orange,
+                  ),
+                  _InsightRow(
+                    label: 'This Week',
+                    value:
+                        '${_thisWeek(db.historicalCompletions, db.currentTasks)} tasks',
+                    icon: Icons.calendar_today,
+                    color: Colors.blue,
+                  ),
+                  _InsightRow(
+                    label: 'Average per Day',
+                    value: _avgPerDay(
+                      db.historicalCompletions,
+                      db.currentTasks,
+                    ).toStringAsFixed(1),
+                    icon: Icons.trending_up,
+                    color: Colors.green,
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -549,7 +554,6 @@ class _AnalyticsTab extends StatelessWidget {
       all.addAll(t.completedDays);
     }
     if (all.isEmpty) return 0;
-
     final days =
         all
             .map((d) {
@@ -559,7 +563,6 @@ class _AnalyticsTab extends StatelessWidget {
             .toSet()
             .toList()
           ..sort();
-
     int streak = 0;
     final now = DateTime.now();
     var check = DateTime(now.year, now.month, now.day);
@@ -577,7 +580,6 @@ class _AnalyticsTab extends StatelessWidget {
     final now = DateTime.now();
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
-
     int count = 0;
     for (final d in historical) {
       final l = d.toLocal();

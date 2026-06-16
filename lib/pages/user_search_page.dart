@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/user_service.dart';
 import 'package:momentum/database/task_database.dart';
@@ -32,7 +33,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
   bool _showEmailInvite = false;
   bool _isInviting = false;
 
-  // Track which users have been invited in this session
   final Set<String> _invitedUserIds = {};
 
   late UserService _userService;
@@ -41,12 +41,10 @@ class _UserSearchPageState extends State<UserSearchPage> {
   void initState() {
     super.initState();
     final db = Provider.of<TaskDatabase>(context, listen: false);
-
     if (db.jwtToken == null || db.jwtToken!.isEmpty) {
       _logger.e('JWT token is null or empty');
       return;
     }
-
     _userService = UserService(jwtToken: db.jwtToken!);
     _logger.i('UserSearchPage initialized for team: ${widget.teamName}');
   }
@@ -68,52 +66,53 @@ class _UserSearchPageState extends State<UserSearchPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // Search Options Tabs
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildTabButton(
-                    'Search Users',
-                    !_showInviteIdSearch && !_showEmailInvite,
-                    () => setState(() {
-                      _showInviteIdSearch = false;
-                      _showEmailInvite = false;
-                    }),
+      // ── Constrain the entire page body to AppWidths.content ──────────────
+      body: ResponsiveBody(
+        child: Column(
+          children: [
+            // Tab selector
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildTabButton(
+                      'Search Users',
+                      !_showInviteIdSearch && !_showEmailInvite,
+                      () => setState(() {
+                        _showInviteIdSearch = false;
+                        _showEmailInvite = false;
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildTabButton(
-                    'Invite ID',
-                    _showInviteIdSearch,
-                    () => setState(() {
-                      _showInviteIdSearch = true;
-                      _showEmailInvite = false;
-                    }),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildTabButton(
+                      'Invite ID',
+                      _showInviteIdSearch,
+                      () => setState(() {
+                        _showInviteIdSearch = true;
+                        _showEmailInvite = false;
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildTabButton(
-                    'Email',
-                    _showEmailInvite,
-                    () => setState(() {
-                      _showInviteIdSearch = false;
-                      _showEmailInvite = true;
-                    }),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildTabButton(
+                      'Email',
+                      _showEmailInvite,
+                      () => setState(() {
+                        _showInviteIdSearch = false;
+                        _showEmailInvite = true;
+                      }),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-
-          // Content based on selected tab
-          Expanded(child: _buildContent()),
-        ],
+            Expanded(child: _buildContent()),
+          ],
+        ),
       ),
     );
   }
@@ -150,19 +149,14 @@ class _UserSearchPageState extends State<UserSearchPage> {
   }
 
   Widget _buildContent() {
-    if (_showInviteIdSearch) {
-      return _buildInviteIdSearch();
-    } else if (_showEmailInvite) {
-      return _buildEmailInvite();
-    } else {
-      return _buildUserSearch();
-    }
+    if (_showInviteIdSearch) return _buildInviteIdSearch();
+    if (_showEmailInvite) return _buildEmailInvite();
+    return _buildUserSearch();
   }
 
   Widget _buildUserSearch() {
     return Column(
       children: [
-        // Search bar
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
@@ -183,10 +177,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
             enabled: !_isSearching && !_isInviting,
           ),
         ),
-
         const SizedBox(height: 16),
-
-        // Search results
         Expanded(
           child: searchResults.isEmpty
               ? Center(
@@ -218,9 +209,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
                   itemCount: searchResults.length,
                   itemBuilder: (context, index) {
                     final user = searchResults[index];
-                    // Check if already invited in this session
                     final wasInvited = _invitedUserIds.contains(user.id);
-
                     return _UserSearchTile(
                       user: user,
                       onInvite: () => _inviteUser(user),
@@ -235,7 +224,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
   }
 
   Widget _buildInviteIdSearch() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +239,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
             style: TextStyle(color: Colors.grey.shade600),
           ),
           const SizedBox(height: 16),
-
           TextField(
             controller: _inviteIdController,
             decoration: const InputDecoration(
@@ -261,9 +249,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
             ),
             enabled: !_isInviting,
           ),
-
           const SizedBox(height: 16),
-
           TextField(
             controller: _messageController,
             decoration: const InputDecoration(
@@ -274,9 +260,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
             maxLines: 3,
             enabled: !_isInviting,
           ),
-
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -292,7 +276,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
   }
 
   Widget _buildEmailInvite() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -307,7 +291,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
             style: TextStyle(color: Colors.grey.shade600),
           ),
           const SizedBox(height: 16),
-
           TextField(
             controller: _emailController,
             decoration: const InputDecoration(
@@ -319,9 +302,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
             keyboardType: TextInputType.emailAddress,
             enabled: !_isInviting,
           ),
-
           const SizedBox(height: 16),
-
           TextField(
             controller: _messageController,
             decoration: const InputDecoration(
@@ -332,9 +313,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
             maxLines: 3,
             enabled: !_isInviting,
           ),
-
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -357,16 +336,9 @@ class _UserSearchPageState extends State<UserSearchPage> {
       });
       return;
     }
-
-    setState(() {
-      _isSearching = true;
-    });
-
+    setState(() => _isSearching = true);
     try {
-      _logger.i('Searching for users with query: $query');
       final results = await _userService.searchUsers(query);
-      _logger.i('Search returned ${results.length} results');
-
       if (mounted) {
         setState(() {
           searchResults = results.cast<User>();
@@ -376,9 +348,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
     } catch (e, stackTrace) {
       _logger.e('Error searching users', error: e, stackTrace: stackTrace);
       if (mounted) {
-        setState(() {
-          _isSearching = false;
-        });
+        setState(() => _isSearching = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Search failed: ${e.toString()}'),
@@ -389,20 +359,12 @@ class _UserSearchPageState extends State<UserSearchPage> {
     }
   }
 
-  // Better error handling
   void _inviteUser(User user) async {
-    setState(() {
-      _isInviting = true;
-    });
-
+    setState(() => _isInviting = true);
     try {
-      _logger.i('Inviting user: ${user.name} (${user.inviteId})');
       final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(teamId: widget.teamId, inviteId: user.inviteId);
-
-      // Track successful invitation
       _invitedUserIds.add(user.id);
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -415,23 +377,11 @@ class _UserSearchPageState extends State<UserSearchPage> {
       }
     } catch (e, stackTrace) {
       _logger.e('Error inviting user', error: e, stackTrace: stackTrace);
-
       if (mounted) {
-        // Better error messages
-        String errorMessage = e.toString().replaceFirst('Exception: ', '');
-
+        final errorMessage = e.toString().replaceFirst('Exception: ', '');
         if (errorMessage.contains('already has a pending invitation')) {
-          errorMessage =
-              '${user.name} already has a pending invitation to this team';
-
-          // Show dialog with option to check invitations
           _showPendingInvitationDialog(user.name);
-        } else if (errorMessage.contains('already a team member')) {
-          errorMessage = '${user.name} is already a member of this team';
-        } else if (errorMessage.contains('Network error')) {
-          errorMessage = 'Network error - check your connection';
         }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send invitation: ${e.toString()}'),
@@ -441,15 +391,10 @@ class _UserSearchPageState extends State<UserSearchPage> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isInviting = false;
-        });
-      }
+      if (mounted) setState(() => _isInviting = false);
     }
   }
 
-  // Show informative dialog for pending invitations
   void _showPendingInvitationDialog(String userName) {
     showDialog(
       context: context,
@@ -477,20 +422,14 @@ class _UserSearchPageState extends State<UserSearchPage> {
 
   void _inviteByInviteId() async {
     final inviteId = _inviteIdController.text.trim();
-
     if (inviteId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter an invite ID')),
       );
       return;
     }
-
-    setState(() {
-      _isInviting = true;
-    });
-
+    setState(() => _isInviting = true);
     try {
-      _logger.i('Inviting by invite ID: $inviteId');
       final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(
         teamId: widget.teamId,
@@ -499,7 +438,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
             ? null
             : _messageController.text.trim(),
       );
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -516,17 +454,11 @@ class _UserSearchPageState extends State<UserSearchPage> {
         error: e,
         stackTrace: stackTrace,
       );
-
       if (mounted) {
-        String errorMessage = e.toString().replaceFirst('Exception: ', '');
-
+        final errorMessage = e.toString().replaceFirst('Exception: ', '');
         if (errorMessage.contains('already has a pending invitation')) {
-          errorMessage = 'This user already has a pending invitation';
           _showPendingInvitationDialog('User');
-        } else if (errorMessage.contains('not found')) {
-          errorMessage = 'User not found with that invite ID';
         }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send invitation: ${e.toString()}'),
@@ -536,40 +468,27 @@ class _UserSearchPageState extends State<UserSearchPage> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isInviting = false;
-        });
-      }
+      if (mounted) setState(() => _isInviting = false);
     }
   }
 
   void _inviteByEmail() async {
     final email = _emailController.text.trim();
-
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter an email address')),
       );
       return;
     }
-
-    // Basic email validation
     final emailRegex = RegExp(r'^[\w\.-]+@([\w-]+\.)+[\w-]{2,4}$');
-
     if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a valid email address')),
       );
       return;
     }
-
-    setState(() {
-      _isInviting = true;
-    });
-
+    setState(() => _isInviting = true);
     try {
-      _logger.i('Inviting by email: $email');
       final db = Provider.of<TaskDatabase>(context, listen: false);
       await db.inviteToTeam(
         teamId: widget.teamId,
@@ -578,7 +497,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
             ? null
             : _messageController.text.trim(),
       );
-
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -591,15 +509,11 @@ class _UserSearchPageState extends State<UserSearchPage> {
       }
     } catch (e, stackTrace) {
       _logger.e('Error inviting by email', error: e, stackTrace: stackTrace);
-
       if (mounted) {
-        String errorMessage = e.toString().replaceFirst('Exception: ', '');
-
+        final errorMessage = e.toString().replaceFirst('Exception: ', '');
         if (errorMessage.contains('already has a pending invitation')) {
-          errorMessage = '$email already has a pending invitation';
           _showPendingInvitationDialog(email);
         }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send invitation: ${e.toString()}'),
@@ -609,16 +523,13 @@ class _UserSearchPageState extends State<UserSearchPage> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isInviting = false;
-        });
-      }
+      if (mounted) setState(() => _isInviting = false);
     }
   }
 }
 
-// User search tile with invitation tracking
+// ── User search tile ──────────────────────────────────────────────────────────
+
 class _UserSearchTile extends StatelessWidget {
   final User user;
   final VoidCallback onInvite;
@@ -636,7 +547,6 @@ class _UserSearchTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
-      // Visual indicator if already invited
       color: wasAlreadyInvited ? Colors.green.withValues(alpha: 0.1) : null,
       child: ListTile(
         leading: CircleAvatar(
@@ -662,7 +572,6 @@ class _UserSearchTile extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
-            // Show invited badge
             if (wasAlreadyInvited)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -712,7 +621,7 @@ class _UserSearchTile extends StatelessWidget {
           ],
         ),
         trailing: wasAlreadyInvited
-            ? Icon(Icons.check_circle, color: Colors.green)
+            ? const Icon(Icons.check_circle, color: Colors.green)
             : ElevatedButton(
                 onPressed: isInviting ? null : onInvite,
                 style: ElevatedButton.styleFrom(
@@ -731,14 +640,12 @@ class _UserSearchTile extends StatelessWidget {
               ),
         onTap: isInviting || wasAlreadyInvited
             ? null
-            : () {
-                _showUserDetailsDialog(context, user);
-              },
+            : () => _showUserDetailsDialog(context),
       ),
     );
   }
 
-  void _showUserDetailsDialog(BuildContext context, User user) {
+  void _showUserDetailsDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

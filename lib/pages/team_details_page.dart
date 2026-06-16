@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
@@ -157,7 +158,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
             backgroundColor: Colors.green,
           ),
         );
-        // Refresh the displayed team
         await _loadLatest();
       }
     } catch (e) {
@@ -182,7 +182,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     final isOwner = team.isOwner(myUserId);
     final isAdmin = team.getMember(myUserId)?.role == 'admin';
     final canManage = isOwner || isAdmin;
-    // A member who is not owner can leave
     final canLeave = !isOwner;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -241,91 +240,93 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _TeamInfoCard(team: team),
-                const SizedBox(height: 16),
+          : ResponsiveBody(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _TeamInfoCard(team: team),
+                  const SizedBox(height: 16),
 
-                // Members header
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF6366F1),
-                          borderRadius: BorderRadius.circular(2),
+                  // Members header
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Members (${team.members.length})',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: Theme.of(context).colorScheme.inversePrimary,
+                        const SizedBox(width: 8),
+                        Text(
+                          'Members (${team.members.length})',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: Theme.of(context).colorScheme.inversePrimary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Member list with remove option for owners/admins
-                ...team.members.map(
-                  (m) => _MemberCard(
-                    member: m,
-                    isDark: isDark,
-                    myUserId: myUserId,
-                    isOwner: isOwner,
-                    isAdmin: isAdmin,
-                    onRemove:
-                        canManage && m.role != 'owner' && m.user.id != myUserId
-                        ? () => _confirmRemoveMember(m)
-                        : null,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Action buttons — invite only for owners/admins
-                if (canManage) ...[
-                  _ActionButton(
-                    icon: Icons.person_add_rounded,
-                    label: 'Invite Member',
-                    color: const Color(0xFF6366F1),
-                    isDark: isDark,
-                    onTap: _showInvite,
-                  ),
-                  const SizedBox(height: 10),
-                  _ActionButton(
-                    icon: Icons.settings_rounded,
-                    label: 'Team Settings',
-                    color: const Color(0xFF3B82F6),
-                    isDark: isDark,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TeamSettingsPage(team: team),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                ],
 
-                // Leave team — available to all non-owners
-                if (canLeave) ...[
-                  _ActionButton(
-                    icon: Icons.exit_to_app_rounded,
-                    label: 'Leave Team',
-                    color: Colors.orange,
-                    isDark: isDark,
-                    onTap: _confirmLeaveTeam,
+                  ...team.members.map(
+                    (m) => _MemberCard(
+                      member: m,
+                      isDark: isDark,
+                      myUserId: myUserId,
+                      isOwner: isOwner,
+                      isAdmin: isAdmin,
+                      onRemove:
+                          canManage &&
+                              m.role != 'owner' &&
+                              m.user.id != myUserId
+                          ? () => _confirmRemoveMember(m)
+                          : null,
+                    ),
                   ),
+
+                  const SizedBox(height: 24),
+
+                  if (canManage) ...[
+                    _ActionButton(
+                      icon: Icons.person_add_rounded,
+                      label: 'Invite Member',
+                      color: const Color(0xFF6366F1),
+                      isDark: isDark,
+                      onTap: _showInvite,
+                    ),
+                    const SizedBox(height: 10),
+                    _ActionButton(
+                      icon: Icons.settings_rounded,
+                      label: 'Team Settings',
+                      color: const Color(0xFF3B82F6),
+                      isDark: isDark,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => TeamSettingsPage(team: team),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+
+                  if (canLeave)
+                    _ActionButton(
+                      icon: Icons.exit_to_app_rounded,
+                      label: 'Leave Team',
+                      color: Colors.orange,
+                      isDark: isDark,
+                      onTap: _confirmLeaveTeam,
+                    ),
+
+                  const SizedBox(height: 24),
                 ],
-              ],
+              ),
             ),
     );
   }
@@ -339,7 +340,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   );
 }
 
-// ── Sub-widgets ──────────────────────────────────────────────────────────
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _TeamInfoCard extends StatelessWidget {
   final Team team;
@@ -485,18 +486,9 @@ class _MemberCard extends StatelessWidget {
             ),
           ),
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                member.user.name + (isMe ? ' (You)' : ''),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
+        title: Text(
+          member.user.name + (isMe ? ' (You)' : ''),
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
         subtitle: Text(
           member.user.email,
@@ -510,8 +502,6 @@ class _MemberCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             RoleBadge(role: member.role),
-            // Show remove button for owners/admins (but not for the owner themselves,
-            // and not for yourself)
             if (onRemove != null) ...[
               const SizedBox(width: 8),
               IconButton(

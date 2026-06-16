@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/components/task_edit_delete_dialogs.dart';
 import 'package:momentum/components/task_tile.dart';
 import 'package:momentum/database/task_database.dart';
@@ -24,102 +25,118 @@ class _TaskListState extends State<TaskList> {
         final sorted = _sortTasks(_filterTasks(db.activeTasks));
         final completed = db.completedTasks;
 
-        return Column(
-          children: [
-            _FilterSortRow(
-              filterBy: _filterBy,
-              sortBy: _sortBy,
-              onFilterChanged: (v) => setState(() => _filterBy = v),
-              onSortChanged: (v) => setState(() => _sortBy = v),
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: db.refreshData,
-                child: ListView(
-                  children: [
-                    if (sorted.isEmpty && completed.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 80, left: 16, right: 16),
-                        child: Center(
-                          child: Text(
-                            'No tasks found. Create your first task!',
-                            style: TextStyle(color: Colors.grey, fontSize: 16),
+        // ── Constrain the full column (filter row + list) to AppWidths.content.
+        //    ResponsiveBody uses Align(topCenter)+ConstrainedBox so that
+        //    Expanded inside the Column keeps working correctly.
+        return ResponsiveBody(
+          child: Column(
+            children: [
+              _FilterSortRow(
+                filterBy: _filterBy,
+                sortBy: _sortBy,
+                onFilterChanged: (v) => setState(() => _filterBy = v),
+                onSortChanged: (v) => setState(() => _sortBy = v),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: db.refreshData,
+                  child: ListView(
+                    children: [
+                      if (sorted.isEmpty && completed.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(
+                            top: 80,
+                            left: 16,
+                            right: 16,
                           ),
-                        ),
-                      )
-                    else ...[
-                      if (sorted.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'Active Tasks (${sorted.length})',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        ...sorted.map(
-                          (task) => TaskTile(
-                            key: ValueKey(task.id),
-                            task: task,
-                            onToggle: (v) => db.completeTask(task.id, v),
-                            onEdit: () => showEditTaskDialog(context, task, db),
-                            onDelete: () =>
-                                showDeleteTaskDialog(context, task, db),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      if (completed.isNotEmpty)
-                        Theme(
-                          data: Theme.of(
-                            context,
-                          ).copyWith(dividerColor: Colors.transparent),
-                          child: ExpansionTile(
-                            title: Row(
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                Text('Completed Today (${completed.length})'),
-                              ],
+                          child: Center(
+                            child: Text(
+                              'No tasks found. Create your first task!',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 16,
+                              ),
                             ),
-                            subtitle: Text(
-                              completed.length == 1
-                                  ? 'Great job! 1 task completed today.'
-                                  : 'Amazing! ${completed.length} tasks completed today.',
-                              style: TextStyle(color: Colors.green.shade600),
+                          ),
+                        )
+                      else ...[
+                        if (sorted.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
                             ),
-                            initiallyExpanded: _showCompleted,
-                            onExpansionChanged: (v) =>
-                                setState(() => _showCompleted = v),
-                            children: completed
-                                .map(
-                                  (task) => TaskTile(
-                                    key: ValueKey('completed_${task.id}'),
-                                    task: task,
-                                    onToggle: (v) =>
-                                        db.completeTask(task.id, v),
-                                    onEdit: () =>
-                                        showEditTaskDialog(context, task, db),
-                                    onDelete: () =>
-                                        showDeleteTaskDialog(context, task, db),
+                            child: Text(
+                              'Active Tasks (${sorted.length})',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          ...sorted.map(
+                            (task) => TaskTile(
+                              key: ValueKey(task.id),
+                              task: task,
+                              onToggle: (v) => db.completeTask(task.id, v),
+                              onEdit: () =>
+                                  showEditTaskDialog(context, task, db),
+                              onDelete: () =>
+                                  showDeleteTaskDialog(context, task, db),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        if (completed.isNotEmpty)
+                          Theme(
+                            data: Theme.of(
+                              context,
+                            ).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              title: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle,
+                                    color: Colors.green,
+                                    size: 20,
                                   ),
-                                )
-                                .toList(),
+                                  const SizedBox(width: 8),
+                                  Text('Completed Today (${completed.length})'),
+                                ],
+                              ),
+                              subtitle: Text(
+                                completed.length == 1
+                                    ? 'Great job! 1 task completed today.'
+                                    : 'Amazing! ${completed.length} tasks completed today.',
+                                style: TextStyle(color: Colors.green.shade600),
+                              ),
+                              initiallyExpanded: _showCompleted,
+                              onExpansionChanged: (v) =>
+                                  setState(() => _showCompleted = v),
+                              children: completed
+                                  .map(
+                                    (task) => TaskTile(
+                                      key: ValueKey('completed_${task.id}'),
+                                      task: task,
+                                      onToggle: (v) =>
+                                          db.completeTask(task.id, v),
+                                      onEdit: () =>
+                                          showEditTaskDialog(context, task, db),
+                                      onDelete: () => showDeleteTaskDialog(
+                                        context,
+                                        task,
+                                        db,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
                           ),
-                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -172,6 +189,8 @@ class _TaskListState extends State<TaskList> {
     return list;
   }
 }
+
+// ── Filter / sort row ─────────────────────────────────────────────────────────
 
 class _FilterSortRow extends StatelessWidget {
   final String filterBy;

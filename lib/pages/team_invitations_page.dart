@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/notification_tile.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/app_notification.dart';
 import 'package:provider/provider.dart';
@@ -42,17 +43,20 @@ class TeamInvitationsPage extends StatelessWidget {
               ),
             );
           }
-          return RefreshIndicator(
-            onRefresh: db.refreshData,
-            child: ListView.builder(
-              itemCount: db.notifications.length,
-              itemBuilder: (context, i) {
-                final notification = db.notifications[i];
-                return NotificationTile(
-                  notification: notification,
-                  onTap: () => _handleTap(context, notification, db),
-                );
-              },
+
+          return ResponsiveBody(
+            child: RefreshIndicator(
+              onRefresh: db.refreshData,
+              child: ListView.builder(
+                itemCount: db.notifications.length,
+                itemBuilder: (context, i) {
+                  final notification = db.notifications[i];
+                  return NotificationTile(
+                    notification: notification,
+                    onTap: () => _handleTap(context, notification, db),
+                  );
+                },
+              ),
             ),
           );
         },

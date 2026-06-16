@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/error_handler.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/components/task_edit_delete_dialogs.dart';
@@ -100,9 +101,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
       }
     } catch (e) {
-      if (mounted) {
-        ErrorHandler.showError(context, e, title: 'Delete failed');
-      }
+      if (mounted) ErrorHandler.showError(context, e, title: 'Delete failed');
     }
   }
 
@@ -174,7 +173,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
     final db = Provider.of<TaskDatabase>(context, listen: false);
     final isOwner = widget.team.isOwner(db.userId ?? '');
-    final isMemberRole = _userRole.toLowerCase() == 'member';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -206,7 +204,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
           ),
         ),
         actions: [
-          // Role badge
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -285,7 +282,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ],
                 ),
               ),
-              // Invite — only owners and admins
               if (_permissions.canInviteMembers)
                 const PopupMenuItem(
                   value: 'invite',
@@ -318,7 +314,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ],
                 ),
               ),
-              // Leave — everyone except the owner
               if (!isOwner) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -339,7 +334,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   ),
                 ),
               ],
-              // Delete — owner only
               if (isOwner) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -365,7 +359,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
           const SizedBox(width: 4),
         ],
       ),
-      // FAB only for owners and admins
       floatingActionButton: _permissions.canCreateTasks
           ? FloatingActionButton.extended(
               onPressed: () => showDialog(
@@ -382,33 +375,38 @@ class _TeamHomePageState extends State<TeamHomePage> {
       body: Consumer<TaskDatabase>(
         builder: (context, db, _) {
           if (!_permissions.canViewTasks) return _NoAccessView();
+
           if (db.currentTasks.isEmpty) {
             return _EmptyStateView(
               canCreate: _permissions.canCreateTasks,
-              isMemberRole: isMemberRole,
+              isMemberRole: _userRole.toLowerCase() == 'member',
               onCreate: () => showDialog(
                 context: context,
                 builder: (_) => const TaskCreationDialog(),
               ),
             );
           }
-          return RefreshIndicator(
-            onRefresh: db.refreshData,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              children: [
-                _RoleCard(userRole: _userRole),
-                const SizedBox(height: 16),
-                const DashboardStats(),
-                const SizedBox(height: 20),
-                _TasksSection(
-                  db: db,
-                  isDark: isDark,
-                  userRole: _userRole,
-                  permissions: _permissions,
-                  onNoPermission: _showNoPermissionDialog,
-                ),
-              ],
+
+          // ── Centre + cap width of the scrollable content ────────────────
+          return ResponsiveBody(
+            child: RefreshIndicator(
+              onRefresh: db.refreshData,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: [
+                  _RoleCard(userRole: _userRole),
+                  const SizedBox(height: 16),
+                  const DashboardStats(),
+                  const SizedBox(height: 20),
+                  _TasksSection(
+                    db: db,
+                    isDark: isDark,
+                    userRole: _userRole,
+                    permissions: _permissions,
+                    onNoPermission: _showNoPermissionDialog,
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -442,7 +440,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 }
 
-// ── Sub-widgets ──────────────────────────────────────────────────────────
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
 class _RoleCard extends StatelessWidget {
   final String userRole;

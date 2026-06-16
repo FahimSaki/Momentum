@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/user_service.dart';
-import 'package:momentum/database/task_database.dart'; // ✅ ADD THIS
+import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
@@ -28,10 +29,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   void _loadUserProfile() async {
     try {
-      // Add type parameter
       final db = Provider.of<TaskDatabase>(context, listen: false);
 
-      // Check if JWT token exists
       if (db.jwtToken == null || db.jwtToken!.isEmpty) {
         _logger.e('JWT token is null or empty');
         if (mounted) {
@@ -77,7 +76,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // REFRESH BUTTON
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
@@ -103,46 +101,61 @@ class _UserProfilePageState extends State<UserProfilePage> {
             )
           : _errorMessage != null
           ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    _errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _loadUserProfile,
-                    child: const Text('Retry'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      // Navigate to login
-                      Navigator.of(
-                        context,
-                      ).pushNamedAndRemoveUntil('/login', (route) => false);
-                    },
-                    child: const Text('Go to Login'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _loadUserProfile,
+                      child: const Text('Retry'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(
+                          context,
+                        ).pushNamedAndRemoveUntil('/login', (route) => false);
+                      },
+                      child: const Text('Go to Login'),
+                    ),
+                  ],
+                ),
               ),
             )
           : currentUser == null
           ? const Center(child: Text('Failed to load profile'))
+          // ── Responsive scrollable content ─────────────────────────────────
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildProfileHeader(),
-                  const SizedBox(height: 24),
-                  _buildInviteIdCard(),
-                  const SizedBox(height: 16),
-                  _buildPrivacySettings(),
-                ],
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: AppWidths.content,
+                  ),
+                  child: Column(
+                    children: [
+                      _buildProfileHeader(),
+                      const SizedBox(height: 24),
+                      _buildInviteIdCard(),
+                      const SizedBox(height: 16),
+                      _buildPrivacySettings(),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
               ),
             ),
     );

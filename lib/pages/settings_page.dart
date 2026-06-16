@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -12,156 +13,158 @@ class SettingsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Appearance section
-          _buildSectionHeader(
-            'Appearance',
-            Icons.palette_rounded,
-            const Color(0xFF8B5CF6),
-            context,
-          ),
-          const SizedBox(height: 10),
-          _buildCard(
-            isDark: isDark,
-            children: [
-              Consumer<ThemeProvider>(
-                builder: (context, themeProvider, child) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: themeProvider.isDarkMode
-                                ? const Color(0xFF1A1929)
-                                : const Color(0xFFEDE9FE),
-                            borderRadius: BorderRadius.circular(12),
+      body: ResponsiveBody(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Appearance section
+            _buildSectionHeader(
+              'Appearance',
+              Icons.palette_rounded,
+              const Color(0xFF8B5CF6),
+              context,
+            ),
+            const SizedBox(height: 10),
+            _buildCard(
+              isDark: isDark,
+              children: [
+                Consumer<ThemeProvider>(
+                  builder: (context, themeProvider, child) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: themeProvider.isDarkMode
+                                  ? const Color(0xFF1A1929)
+                                  : const Color(0xFFEDE9FE),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              themeProvider.isDarkMode
+                                  ? Icons.dark_mode_rounded
+                                  : Icons.light_mode_rounded,
+                              color: themeProvider.isDarkMode
+                                  ? const Color(0xFF818CF8)
+                                  : const Color(0xFF6366F1),
+                              size: 20,
+                            ),
                           ),
-                          child: Icon(
-                            themeProvider.isDarkMode
-                                ? Icons.dark_mode_rounded
-                                : Icons.light_mode_rounded,
-                            color: themeProvider.isDarkMode
-                                ? const Color(0xFF818CF8)
-                                : const Color(0xFF6366F1),
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 14),
-                              Text(
-                                'Dark Mode',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 15,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.inversePrimary,
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 14),
+                                Text(
+                                  'Dark Mode',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.inversePrimary,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                themeProvider.isDarkMode
-                                    ? 'Deep space indigo theme'
-                                    : 'Light lavender theme',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? const Color(0xFF9B99C8)
-                                      : const Color(0xFF6B66A3),
+                                const SizedBox(height: 2),
+                                Text(
+                                  themeProvider.isDarkMode
+                                      ? 'Deep space indigo theme'
+                                      : 'Light lavender theme',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? const Color(0xFF9B99C8)
+                                        : const Color(0xFF6B66A3),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 14),
-                            ],
+                                const SizedBox(height: 14),
+                              ],
+                            ),
                           ),
-                        ),
-                        CupertinoSwitch(
-                          value: themeProvider.isDarkMode,
-                          onChanged: (_) => themeProvider.toggleTheme(),
-                          activeTrackColor: const Color(0xFF6366F1),
-                          thumbColor: Colors.white,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
+                          CupertinoSwitch(
+                            value: themeProvider.isDarkMode,
+                            onChanged: (_) => themeProvider.toggleTheme(),
+                            activeTrackColor: const Color(0xFF6366F1),
+                            thumbColor: Colors.white,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // About section
-          _buildSectionHeader(
-            'About',
-            Icons.info_rounded,
-            const Color(0xFF3B82F6),
-            context,
-          ),
-          const SizedBox(height: 10),
-          _buildCard(
-            isDark: isDark,
-            children: [
-              _buildInfoTile(
-                icon: Icons.apps_rounded,
-                iconColor: const Color(0xFF6366F1),
-                title: 'Momentum',
-                subtitle: 'Version 0.9.1',
-                isDark: isDark,
-                context: context,
-              ),
-              _buildDivider(isDark),
-              _buildInfoTile(
-                icon: Icons.code_rounded,
-                iconColor: const Color(0xFF22C55E),
-                title: 'Developer',
-                subtitle: 'Fahim Saki',
-                isDark: isDark,
-                context: context,
-              ),
-              _buildDivider(isDark),
-              _buildInfoTile(
-                icon: Icons.description_rounded,
-                iconColor: const Color(0xFFF59E0B),
-                title: 'License',
-                subtitle: 'AGPL v3.0',
-                isDark: isDark,
-                context: context,
-              ),
-            ],
-          ),
+            // About section
+            _buildSectionHeader(
+              'About',
+              Icons.info_rounded,
+              const Color(0xFF3B82F6),
+              context,
+            ),
+            const SizedBox(height: 10),
+            _buildCard(
+              isDark: isDark,
+              children: [
+                _buildInfoTile(
+                  icon: Icons.apps_rounded,
+                  iconColor: const Color(0xFF6366F1),
+                  title: 'Momentum',
+                  subtitle: 'Version 0.9.1',
+                  isDark: isDark,
+                  context: context,
+                ),
+                _buildDivider(isDark),
+                _buildInfoTile(
+                  icon: Icons.code_rounded,
+                  iconColor: const Color(0xFF22C55E),
+                  title: 'Developer',
+                  subtitle: 'Fahim Saki',
+                  isDark: isDark,
+                  context: context,
+                ),
+                _buildDivider(isDark),
+                _buildInfoTile(
+                  icon: Icons.description_rounded,
+                  iconColor: const Color(0xFFF59E0B),
+                  title: 'License',
+                  subtitle: 'AGPL v3.0',
+                  isDark: isDark,
+                  context: context,
+                ),
+              ],
+            ),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Theme preview
-          _buildThemePreview(isDark),
+            // Theme preview
+            _buildThemePreview(isDark),
 
-          const SizedBox(height: 40),
+            const SizedBox(height: 40),
 
-          Center(
-            child: Text(
-              '℗ by Fahim Saki',
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark
-                    ? const Color(0xFF5A587A)
-                    : const Color(0xFFB0ADDB),
+            Center(
+              child: Text(
+                '℗ by Fahim Saki',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark
+                      ? const Color(0xFF5A587A)
+                      : const Color(0xFFB0ADDB),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            const SizedBox(height: 20),
+          ],
+        ),
       ),
     );
   }
