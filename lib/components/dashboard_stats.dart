@@ -9,8 +9,10 @@ class DashboardStats extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TaskDatabase>(
       builder: (context, db, _) {
-        // Instead of FutureBuilder, calculate stats directly from db
-        final stats = db.calculateDashboardStats();
+        // Use backend-populated stats so numbers are canonical and team-scoped.
+        // dashboardStats is refreshed during initialize(), _refreshData(),
+        // selectTeam(), and after every task mutation.
+        final stats = db.dashboardStats;
 
         return Row(
           children: [

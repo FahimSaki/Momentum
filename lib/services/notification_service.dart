@@ -24,10 +24,9 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 );
 
 // ── Background message handler (MUST be top-level, not a class method) ────
-// FIX: Do NOT show a local notification here. Because the backend sends
-// messages with a `notification` field, FCM already shows the system banner
-// automatically when the app is in the background or terminated. Showing a
-// local notification here would produce a duplicate banner.
+// Do NOT show a local notification here. The backend sends messages with a
+// `notification` field so FCM shows the system banner automatically when the
+// app is in the background or terminated. Showing one here would duplicate it.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -35,7 +34,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     '[FCM-BG] message: ${message.messageId}, '
     'title: ${message.notification?.title}',
   );
-  // FCM system handles the banner automatically — nothing else needed here.
 }
 
 class NotificationService {
@@ -72,7 +70,6 @@ class NotificationService {
       if (!_isFirebaseInitialized) {
         _isFirebaseInitialized = true;
 
-        // Start FCM setup in background.
         _initFirebaseMessaging().catchError((e, st) {
           _logger.w(
             'FCM initialization failed (non-critical)',
@@ -117,8 +114,6 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTap,
     );
 
-    // Create the high-importance channel on Android so WhatsApp-style
-    // heads-up banners appear when the app is in the foreground.
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -138,10 +133,6 @@ class NotificationService {
   // ── Firebase Messaging ────────────────────────────────────────────────────
 
   Future<void> _initFirebaseMessaging() async {
-    // NOTE: The top-level background handler is registered once in main.dart
-    // BEFORE Firebase.initializeApp(). Do NOT register it again here.
-
-    // Request permission (iOS + Android 13+)
     final settings = await FirebaseMessaging.instance.requestPermission(
       alert: true,
       badge: true,
@@ -159,21 +150,14 @@ class NotificationService {
       return;
     }
 
-    // FIX: Disable iOS auto-display of FCM banner in foreground.
-    // Without this, iOS would show the FCM banner AND our local notification
-    // banner simultaneously — two banners for one event.
-    // The local notification in _handleForegroundMessage handles the banner
-    // on both Android and iOS when the app is open.
     await FirebaseMessaging.instance
         .setForegroundNotificationPresentationOptions(
-          alert: false, // local notification handles this
-          badge: true, // still update the app badge count
-          sound: false, // local notification handles this
+          alert: false,
+          badge: true,
+          sound: false,
         );
 
     await _registerToken();
-
-    // ── Listeners ─────────────────────────────────────────────────────────
 
     _onTokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
       token,
@@ -182,19 +166,14 @@ class NotificationService {
       await _sendTokenToBackend(token);
     });
 
-    // App is OPEN (foreground) — FCM does NOT show a banner automatically
-    // on Android, and we disabled it on iOS above. Show one ourselves so
-    // the user still gets a WhatsApp-style heads-up banner.
     _onMessageSub = FirebaseMessaging.onMessage.listen(
       _handleForegroundMessage,
     );
 
-    // App was in BACKGROUND, user tapped the notification.
     _onMessageOpenedAppSub = FirebaseMessaging.onMessageOpenedApp.listen(
       _handleNotificationTap,
     );
 
-    // App was TERMINATED, user tapped the notification.
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       _logger.i(
@@ -210,7 +189,6 @@ class NotificationService {
   Future<void> _registerToken() async {
     try {
       if (!kIsWeb && Platform.isIOS) {
-        // APNS token must exist before FCM token is available on iOS.
         String? apnsToken;
         for (int i = 0; i < 5; i++) {
           apnsToken = await FirebaseMessaging.instance.getAPNSToken();
@@ -277,10 +255,6 @@ class NotificationService {
 
   // ── Message handlers ──────────────────────────────────────────────────────
 
-  /// App is in the FOREGROUND — show a WhatsApp-style heads-up banner via
-  /// local notifications. This handles both Android (FCM never auto-shows
-  /// in foreground) and iOS (we disabled FCM auto-show above to prevent
-  /// duplicates).
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     _logger.i(
       'FCM foreground: ${message.messageId} '
@@ -324,7 +298,6 @@ class NotificationService {
 
   void _handleNotificationTap(RemoteMessage message) {
     _logger.i('Notification tapped: type=${message.data['type']}');
-    // Add any navigation logic here based on message.data['type']
   }
 
   // ── REST API ──────────────────────────────────────────────────────────────
@@ -352,10 +325,7 @@ class NotificationService {
             .map((json) => AppNotification.fromJson(json))
             .toList();
       } else {
-        _logger.e(
-          'Error fetching notifications: '
-          '${response.statusCode}',
-        );
+        _logger.e('Error fetching notifications: ${response.statusCode}');
         return [];
       }
     } catch (e, st) {
@@ -364,15 +334,29 @@ class NotificationService {
     }
   }
 
-  Future<void> markAsRead(String notificationId) async {
+  /// Marks a single notification as read and returns the backend-persisted
+  /// [AppNotification] so callers can replace the local copy with the
+  /// server-accurate readAt timestamp. Returns null if parsing fails.
+  Future<AppNotification?> markAsRead(String notificationId) async {
     try {
       final response = await http.patch(
         Uri.parse('$apiBaseUrl/notifications/$notificationId/read'),
         headers: _headers,
       );
-      if (response.statusCode != 200) {
-        throw Exception('Failed to mark notification as read');
+
+      if (response.statusCode == 200) {
+        try {
+          final data = json.decode(response.body) as Map<String, dynamic>;
+          if (data['notification'] != null) {
+            return AppNotification.fromJson(data['notification']);
+          }
+        } catch (_) {
+          // Parsing failed – caller will fall back to a local update
+        }
+        return null;
       }
+
+      throw Exception('Failed to mark notification as read');
     } catch (e, st) {
       _logger.e('Error marking notification as read', error: e, stackTrace: st);
       rethrow;

@@ -24,14 +24,45 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         const { name, bio, timezone, avatar, isPublic, profileVisibility } = req.body;
 
         const update: Record<string, unknown> = {};
-        if (name !== undefined) update.name = name.trim();
-        if (bio !== undefined) update.bio = bio.trim();
-        if (timezone !== undefined) update.timezone = timezone;
-        if (avatar !== undefined) update.avatar = avatar;
-        if (isPublic !== undefined) update.isPublic = isPublic;
-        if (profileVisibility !== undefined) update.profileVisibility = profileVisibility;
 
-        const user = await User.findByIdAndUpdate(req.userId, update, { new: true, runValidators: true }).select('-password');
+        if (name !== undefined) {
+            const trimmedName = String(name).trim();
+            if (!trimmedName) { res.status(400).json({ message: 'Name cannot be empty' }); return; }
+            if (trimmedName.length > 100) { res.status(400).json({ message: 'Name must be under 100 characters' }); return; }
+            update.name = trimmedName;
+        }
+        if (bio !== undefined) {
+            update.bio = bio ? String(bio).trim().substring(0, 500) : undefined;
+        }
+        if (timezone !== undefined) update.timezone = String(timezone).trim();
+        if (avatar !== undefined) update.avatar = avatar ? String(avatar).trim() : undefined;
+
+        if (isPublic !== undefined) {
+            if (typeof isPublic !== 'boolean') {
+                res.status(400).json({ message: 'isPublic must be a boolean' }); return;
+            }
+            update.isPublic = isPublic;
+        }
+
+        // ── Whitelist profileVisibility keys — only allow known boolean flags ──
+        // Never pass the raw object; clients could inject arbitrary nested fields.
+        if (profileVisibility !== undefined &&
+            profileVisibility !== null &&
+            typeof profileVisibility === 'object') {
+            const allowedVisibility: Record<string, boolean> = {};
+            if (typeof profileVisibility.showEmail === 'boolean') allowedVisibility.showEmail = profileVisibility.showEmail;
+            if (typeof profileVisibility.showName === 'boolean') allowedVisibility.showName = profileVisibility.showName;
+            if (typeof profileVisibility.showBio === 'boolean') allowedVisibility.showBio = profileVisibility.showBio;
+            if (Object.keys(allowedVisibility).length > 0) {
+                update.profileVisibility = allowedVisibility;
+            }
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            update,
+            { new: true, runValidators: true }
+        ).select('-password');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
 
         res.json({ message: 'Profile updated successfully', user });
@@ -123,7 +154,10 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
 
         if (q.trim().length < 2) { res.json([]); return; }
 
-        const regex = new RegExp(q.trim(), 'i');
+        // Escape regex metacharacters to prevent ReDoS attacks
+        const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escaped, 'i');
+
         const users = await User.find({
             isPublic: true,
             isActive: true,

@@ -16,7 +16,7 @@ import {
 import { ITaskDocument } from '../types/interfaces';
 import { Types } from 'mongoose';
 
-// ── Create task ───────────────────────────────────────────────────────────
+// ── Create task ───────────────────────────────────────────────────────────────
 
 export const createTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -103,7 +103,7 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Update task ───────────────────────────────────────────────────────────
+// ── Update task ───────────────────────────────────────────────────────────────
 
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -119,7 +119,45 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        const updated = await Task.findByIdAndUpdate(id, req.body, { new: true })
+        // ── Whitelist: only allow safe, user-editable fields ──────────────
+        // Never pass req.body directly — clients could overwrite system fields
+        // like assignedBy, completedDays, isArchived, archivedAt, team, etc.
+        const allowedUpdates: Record<string, unknown> = {};
+
+        if (req.body.name !== undefined) {
+            const trimmedName = String(req.body.name).trim();
+            if (!trimmedName) { res.status(400).json({ message: 'Task name cannot be empty' }); return; }
+            allowedUpdates.name = trimmedName;
+        }
+        if (req.body.description !== undefined) {
+            allowedUpdates.description = req.body.description
+                ? String(req.body.description).trim()
+                : undefined;
+        }
+        if (req.body.priority !== undefined) {
+            const validPriorities = ['low', 'medium', 'high', 'urgent'];
+            if (!validPriorities.includes(req.body.priority)) {
+                res.status(400).json({ message: 'Invalid priority value' }); return;
+            }
+            allowedUpdates.priority = req.body.priority;
+        }
+        if (req.body.dueDate !== undefined && req.body.dueDate !== null) {
+            const d = new Date(req.body.dueDate);
+            if (isNaN(d.getTime())) { res.status(400).json({ message: 'Invalid dueDate' }); return; }
+            allowedUpdates.dueDate = d;
+        }
+        if (req.body.tags !== undefined && Array.isArray(req.body.tags)) {
+            allowedUpdates.tags = (req.body.tags as unknown[])
+                .slice(0, 20)
+                .map((t) => String(t).trim())
+                .filter(Boolean);
+        }
+
+        if (Object.keys(allowedUpdates).length === 0) {
+            res.status(400).json({ message: 'No valid fields to update' }); return;
+        }
+
+        const updated = await Task.findByIdAndUpdate(id, allowedUpdates, { new: true })
             .populate('assignedTo', 'name email avatar')
             .populate('assignedBy', 'name email avatar')
             .populate('team', 'name');
@@ -131,7 +169,7 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Complete task ─────────────────────────────────────────────────────────
+// ── Complete task ─────────────────────────────────────────────────────────────
 
 export const completeTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -150,6 +188,7 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
+        // Backend is the sole authority for completion timestamps — never trust client clock
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
 
@@ -236,7 +275,7 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Delete task ───────────────────────────────────────────────────────────
+// ── Delete task ───────────────────────────────────────────────────────────────
 
 export const deleteTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -262,11 +301,14 @@ export const deleteTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Get user tasks ────────────────────────────────────────────────────────
+// ── Get user tasks ────────────────────────────────────────────────────────────
 
 export const getUserTasks = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { userId, teamId, type = 'all' } = req.query as Record<string, string>;
+        // status=active  → non-archived + archived-today (mirrors getTeamTasks behaviour)
+        // status=archived → archived only
+        // status=all      → no archive filter
+        const { userId, teamId, type = 'all', status = 'active' } = req.query as Record<string, string>;
         const requesterId = req.userId;
 
         let query: Record<string, any> = {};
@@ -277,6 +319,19 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
         } else {
             query = { assignedTo: userId || requesterId };
         }
+
+        // ── Active/archive filter – backend is the authority on what "today" means ──
+        if (status === 'active') {
+            const todayStart = new Date();
+            todayStart.setUTCHours(0, 0, 0, 0);
+            query.$or = [
+                { isArchived: false },
+                { isArchived: true, archivedAt: { $gte: todayStart } },
+            ];
+        } else if (status === 'archived') {
+            query.isArchived = true;
+        }
+        // status === 'all' → no additional filter
 
         const tasks = await Task.find(query)
             .populate('assignedTo', 'name email avatar')
@@ -308,7 +363,7 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Get team tasks ────────────────────────────────────────────────────────
+// ── Get team tasks ────────────────────────────────────────────────────────────
 
 export const getTeamTasks = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -353,7 +408,7 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Get task history ──────────────────────────────────────────────────────
+// ── Get task history ──────────────────────────────────────────────────────────
 
 export const getTaskHistory = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -383,7 +438,7 @@ export const getTaskHistory = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Dashboard stats ───────────────────────────────────────────────────────
+// ── Dashboard stats ───────────────────────────────────────────────────────────
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
     try {

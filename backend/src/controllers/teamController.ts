@@ -6,7 +6,7 @@ import Notification from '../models/Notification';
 import { sendNotification } from '../services/notificationService';
 import { Types } from 'mongoose';
 
-// ── Create team ───────────────────────────────────────────────────────────
+// ── Create team ───────────────────────────────────────────────────────────────
 
 export const createTeam = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -52,7 +52,7 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Get user teams ────────────────────────────────────────────────────────
+// ── Get user teams ────────────────────────────────────────────────────────────
 
 export const getUserTeams = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -68,7 +68,7 @@ export const getUserTeams = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Get team details ──────────────────────────────────────────────────────
+// ── Get team details ──────────────────────────────────────────────────────────
 
 export const getTeamDetails = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -92,7 +92,7 @@ export const getTeamDetails = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Invite to team ────────────────────────────────────────────────────────
+// ── Invite to team ────────────────────────────────────────────────────────────
 
 export const inviteToTeam = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -179,7 +179,7 @@ export const inviteToTeam = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Respond to invitation ─────────────────────────────────────────────────
+// ── Respond to invitation ─────────────────────────────────────────────────────
 
 export const respondToInvitation = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -231,7 +231,7 @@ export const respondToInvitation = async (req: Request, res: Response): Promise<
     }
 };
 
-// ── Get pending invitations ───────────────────────────────────────────────
+// ── Get pending invitations ───────────────────────────────────────────────────
 
 export const getPendingInvitations = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -269,7 +269,7 @@ export const getPendingInvitations = async (req: Request, res: Response): Promis
     }
 };
 
-// ── Update team settings ──────────────────────────────────────────────────
+// ── Update team settings ──────────────────────────────────────────────────────
 
 export const updateTeamSettings = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -285,7 +285,33 @@ export const updateTeamSettings = async (req: Request, res: Response): Promise<v
             res.status(403).json({ message: 'Only owners and admins can update settings' }); return;
         }
 
-        Object.assign(team.settings, settings);
+        if (!settings || typeof settings !== 'object') {
+            res.status(400).json({ message: 'Invalid settings object' }); return;
+        }
+
+        // ── Whitelist: only explicitly named settings may be changed ──────
+        // Prevents clients injecting arbitrary subdocument fields.
+        if (typeof settings.allowMemberInvite === 'boolean') {
+            team.settings.allowMemberInvite = settings.allowMemberInvite;
+        }
+        if (typeof settings.taskAutoDelete === 'boolean') {
+            team.settings.taskAutoDelete = settings.taskAutoDelete;
+        }
+        if (settings.notificationSettings && typeof settings.notificationSettings === 'object') {
+            const ns = settings.notificationSettings;
+            if (typeof ns.taskAssigned === 'boolean') {
+                team.settings.notificationSettings.taskAssigned = ns.taskAssigned;
+            }
+            if (typeof ns.taskCompleted === 'boolean') {
+                team.settings.notificationSettings.taskCompleted = ns.taskCompleted;
+            }
+            if (typeof ns.memberJoined === 'boolean') {
+                team.settings.notificationSettings.memberJoined = ns.memberJoined;
+            }
+        }
+
+        // markModified so Mongoose detects the nested subdocument change
+        team.markModified('settings');
         await team.save();
         res.json({ message: 'Team settings updated', team });
     } catch (err) {
@@ -294,7 +320,7 @@ export const updateTeamSettings = async (req: Request, res: Response): Promise<v
     }
 };
 
-// ── Remove team member ────────────────────────────────────────────────────
+// ── Remove team member ────────────────────────────────────────────────────────
 
 export const removeTeamMember = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -328,7 +354,7 @@ export const removeTeamMember = async (req: Request, res: Response): Promise<voi
     }
 };
 
-// ── Update team member role ──────────────────────────────────────────────
+// ── Update team member role ───────────────────────────────────────────────────
 
 export const updateTeamMemberRole = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -367,9 +393,7 @@ export const updateTeamMemberRole = async (req: Request, res: Response): Promise
     }
 };
 
-
-
-// ── Leave team ────────────────────────────────────────────────────────────
+// ── Leave team ────────────────────────────────────────────────────────────────
 
 export const leaveTeam = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -394,7 +418,7 @@ export const leaveTeam = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-// ── Delete team ───────────────────────────────────────────────────────────
+// ── Delete team ───────────────────────────────────────────────────────────────
 
 export const deleteTeam = async (req: Request, res: Response): Promise<void> => {
     try {

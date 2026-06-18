@@ -24,14 +24,13 @@ class TaskService {
         'Task ${isCompleted ? "complete" : "uncomplete"} request: $taskId',
       );
 
+      // Backend is the sole authority for completion timestamps —
+      // do NOT send completedAt from the client clock.
       final response = await http
           .patch(
             Uri.parse('$apiBaseUrl/tasks/$taskId/complete'),
             headers: _headers,
-            body: json.encode({
-              'isCompleted': isCompleted,
-              'completedAt': DateTime.now().toIso8601String(),
-            }),
+            body: json.encode({'isCompleted': isCompleted}),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -57,10 +56,12 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // GET USER TASKS (FIXED ROUTE)
+  // GET USER TASKS
   // ─────────────────────────────────────────────
   Future<List<Task>> getUserTasks() async {
     try {
+      // Backend now defaults to status=active, mirroring team task behaviour.
+      // The client doesn't need to pass the param for the default case.
       final response = await http.get(
         Uri.parse('$apiBaseUrl/tasks'),
         headers: _headers,
@@ -85,7 +86,7 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // CREATE TASK (NO userId anymore)
+  // CREATE TASK
   // ─────────────────────────────────────────────
   Future<Task> createTask({
     required String name,
@@ -107,19 +108,15 @@ class TaskService {
       if (description != null && description.isNotEmpty) {
         body['description'] = description;
       }
-
       if (assignedTo != null && assignedTo.isNotEmpty) {
         body['assignedTo'] = assignedTo;
       }
-
       if (teamId != null && teamId.isNotEmpty) {
         body['teamId'] = teamId;
       }
-
       if (dueDate != null) {
         body['dueDate'] = dueDate.toIso8601String();
       }
-
       if (tags != null && tags.isNotEmpty) {
         body['tags'] = tags;
       }
@@ -151,7 +148,7 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // TEAM TASKS (UNCHANGED LOGIC, FIXED ROUTE ONLY)
+  // GET TEAM TASKS
   // ─────────────────────────────────────────────
   Future<List<Task>> getTeamTasks(String teamId) async {
     try {
@@ -216,11 +213,15 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // HISTORY (FIXED: NO userId)
+  // HISTORY — now correctly passes teamId
   // ─────────────────────────────────────────────
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
-      final uri = Uri.parse('$apiBaseUrl/tasks/history');
+      // Pass teamId so the backend returns team-scoped history when a team
+      // is selected, and personal history otherwise.
+      final uri = (teamId != null && teamId.isNotEmpty)
+          ? Uri.parse('$apiBaseUrl/tasks/history?teamId=$teamId')
+          : Uri.parse('$apiBaseUrl/tasks/history');
 
       final response = await http.get(uri, headers: _headers);
 
@@ -246,11 +247,14 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // DASHBOARD STATS (FIXED ROUTE)
+  // DASHBOARD STATS — now correctly passes teamId
   // ─────────────────────────────────────────────
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
-      final uri = Uri.parse('$apiBaseUrl/tasks/dashboard-stats');
+      // Pass teamId so backend scopes stats to the selected team.
+      final uri = (teamId != null && teamId.isNotEmpty)
+          ? Uri.parse('$apiBaseUrl/tasks/dashboard-stats?teamId=$teamId')
+          : Uri.parse('$apiBaseUrl/tasks/dashboard-stats');
 
       final response = await http.get(uri, headers: _headers);
 
@@ -277,7 +281,6 @@ class TaskService {
         error: e,
         stackTrace: stackTrace,
       );
-
       return {
         'totalTasks': 0,
         'completedToday': 0,

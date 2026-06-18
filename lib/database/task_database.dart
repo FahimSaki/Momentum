@@ -28,6 +28,16 @@ class TaskDatabase extends ChangeNotifier {
   final List<AppNotification> notifications = [];
   int unreadNotificationCount = 0;
 
+  // Dashboard stats — populated from backend, team-scoped when a team is selected.
+  // Updated during initialize(), _refreshData(), selectTeam(), and as a
+  // fire-and-forget call after task mutations so the numbers stay current.
+  Map<String, int> dashboardStats = {
+    'totalTasks': 0,
+    'completedToday': 0,
+    'overdueTasks': 0,
+    'upcomingTasks': 0,
+  };
+
   // Current context
   Team? selectedTeam;
   String currentView = 'personal';
@@ -43,7 +53,8 @@ class TaskDatabase extends ChangeNotifier {
 
   bool _isInitialized = false;
 
-  // Getters
+  // ── Getters ───────────────────────────────────────────────────────────────
+
   List<DateTime> get historicalCompletions =>
       List.unmodifiable(_historicalCompletions);
   bool get isInitialized => _isInitialized;
@@ -71,6 +82,8 @@ class TaskDatabase extends ChangeNotifier {
     return role == 'owner' || role == 'admin';
   }
 
+  // ── Constructor ───────────────────────────────────────────────────────────
+
   TaskDatabase() {
     if (!kIsWeb) {
       _initializeTimerService();
@@ -84,6 +97,8 @@ class TaskDatabase extends ChangeNotifier {
       onMidnightCleanup: () async => await _handleMidnightCleanup(),
     );
   }
+
+  // ── Initialization ────────────────────────────────────────────────────────
 
   Future<void> initialize({required String jwt, required String userId}) async {
     try {
@@ -105,6 +120,7 @@ class TaskDatabase extends ChangeNotifier {
         _loadTasks(),
         _loadHistoricalCompletions(),
         _loadNotifications(),
+        _loadDashboardStats(),
       ]);
 
       if (!kIsWeb) {
@@ -139,6 +155,12 @@ class TaskDatabase extends ChangeNotifier {
     selectedTeam = null;
     currentView = 'personal';
     unreadNotificationCount = 0;
+    dashboardStats = {
+      'totalTasks': 0,
+      'completedToday': 0,
+      'overdueTasks': 0,
+      'upcomingTasks': 0,
+    };
     jwtToken = null;
     userId = null;
     _teamService = null;
@@ -146,6 +168,8 @@ class TaskDatabase extends ChangeNotifier {
     _isInitialized = false;
     notifyListeners();
   }
+
+  // ── Private loaders ───────────────────────────────────────────────────────
 
   Future<void> _loadTasks() async {
     try {
@@ -158,7 +182,9 @@ class TaskDatabase extends ChangeNotifier {
         tasks = await _taskService!.getUserTasks();
       }
 
-      // ── FILTER: only keep tasks relevant to today ──────────────────────
+      // Backend already returns the active set (status=active by default).
+      // The local filter below is a safety net — it mirrors the server rule so
+      // any edge-case tasks that slip through are still handled correctly.
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
 
@@ -226,6 +252,41 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadHistoricalCompletions() async {
+    try {
+      final historicalData =
+          await _taskService?.getTaskHistory(teamId: selectedTeam?.id) ?? [];
+      _historicalCompletions.clear();
+      _historicalCompletions.addAll(historicalData);
+    } catch (e, stackTrace) {
+      logger.w(
+        'Could not load historical completions (non-critical)',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  /// Fetches dashboard stats from the backend, scoped to the selected team.
+  /// Called during init, refresh, team switch, and after task mutations.
+  Future<void> _loadDashboardStats() async {
+    try {
+      if (_taskService == null) return;
+      final stats = await _taskService!.getDashboardStats(
+        teamId: selectedTeam?.id,
+      );
+      dashboardStats = stats;
+    } catch (e, stackTrace) {
+      logger.w(
+        'Could not load dashboard stats (non-critical)',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  // ── Team operations ───────────────────────────────────────────────────────
+
   Future<Team> createTeam(String name, {String? description}) async {
     try {
       final team = await _teamService!.createTeam(
@@ -286,7 +347,6 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  /// Leave a team (for non-owner members).
   Future<void> leaveTeam(String teamId) async {
     try {
       await _teamService!.leaveTeam(teamId);
@@ -305,12 +365,10 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  /// Remove a member from a team (owner/admin only).
   Future<void> removeTeamMember(String teamId, String memberId) async {
     try {
       await _teamService!.removeTeamMember(teamId, memberId);
       await _loadUserTeams();
-      // Keep selectedTeam reference fresh
       if (selectedTeam?.id == teamId) {
         final updated = userTeams.where((t) => t.id == teamId).firstOrNull;
         if (updated != null) selectedTeam = updated;
@@ -387,6 +445,10 @@ class TaskDatabase extends ChangeNotifier {
     teamTasks.clear();
     notifyListeners();
     _loadTasks();
+    // Reload stats scoped to the newly selected team (or personal if null)
+    _loadDashboardStats().catchError(
+      (e) => logger.w('Dashboard stats update failed after team switch: $e'),
+    );
   }
 
   void _organizeTasksByType() {
@@ -402,20 +464,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadHistoricalCompletions() async {
-    try {
-      final historicalData =
-          await _taskService?.getTaskHistory(teamId: selectedTeam?.id) ?? [];
-      _historicalCompletions.clear();
-      _historicalCompletions.addAll(historicalData);
-    } catch (e, stackTrace) {
-      logger.w(
-        'Could not load historical completions (non-critical)',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
+  // ── Task operations ───────────────────────────────────────────────────────
 
   Future<Task> createTask({
     required String name,
@@ -461,11 +510,17 @@ class TaskDatabase extends ChangeNotifier {
       await updateWidget();
       notifyListeners();
 
+      // Refresh task list in background after a short delay
       Future.delayed(const Duration(milliseconds: 500), () {
         _loadTasks().catchError(
           (e) => logger.w('Background task refresh failed: $e'),
         );
       });
+
+      // Update dashboard stats from backend (fire-and-forget)
+      _loadDashboardStats().catchError(
+        (e) => logger.w('Dashboard stats update failed after createTask: $e'),
+      );
 
       return task;
     } catch (e, stackTrace) {
@@ -530,6 +585,12 @@ class TaskDatabase extends ChangeNotifier {
       }
 
       await updateWidget();
+
+      // Update dashboard stats from backend (fire-and-forget)
+      _loadDashboardStats().catchError(
+        (e) => logger.w('Dashboard stats update failed after completeTask: $e'),
+      );
+
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e(
@@ -574,6 +635,12 @@ class TaskDatabase extends ChangeNotifier {
       _organizeTasksByType();
       await _loadHistoricalCompletions();
       await updateWidget();
+
+      // Update dashboard stats from backend (fire-and-forget)
+      _loadDashboardStats().catchError(
+        (e) => logger.w('Dashboard stats update failed after deleteTask: $e'),
+      );
+
       notifyListeners();
     } catch (e, stackTrace) {
       logger.e('Error deleting task', error: e, stackTrace: stackTrace);
@@ -581,25 +648,35 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  // ── Notification operations ───────────────────────────────────────────────
+
   Future<void> markNotificationAsRead(String notificationId) async {
     try {
-      await _notificationService?.markAsRead(notificationId);
+      // Use the backend-returned notification so readAt reflects server time,
+      // not the client clock. Fall back to a local update if parsing fails.
+      final updated = await _notificationService?.markAsRead(notificationId);
+
       final index = notifications.indexWhere((n) => n.id == notificationId);
       if (index != -1) {
-        notifications[index] = AppNotification(
-          id: notifications[index].id,
-          recipient: notifications[index].recipient,
-          sender: notifications[index].sender,
-          team: notifications[index].team,
-          task: notifications[index].task,
-          type: notifications[index].type,
-          title: notifications[index].title,
-          message: notifications[index].message,
-          data: notifications[index].data,
-          isRead: true,
-          readAt: DateTime.now(),
-          createdAt: notifications[index].createdAt,
-        );
+        if (updated != null) {
+          notifications[index] = updated;
+        } else {
+          // Fallback: construct locally with client timestamp
+          notifications[index] = AppNotification(
+            id: notifications[index].id,
+            recipient: notifications[index].recipient,
+            sender: notifications[index].sender,
+            team: notifications[index].team,
+            task: notifications[index].task,
+            type: notifications[index].type,
+            title: notifications[index].title,
+            message: notifications[index].message,
+            data: notifications[index].data,
+            isRead: true,
+            readAt: DateTime.now(),
+            createdAt: notifications[index].createdAt,
+          );
+        }
         unreadNotificationCount = notifications.where((n) => !n.isRead).length;
         notifyListeners();
       }
@@ -644,6 +721,8 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  // ── Timer / polling ───────────────────────────────────────────────────────
+
   void _startPolling() {
     if (kIsWeb) return;
     _timerService?.startPolling();
@@ -661,6 +740,7 @@ class TaskDatabase extends ChangeNotifier {
         _loadTasks(),
         _loadNotifications(),
         _loadPendingInvitations(),
+        _loadDashboardStats(),
       ]);
       await updateWidget();
     } catch (e, stackTrace) {
@@ -673,6 +753,7 @@ class TaskDatabase extends ChangeNotifier {
       if (!_isInitialized) return;
       await _loadHistoricalCompletions();
       await _loadTasks();
+      await _loadDashboardStats();
       await updateWidget();
     } catch (e, stackTrace) {
       logger.e(
@@ -682,6 +763,8 @@ class TaskDatabase extends ChangeNotifier {
       );
     }
   }
+
+  // ── Public helpers ────────────────────────────────────────────────────────
 
   Future<void> refreshData() async => await _refreshData();
 
@@ -698,6 +781,8 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  /// Legacy async fetch — kept for backward compatibility.
+  /// Prefer reading [dashboardStats] directly; it is always populated.
   Future<Map<String, int>> getDashboardStats() async {
     try {
       return await _taskService?.getDashboardStats(teamId: selectedTeam?.id) ??
@@ -722,6 +807,8 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  /// Synchronous stats computed from the in-memory task list.
+  /// Used internally as a fallback; the widget reads [dashboardStats] instead.
   Map<String, int> calculateDashboardStats() {
     final now = DateTime.now();
     final completedToday = currentTasks
