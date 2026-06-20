@@ -12,11 +12,11 @@ class User {
   final UserNotificationSettings notificationSettings;
   final DateTime lastLoginAt;
   final bool isActive;
-
-  // NEW FIELDS - Add these
   final String inviteId;
   final bool isPublic;
   final ProfileVisibility profileVisibility;
+  final bool isEmailVerified;
+  final bool twoFactorEnabled;
 
   User({
     required this.id,
@@ -29,10 +29,11 @@ class User {
     required this.notificationSettings,
     required this.lastLoginAt,
     this.isActive = true,
-    // NEW PARAMETERS
     required this.inviteId,
     this.isPublic = true,
     required this.profileVisibility,
+    this.isEmailVerified = true,
+    this.twoFactorEnabled = false,
   });
 
   factory User.fromJson(Map json) {
@@ -46,8 +47,8 @@ class User {
       timezone: (json['timezone'] ?? 'UTC').toString(),
       teams:
           (json['teams'] as List?)
-              ?.map((teamId) => teamId.toString())
-              .where((teamId) => teamId.isNotEmpty)
+              ?.map((t) => t.toString())
+              .where((t) => t.isNotEmpty)
               .toList() ??
           [],
       notificationSettings: json['notificationSettings'] != null
@@ -57,12 +58,13 @@ class User {
           ? DateTime.tryParse(json['lastLoginAt']) ?? DateTime.now()
           : DateTime.now(),
       isActive: json['isActive'] ?? true,
-      // NEW FIELDS PARSING
       inviteId: json['inviteId'] ?? '',
       isPublic: json['isPublic'] ?? true,
       profileVisibility: json['profileVisibility'] != null
           ? ProfileVisibility.fromJson(json['profileVisibility'])
           : ProfileVisibility(),
+      isEmailVerified: json['isEmailVerified'] ?? true,
+      twoFactorEnabled: json['twoFactorEnabled'] ?? false,
     );
   }
 
@@ -78,10 +80,11 @@ class User {
       'notificationSettings': notificationSettings.toJson(),
       'lastLoginAt': lastLoginAt.toIso8601String(),
       'isActive': isActive,
-      // NEW FIELDS
       'inviteId': inviteId,
       'isPublic': isPublic,
       'profileVisibility': profileVisibility.toJson(),
+      'isEmailVerified': isEmailVerified,
+      'twoFactorEnabled': twoFactorEnabled,
     };
   }
 
@@ -102,10 +105,9 @@ class User {
     final names = name.split(' ');
     if (names.length == 1) {
       return names[0].isNotEmpty ? names[0].substring(0, 1).toUpperCase() : '?';
-    } else {
-      final first = names[0].isNotEmpty ? names[0].substring(0, 1) : '';
-      final last = names.last.isNotEmpty ? names.last.substring(0, 1) : '';
-      return '$first$last'.toUpperCase();
     }
+    final first = names[0].isNotEmpty ? names[0].substring(0, 1) : '';
+    final last = names.last.isNotEmpty ? names.last.substring(0, 1) : '';
+    return '$first$last'.toUpperCase();
   }
 }

@@ -21,16 +21,13 @@ class UserService {
         Uri.parse('$apiBaseUrl/users/search?q=$query&limit=20'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
-
       if (response.statusCode == 200) {
         final List data = json.decode(response.body);
-        return data.map((user) => User.fromJson(user)).toList();
-      } else {
-        _logger.e('Error searching users: ${response.body}');
-        throw Exception('Failed to search users');
+        return data.map((u) => User.fromJson(u)).toList();
       }
-    } catch (e, stackTrace) {
-      _logger.e('Error searching users', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to search users');
+    } catch (e, st) {
+      _logger.e('Error searching users', error: e, stackTrace: st);
       rethrow;
     }
   }
@@ -41,38 +38,28 @@ class UserService {
         Uri.parse('$apiBaseUrl/users/invite/$inviteId'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
-
       if (response.statusCode == 200) {
         return User.fromJson(json.decode(response.body));
-      } else {
-        _logger.e('Error getting user by invite ID: ${response.body}');
-        throw Exception('User not found');
       }
-    } catch (e, stackTrace) {
-      _logger.e(
-        'Error getting user by invite ID',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      throw Exception('User not found');
+    } catch (e, st) {
+      _logger.e('Error getting user by invite ID', error: e, stackTrace: st);
       rethrow;
     }
   }
 
-  Future getCurrentUserProfile() async {
+  Future<User> getCurrentUserProfile() async {
     try {
       final response = await http.get(
         Uri.parse('$apiBaseUrl/users/profile'),
         headers: {'Authorization': 'Bearer $jwtToken'},
       );
-
       if (response.statusCode == 200) {
         return User.fromJson(json.decode(response.body));
-      } else {
-        _logger.e('Error getting user profile: ${response.body}');
-        throw Exception('Failed to get user profile');
       }
-    } catch (e, stackTrace) {
-      _logger.e('Error getting user profile', error: e, stackTrace: stackTrace);
+      throw Exception('Failed to get user profile');
+    } catch (e, st) {
+      _logger.e('Error getting user profile', error: e, stackTrace: st);
       rethrow;
     }
   }
@@ -90,19 +77,44 @@ class UserService {
           'profileVisibility': profileVisibility,
         }),
       );
-
       if (response.statusCode == 200) {
         return User.fromJson(json.decode(response.body));
-      } else {
-        _logger.e('Error updating privacy settings: ${response.body}');
-        throw Exception('Failed to update privacy settings');
       }
-    } catch (e, stackTrace) {
-      _logger.e(
-        'Error updating privacy settings',
-        error: e,
-        stackTrace: stackTrace,
+      throw Exception('Failed to update privacy settings');
+    } catch (e, st) {
+      _logger.e('Error updating privacy settings', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<void> enableTwoFactor() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/2fa/enable'),
+        headers: _headers,
       );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to enable 2FA');
+      }
+    } catch (e, st) {
+      _logger.e('Error enabling 2FA', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<void> disableTwoFactor() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/2fa/disable'),
+        headers: _headers,
+      );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to disable 2FA');
+      }
+    } catch (e, st) {
+      _logger.e('Error disabling 2FA', error: e, stackTrace: st);
       rethrow;
     }
   }

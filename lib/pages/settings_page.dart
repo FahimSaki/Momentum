@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
+import 'package:momentum/database/task_database.dart';
+import 'package:momentum/services/user_service.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -17,7 +19,6 @@ class SettingsPage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Appearance section
             _buildSectionHeader(
               'Appearance',
               Icons.palette_rounded,
@@ -29,82 +30,94 @@ class SettingsPage extends StatelessWidget {
               isDark: isDark,
               children: [
                 Consumer<ThemeProvider>(
-                  builder: (context, themeProvider, child) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: themeProvider.isDarkMode
-                                  ? const Color(0xFF1A1929)
-                                  : const Color(0xFFEDE9FE),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              themeProvider.isDarkMode
-                                  ? Icons.dark_mode_rounded
-                                  : Icons.light_mode_rounded,
-                              color: themeProvider.isDarkMode
-                                  ? const Color(0xFF818CF8)
-                                  : const Color(0xFF6366F1),
-                              size: 20,
-                            ),
+                  builder: (context, themeProvider, _) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: themeProvider.isDarkMode
+                                ? const Color(0xFF1A1929)
+                                : const Color(0xFFEDE9FE),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 14),
-                                Text(
-                                  'Dark Mode',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.inversePrimary,
-                                  ),
+                          child: Icon(
+                            themeProvider.isDarkMode
+                                ? Icons.dark_mode_rounded
+                                : Icons.light_mode_rounded,
+                            color: themeProvider.isDarkMode
+                                ? const Color(0xFF818CF8)
+                                : const Color(0xFF6366F1),
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 14),
+                              Text(
+                                'Dark Mode',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.inversePrimary,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  themeProvider.isDarkMode
-                                      ? 'Deep space indigo theme'
-                                      : 'Light lavender theme',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? const Color(0xFF9B99C8)
-                                        : const Color(0xFF6B66A3),
-                                  ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                themeProvider.isDarkMode
+                                    ? 'Deep space indigo theme'
+                                    : 'Light lavender theme',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? const Color(0xFF9B99C8)
+                                      : const Color(0xFF6B66A3),
                                 ),
-                                const SizedBox(height: 14),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 14),
+                            ],
                           ),
-                          CupertinoSwitch(
-                            value: themeProvider.isDarkMode,
-                            onChanged: (_) => themeProvider.toggleTheme(),
-                            activeTrackColor: const Color(0xFF6366F1),
-                            thumbColor: Colors.white,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                        ),
+                        CupertinoSwitch(
+                          value: themeProvider.isDarkMode,
+                          onChanged: (_) => themeProvider.toggleTheme(),
+                          activeTrackColor: const Color(0xFF6366F1),
+                          thumbColor: Colors.white,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
 
             const SizedBox(height: 24),
 
-            // About section
+            // ── Security section (2FA) ──────────────────────────────────────
+            _buildSectionHeader(
+              'Security',
+              Icons.shield_rounded,
+              const Color(0xFF22C55E),
+              context,
+            ),
+            const SizedBox(height: 10),
+            _buildCard(
+              isDark: isDark,
+              children: [_TwoFactorTile(isDark: isDark)],
+            ),
+
+            const SizedBox(height: 24),
+
             _buildSectionHeader(
               'About',
               Icons.info_rounded,
@@ -145,12 +158,8 @@ class SettingsPage extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
-
-            // Theme preview
             _buildThemePreview(isDark),
-
             const SizedBox(height: 40),
-
             Center(
               child: Text(
                 '℗ by Fahim Saki',
@@ -266,14 +275,12 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildDivider(bool isDark) {
-    return Divider(
-      height: 1,
-      indent: 68,
-      endIndent: 16,
-      color: isDark ? const Color(0xFF2D2C44) : const Color(0xFFEDE9FE),
-    );
-  }
+  Widget _buildDivider(bool isDark) => Divider(
+    height: 1,
+    indent: 68,
+    endIndent: 16,
+    color: isDark ? const Color(0xFF2D2C44) : const Color(0xFFEDE9FE),
+  );
 
   Widget _buildThemePreview(bool isDark) {
     return Container(
@@ -316,8 +323,8 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             isDark
-                ? 'Dark indigo tones with violet accents for comfortable night use.'
-                : 'Soft lavender with indigo accents for a clean, focused experience.',
+                ? 'Dark indigo tones with violet accents.'
+                : 'Soft lavender with indigo accents.',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.8),
               fontSize: 13,
@@ -333,8 +340,6 @@ class SettingsPage extends StatelessWidget {
               _colorDot(const Color(0xFFF59E0B), 'Warning'),
               const SizedBox(width: 8),
               _colorDot(const Color(0xFFE53E3E), 'Error'),
-              const SizedBox(width: 8),
-              _colorDot(const Color(0xFF3B82F6), 'Info'),
             ],
           ),
         ],
@@ -366,6 +371,194 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── 2FA Toggle (stateful, self-contained) ─────────────────────────────────────
+
+class _TwoFactorTile extends StatefulWidget {
+  final bool isDark;
+  const _TwoFactorTile({required this.isDark});
+
+  @override
+  State<_TwoFactorTile> createState() => _TwoFactorTileState();
+}
+
+class _TwoFactorTileState extends State<_TwoFactorTile> {
+  bool _enabled = false;
+  bool _loading = true;
+  bool _toggling = false;
+  UserService? _userService;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (db.jwtToken == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    _userService = UserService(jwtToken: db.jwtToken!);
+    try {
+      final user = await _userService!.getCurrentUserProfile();
+      if (mounted) {
+        setState(() {
+          _enabled = user.twoFactorEnabled;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggle(bool value) async {
+    if (_userService == null || _toggling) return;
+
+    if (!value) {
+      // Confirm before disabling
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Disable 2FA?'),
+          content: const Text(
+            'Your account will be less secure without two-factor authentication.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Disable'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    setState(() => _toggling = true);
+    try {
+      if (value) {
+        await _userService!.enableTwoFactor();
+      } else {
+        await _userService!.disableTwoFactor();
+      }
+      if (mounted) {
+        setState(() => _enabled = value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              value
+                  ? 'Two-factor authentication enabled'
+                  : 'Two-factor authentication disabled',
+            ),
+            backgroundColor: value ? Colors.green : Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.verified_user_rounded,
+              color: Color(0xFF22C55E),
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 14),
+                Text(
+                  'Two-Factor Authentication',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                    color: Theme.of(context).colorScheme.inversePrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _loading
+                      ? 'Loading...'
+                      : _enabled
+                      ? 'Enabled — login requires an email code'
+                      : 'Disabled — only your password is required',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: widget.isDark
+                        ? const Color(0xFF9B99C8)
+                        : const Color(0xFF6B66A3),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+            ),
+          ),
+          if (_loading)
+            const SizedBox(
+              width: 32,
+              height: 20,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (_toggling)
+            const SizedBox(
+              width: 32,
+              height: 20,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            CupertinoSwitch(
+              value: _enabled,
+              onChanged: _toggle,
+              activeTrackColor: const Color(0xFF22C55E),
+              thumbColor: Colors.white,
+            ),
+        ],
+      ),
     );
   }
 }

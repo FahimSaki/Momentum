@@ -41,6 +41,12 @@ export interface IUser {
     email: string;
     password?: string;
     googleId?: string;
+    isEmailVerified: boolean;
+    emailVerificationCode?: string;
+    emailVerificationExpires?: Date;
+    twoFactorEnabled: boolean;
+    twoFactorCode?: string;
+    twoFactorExpires?: Date;
     name: string;
     avatar?: string;
     bio?: string;

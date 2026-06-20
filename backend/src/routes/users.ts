@@ -9,6 +9,8 @@ import {
     searchUsers,
     changePassword,
     deleteAccount,
+    enableTwoFactor,
+    disableTwoFactor,
 } from '../controllers/userController';
 import { authenticateToken } from '../middleware/middle_auth';
 
@@ -25,5 +27,7 @@ router.get('/invite/:inviteId', findByInviteId);
 router.get('/search', searchUsers);
 router.put('/change-password', changePassword);
 router.delete('/account', deleteAccount);
+router.post('/2fa/enable', enableTwoFactor);
+router.post('/2fa/disable', disableTwoFactor);
 
 export default router;

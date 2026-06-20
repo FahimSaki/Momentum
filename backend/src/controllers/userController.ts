@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const user = await User.findById(req.userId)
-            .select('-password')
+            .select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires')
             .populate('teams', 'name description');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
         res.json(user);
@@ -208,6 +208,40 @@ export const deleteAccount = async (req: Request, res: Response): Promise<void> 
         res.json({ message: 'Account deactivated successfully' });
     } catch (err) {
         console.error('Delete account error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ── Enable 2FA ────────────────────────────────────────────────────────────────
+
+export const enableTwoFactor = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { twoFactorEnabled: true },
+            { new: true }
+        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires');
+        if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+        res.json({ message: 'Two-factor authentication enabled', twoFactorEnabled: true });
+    } catch (err) {
+        console.error('Enable 2FA error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ── Disable 2FA ───────────────────────────────────────────────────────────────
+
+export const disableTwoFactor = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.userId,
+            { twoFactorEnabled: false, twoFactorCode: undefined, twoFactorExpires: undefined },
+            { new: true }
+        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires');
+        if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+        res.json({ message: 'Two-factor authentication disabled', twoFactorEnabled: false });
+    } catch (err) {
+        console.error('Disable 2FA error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };

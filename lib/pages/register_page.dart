@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
+import 'package:momentum/pages/email_verification_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:logger/logger.dart';
 
@@ -18,6 +19,14 @@ class _RegisterPageState extends State<RegisterPage> {
   bool isLoading = false;
   String? error;
 
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    nameController.dispose();
+    super.dispose();
+  }
+
   void register() async {
     setState(() {
       isLoading = true;
@@ -28,121 +37,70 @@ class _RegisterPageState extends State<RegisterPage> {
     final password = passwordController.text.trim();
     final name = nameController.text.trim();
 
-    // input validation
     if (email.isEmpty || password.isEmpty || name.isEmpty) {
       setState(() {
-        error = "Please fill in all fields.";
+        error = 'Please fill in all fields.';
         isLoading = false;
       });
       return;
     }
 
-    // Better email validation
     final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(email)) {
       setState(() {
-        error = "Please enter a valid email address.";
+        error = 'Please enter a valid email address.';
         isLoading = false;
       });
       return;
     }
-
     if (password.length < 6) {
       setState(() {
-        error = "Password must be at least 6 characters long.";
+        error = 'Password must be at least 6 characters.';
         isLoading = false;
       });
       return;
     }
-
     if (name.length < 2) {
       setState(() {
-        error = "Name must be at least 2 characters long.";
+        error = 'Name must be at least 2 characters.';
         isLoading = false;
       });
       return;
     }
 
     try {
-      _logger.i("🚀 Starting registration for: $email with name: $name");
-
+      _logger.i('Registering: $email');
       final result = await AuthService.instance.register(email, password, name);
 
-      _logger.i("✅ Registration successful! Response: $result");
+      if (!mounted) return;
 
-      if (mounted) {
-        // Show success dialog
-        await showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text('🎉 Welcome to Momentum!'),
-            content: Text(
-              'Hi $name! Your account has been created successfully. You can now log in and start managing your tasks.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Get Started'),
-              ),
-            ],
-          ),
-        );
-
-        if (mounted) {
-          _logger.i("🧭 Navigating to login page...");
-          Navigator.pushReplacementNamed(context, '/login');
-        }
-      }
+      // Registration now requires email verification before login
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              EmailVerificationPage(email: result['email'] as String),
+        ),
+      );
     } catch (e) {
-      _logger.e("❌ Registration error caught in UI: $e");
-
+      _logger.e('Registration error: $e');
       if (mounted) {
-        setState(() {
-          String errorMessage = e.toString();
-
-          // Remove "Exception: " prefix if present
-          if (errorMessage.startsWith('Exception: ')) {
-            errorMessage = errorMessage.substring(11);
-          }
-
-          // Handle specific error types
-          String lowerError = errorMessage.toLowerCase();
-          if (lowerError.contains('email already exists') ||
-              lowerError.contains('already registered') ||
-              lowerError.contains('user already exists') ||
-              lowerError.contains('duplicate')) {
-            error =
-                "An account with this email already exists. Try logging in instead.";
-          } else if (lowerError.contains('network') ||
-              lowerError.contains('connection') ||
-              lowerError.contains('socket')) {
-            error =
-                "Network error. Please check your connection and try again.";
-          } else if (lowerError.contains('timeout')) {
-            error = "Request timed out. Please try again.";
-          } else {
-            error = "Registration failed: $errorMessage";
-          }
-        });
+        String msg = e.toString().replaceFirst('Exception: ', '');
+        final lower = msg.toLowerCase();
+        if (lower.contains('already exists') || lower.contains('duplicate')) {
+          msg =
+              'An account with this email already exists. Try logging in instead.';
+        } else if (lower.contains('network') || lower.contains('socket')) {
+          msg = 'Network error. Please check your connection.';
+        }
+        setState(() => error = msg);
       }
     } finally {
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-        // Clear password for security
+        setState(() => isLoading = false);
         passwordController.clear();
       }
     }
-  }
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    nameController.dispose();
-    super.dispose();
   }
 
   @override
@@ -152,14 +110,12 @@ class _RegisterPageState extends State<RegisterPage> {
         title: const Text('Create Account'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.pushReplacementNamed(context, '/login');
-          },
+          onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
         ),
       ),
       body: ResponsiveCenter(
         maxWidth: AppWidths.authForm,
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -174,25 +130,21 @@ class _RegisterPageState extends State<RegisterPage> {
                 fontSize: 16,
                 color: Theme.of(
                   context,
-                ).colorScheme.inversePrimary.withValues(alpha: 0.7),
+                ).colorScheme.inversePrimary.withValues(alpha: 0.65),
               ),
             ),
             const SizedBox(height: 32),
-
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 border: UnderlineInputBorder(),
                 prefixIcon: Icon(Icons.person),
-                helperText: 'Enter your first and last name',
               ),
               textCapitalization: TextCapitalization.words,
               enabled: !isLoading,
             ),
             const SizedBox(height: 16),
-
-            // EMAIL FIELD
             TextField(
               controller: emailController,
               decoration: const InputDecoration(
@@ -204,29 +156,25 @@ class _RegisterPageState extends State<RegisterPage> {
               enabled: !isLoading,
             ),
             const SizedBox(height: 16),
-
-            // PASSWORD FIELD
             TextField(
               controller: passwordController,
               decoration: const InputDecoration(
                 labelText: 'Password',
                 border: UnderlineInputBorder(),
                 prefixIcon: Icon(Icons.lock),
-                helperText: 'Must be at least 6 characters',
+                helperText: 'At least 6 characters',
               ),
               obscureText: true,
               enabled: !isLoading,
             ),
-
-            // ERROR DISPLAY
             if (error != null) ...[
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: Colors.red.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.25)),
                 ),
                 child: Row(
                   children: [
@@ -242,21 +190,19 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
             ],
-
             const SizedBox(height: 24),
-
-            // REGISTER BUTTON
             ElevatedButton(
               onPressed: isLoading ? null : register,
               style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
               child: isLoading
                   ? const SizedBox(
-                      height: 20,
                       width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text(
@@ -264,16 +210,11 @@ class _RegisterPageState extends State<RegisterPage> {
                       style: TextStyle(fontSize: 16),
                     ),
             ),
-
             const SizedBox(height: 16),
-
-            // LOGIN LINK
             TextButton(
               onPressed: isLoading
                   ? null
-                  : () {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    },
+                  : () => Navigator.pushReplacementNamed(context, '/login'),
               child: const Text("Already have an account? Login"),
             ),
           ],

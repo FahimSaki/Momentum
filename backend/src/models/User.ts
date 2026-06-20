@@ -6,6 +6,12 @@ const userSchema = new Schema<IUserDocument>(
         email: { type: String, required: true, unique: true },
         password: { type: String },
         googleId: { type: String },
+        isEmailVerified: { type: Boolean, default: false },
+        emailVerificationCode: { type: String, select: false },
+        emailVerificationExpires: { type: Date, select: false },
+        twoFactorEnabled: { type: Boolean, default: false },
+        twoFactorCode: { type: String, select: false },
+        twoFactorExpires: { type: Date, select: false },
         name: { type: String, required: true },
 
         avatar: { type: String },
