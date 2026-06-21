@@ -71,7 +71,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         await user.save();
 
         try {
-            await sendVerificationEmail(trimmedEmail, name.trim(), otp);
+            sendVerificationEmail(trimmedEmail, name.trim(), otp).catch(e => console.error('Email error:', e));
         } catch (emailErr) {
             console.error('⚠️ Email send failed (account still created):', emailErr);
         }
@@ -154,7 +154,7 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
             emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
 
-        await sendVerificationEmail(user.email, user.name, otp);
+        sendVerificationEmail(user.email, user.name, otp).catch(e => console.error('Resend email error:', e));
         res.json({ message: 'Verification code sent to your email.' });
     } catch (err) {
         console.error('Resend verification error:', err);
@@ -207,7 +207,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 twoFactorCode: otp,
                 twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
             });
-            try { await send2FACode(user.email, user.name, otp); } catch (e) { console.error('2FA email error:', e); }
+            send2FACode(user.email, user.name, otp).catch(e => console.error('2FA email error:', e));
 
             res.json({
                 message: 'A verification code has been sent to your email.',

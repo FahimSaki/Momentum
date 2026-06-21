@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -26,7 +27,8 @@ class AuthService {
       '213940967151-bju2m1cc7b7vnflibkb6hb6j0h2a1ug9.apps.googleusercontent.com';
 
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    serverClientId: _googleClientId,
+    clientId: kIsWeb ? _googleClientId : null,
+    serverClientId: kIsWeb ? null : _googleClientId,
   );
 
   final List<JwtCallback> _jwtListeners = [];
@@ -53,7 +55,7 @@ class AuthService {
             'name': name.trim(),
           }),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -74,7 +76,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'password': password}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
 
@@ -108,7 +110,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'code': code}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode != 200) {
       throw Exception(_safeDecodeError(response.body));
@@ -124,7 +126,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode != 200) {
       throw Exception(_safeDecodeError(response.body));
@@ -148,7 +150,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'idToken': idToken}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -172,7 +174,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'code': code}),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 45));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;

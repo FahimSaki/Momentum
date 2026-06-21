@@ -24,7 +24,11 @@ const PORT = process.env.PORT || 3000;
 
 // ── Security & parsing ────────────────────────────────────────────────────
 app.use(helmet());
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*', credentials: true }));
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim());
+app.use(cors({
+    origin: allowedOrigins ?? ((origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => cb(null, true)),
+    credentials: true,
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
