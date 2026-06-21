@@ -18,7 +18,6 @@ import userRoutes from './routes/users';
 import notificationRoutes from './routes/notifications';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dns.setDefaultResultOrder('ipv4first');  // Render has no outbound IPv6
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const app = express();
