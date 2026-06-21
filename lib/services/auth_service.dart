@@ -55,7 +55,7 @@ class AuthService {
             'name': name.trim(),
           }),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -76,7 +76,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'password': password}),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
 
@@ -110,7 +110,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'code': code}),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(_safeDecodeError(response.body));
@@ -126,7 +126,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email}),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       throw Exception(_safeDecodeError(response.body));
@@ -150,7 +150,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'idToken': idToken}),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -174,7 +174,7 @@ class AuthService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'code': code}),
         )
-        .timeout(const Duration(seconds: 45));
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
