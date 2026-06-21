@@ -10,8 +10,8 @@ let _transporter: nodemailer.Transporter | null = null;
 function getTransporter(): nodemailer.Transporter {
     if (_transporter) return _transporter;
 
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_APP_PASSWORD;
+    const user = process.env.EMAIL_USER?.trim();
+    const pass = process.env.EMAIL_APP_PASSWORD?.replace(/\s/g, '');
 
     if (!user || !pass) {
         throw new Error(
@@ -28,11 +28,12 @@ function getTransporter(): nodemailer.Transporter {
         port: 465,  // was 587 with STARTTLS
         secure: true,          // SSL — more reliable on Render than STARTTLS (port 587)
         auth: { user, pass },
+        family: 4,             // IPv4 only, avoids IPv6 issues on some Render instances
         connectionTimeout: 15000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
         tls: { rejectUnauthorized: true },
-    });
+    } as nodemailer.TransportOptions);
 
     return _transporter;
 }
@@ -60,7 +61,7 @@ export const verifyEmailTransporter = async (): Promise<void> => {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function from(): string {
-    return process.env.EMAIL_FROM || `Momentum <${process.env.EMAIL_USER}>`;
+    return process.env.EMAIL_FROM?.trim() || `Momentum <${process.env.EMAIL_USER?.trim()}>`;
 }
 
 function codeBlock(code: string): string {
