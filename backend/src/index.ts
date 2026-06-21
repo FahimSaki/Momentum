@@ -9,6 +9,7 @@ import dns from 'dns';
 import { initFirebase } from './services/notificationService';
 import { startScheduler } from './services/schedulerService';
 import { runManualCleanup } from './services/cleanupScheduler';
+import { verifyEmailTransporter } from './services/emailService';
 
 import authRoutes from './routes/auth';
 import taskRoutes from './routes/tasks';
@@ -47,7 +48,6 @@ app.get('/wake-up', (_req, res) => {
     res.json({ message: 'Server is awake', timestamp: new Date().toISOString(), uptime: process.uptime() });
 });
 
-// Accept both GET (cron jobs) and POST (manual triggers)
 const manualCleanupHandler = async (_req: express.Request, res: express.Response) => {
     try {
         const result = await runManualCleanup();
@@ -59,18 +59,14 @@ const manualCleanupHandler = async (_req: express.Request, res: express.Response
 app.get('/manual-cleanup', manualCleanupHandler);
 app.post('/manual-cleanup', manualCleanupHandler);
 
-// ── API routes (no /api prefix — matches Flutter app expectations) ─────────
+// ── API routes ────────────────────────────────────────────────────────────
 app.use('/auth', authRoutes);
 app.use('/tasks', taskRoutes);
 app.use('/teams', teamRoutes);
 app.use('/users', userRoutes);
 app.use('/notifications', notificationRoutes);
 app.get('/', (_req, res) => {
-    res.json({
-        status: 'ok',
-        message: 'Momentum API is running 🚀',
-        health: '/health'
-    });
+    res.json({ status: 'ok', message: 'Momentum API is running 🚀', health: '/health' });
 });
 
 // ── 404 ───────────────────────────────────────────────────────────────────
@@ -92,6 +88,10 @@ const startServer = async (): Promise<void> => {
 
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
     console.log('✅ MongoDB connected');
+
+    // ← ADD: verify email credentials immediately on startup so misconfiguration
+    // shows up in Render logs before any user tries to register or log in
+    await verifyEmailTransporter();
 
     initFirebase();
     startScheduler();

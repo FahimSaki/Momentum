@@ -70,10 +70,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
         await user.save();
 
+        // Await the email so any failure is visible in Render logs immediately.
+        // The account is already created — user can request resend if this fails.
         try {
-            sendVerificationEmail(trimmedEmail, name.trim(), otp).catch(e => console.error('Email error:', e));
-        } catch (emailErr) {
-            console.error('⚠️ Email send failed (account still created):', emailErr);
+            await sendVerificationEmail(trimmedEmail, name.trim(), otp);
+            console.log(`✅ Verification email sent to ${trimmedEmail}`);
+        } catch (emailErr: any) {
+            console.error(`❌ Failed to send verification email to ${trimmedEmail}:`, emailErr?.message ?? emailErr);
+            // Still return 201 — account exists and user can use "Resend" to get the code
         }
 
         res.status(201).json({
@@ -126,7 +130,7 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// ── Resend verification code ───────────────────────────────────────────────────
+// ── Resend verification code ──────────────────────────────────────────────────
 
 export const resendVerification = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -154,8 +158,15 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
             emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
 
-        sendVerificationEmail(user.email, user.name, otp).catch(e => console.error('Resend email error:', e));
-        res.json({ message: 'Verification code sent to your email.' });
+        // Await so the client gets a real error if the email service is down
+        try {
+            await sendVerificationEmail(user.email, user.name, otp);
+            console.log(`✅ Verification email resent to ${user.email}`);
+            res.json({ message: 'Verification code sent to your email.' });
+        } catch (emailErr: any) {
+            console.error(`❌ Failed to resend verification email to ${user.email}:`, emailErr?.message ?? emailErr);
+            res.status(500).json({ message: 'Failed to send verification code. Check server logs for details.' });
+        }
     } catch (err) {
         console.error('Resend verification error:', err);
         res.status(500).json({ message: 'Server error' });
@@ -190,7 +201,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 emailVerificationCode: otp,
                 emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
             });
-            try { await sendVerificationEmail(user.email, user.name, otp); } catch (e) { console.error('Email error:', e); }
+            try {
+                await sendVerificationEmail(user.email, user.name, otp);
+                console.log(`✅ Verification email (re)sent to ${user.email} on login attempt`);
+            } catch (emailErr: any) {
+                console.error(`❌ Failed to send verification email on login to ${user.email}:`, emailErr?.message ?? emailErr);
+            }
 
             res.status(403).json({
                 message: 'Please verify your email first. A new code has been sent.',
@@ -207,7 +223,24 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 twoFactorCode: otp,
                 twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
             });
-            send2FACode(user.email, user.name, otp).catch(e => console.error('2FA email error:', e));
+
+            // Await the 2FA email — if this fails the user is completely stuck,
+            // so we must surface the error rather than pretending it was sent.
+            try {
+                await send2FACode(user.email, user.name, otp);
+                console.log(`✅ 2FA code sent to ${user.email}`);
+            } catch (emailErr: any) {
+                console.error(`❌ Failed to send 2FA code to ${user.email}:`, emailErr?.message ?? emailErr);
+                // Clear the code so user can attempt login again later
+                await User.findByIdAndUpdate(user._id, {
+                    twoFactorCode: undefined,
+                    twoFactorExpires: undefined,
+                });
+                res.status(500).json({
+                    message: 'Failed to send verification code. Please try again or disable 2FA in settings.',
+                });
+                return;
+            }
 
             res.json({
                 message: 'A verification code has been sent to your email.',
@@ -273,7 +306,6 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
         const { idToken } = req.body as { idToken?: string };
         if (!idToken) { res.status(400).json({ message: 'Google ID token is required' }); return; }
 
-        // Verify with Google's tokeninfo endpoint — no extra npm package needed
         const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
         const googleData = await googleRes.json() as any;
 
@@ -282,7 +314,6 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        // Validate the token belongs to our app
         if (process.env.GOOGLE_CLIENT_ID && googleData.aud !== process.env.GOOGLE_CLIENT_ID) {
             res.status(401).json({ message: 'Token not issued for this application' });
             return;
