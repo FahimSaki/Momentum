@@ -89,10 +89,6 @@ const startServer = async (): Promise<void> => {
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
     console.log('✅ MongoDB connected');
 
-    // ← ADD: verify email credentials immediately on startup so misconfiguration
-    // shows up in Render logs before any user tries to register or log in
-    await verifyEmailTransporter();
-
     initFirebase();
     startScheduler();
 
@@ -101,6 +97,9 @@ const startServer = async (): Promise<void> => {
         console.log(`   NODE_ENV : ${process.env.NODE_ENV ?? 'development'}`);
         console.log(`   Health   : http://localhost:${PORT}/health`);
     });
+
+    // Verify email credentials in background — never block server startup
+    verifyEmailTransporter().catch(() => { });
 };
 
 startServer().catch((err) => {
