@@ -1,67 +1,42 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
-// ── Lazy singleton transporter ────────────────────────────────────────────────
-// Created on first use, NOT at module load time.
-// This ensures dotenv.config() in index.ts has already run before we read
-// process.env values — otherwise both are undefined and nodemailer throws
-// "Missing credentials for PLAIN".
-let _transporter: nodemailer.Transporter | null = null;
+// ── Lazy singleton ────────────────────────────────────────────────────────────
+let _resend: Resend | null = null;
 
-function getTransporter(): nodemailer.Transporter {
-    if (_transporter) return _transporter;
-
-    const user = process.env.EMAIL_USER?.trim();
-    const pass = process.env.EMAIL_APP_PASSWORD?.replace(/\s/g, '');
-
-    if (!user || !pass) {
+function getResend(): Resend {
+    if (_resend) return _resend;
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    if (!apiKey) {
         throw new Error(
-            `Email credentials missing.\n` +
-            `  EMAIL_USER="${user ?? 'undefined'}"\n` +
-            `  EMAIL_APP_PASSWORD="${pass ? '[set]' : 'undefined'}"\n` +
-            `  → Add both to your local backend/.env file for development.\n` +
-            `  → Verify both are set in the Render dashboard for production.`
+            'RESEND_API_KEY is not set.\n' +
+            '  → Sign up at resend.com → API Keys → add RESEND_API_KEY to your Render env vars.'
         );
     }
-
-    _transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,  // STARTTLS port, not SSL/TLS port 465
-        secure: false,         // STARTTLS, not SSL/TLS
-        auth: { user, pass },
-        family: 4,             // IPv4 only, avoids IPv6 issues on some Render instances
-        connectionTimeout: 15000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-        tls: { rejectUnauthorized: true },
-    } as nodemailer.TransportOptions);
-
-    return _transporter;
+    _resend = new Resend(apiKey);
+    return _resend;
 }
 
-// ── Startup verification ──────────────────────────────────────────────────────
-// Called from index.ts after dotenv.config() and MongoDB connect.
-// Shows pass/fail in Render logs immediately on every deploy.
+// ── Startup check ─────────────────────────────────────────────────────────────
+// Called from index.ts after dotenv.config(). Shows pass/fail in Render logs.
 export const verifyEmailTransporter = async (): Promise<void> => {
-    try {
-        await getTransporter().verify();
-        console.log(`✅ Email transporter ready — sending as ${process.env.EMAIL_USER}`);
-    } catch (err: any) {
-        console.error('❌ Email transporter FAILED:');
-        console.error('  ', err?.message ?? err);
-        console.error('');
-        console.error('  Checklist:');
-        console.error('  1. EMAIL_USER   = your full Gmail address');
-        console.error('  2. EMAIL_APP_PASSWORD = 16-char App Password, NO spaces');
-        console.error('     → myaccount.google.com/security → 2-Step Verification → App passwords');
-        console.error('  3. Gmail 2-Step Verification must be ON');
-        console.error('  4. Check for leading/trailing spaces in the Render env var field');
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const fromAddr = process.env.EMAIL_FROM?.trim() ?? '(EMAIL_FROM not set — defaulting to onboarding@resend.dev)';
+    if (apiKey) {
+        console.log(`✅ Email service ready (Resend API) — sending as ${fromAddr}`);
+    } else {
+        console.error('❌ Email service NOT configured: RESEND_API_KEY is missing');
+        console.error('   → resend.com → API Keys → add RESEND_API_KEY to Render env vars');
+        console.error('   → Emails (verification codes, 2FA) will fail until this is set');
     }
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function from(): string {
-    return process.env.EMAIL_FROM?.trim() || `Momentum <${process.env.EMAIL_USER?.trim()}>`;
+    // NOTE: onboarding@resend.dev only sends to your own Resend account email.
+    // For sending to real users you must verify a domain at resend.com/domains
+    // and set EMAIL_FROM=Momentum <noreply@yourdomain.com> in Render env vars.
+    return process.env.EMAIL_FROM?.trim() || 'Momentum <onboarding@resend.dev>';
 }
 
 function codeBlock(code: string): string {
@@ -83,14 +58,13 @@ function baseTemplate(title: string, body: string): string {
 }
 
 // ── Senders ───────────────────────────────────────────────────────────────────
-// Both throw on failure — callers must catch and handle (done in authController).
 
 export const sendVerificationEmail = async (
     to: string,
     name: string,
     code: string
 ): Promise<void> => {
-    await getTransporter().sendMail({
+    const { error } = await getResend().emails.send({
         from: from(),
         to,
         subject: 'Verify your Momentum account',
@@ -101,6 +75,7 @@ export const sendVerificationEmail = async (
              <p style="color:#999;font-size:13px;">This code expires in <strong>24 hours</strong>.</p>`
         ),
     });
+    if (error) throw new Error(error.message);
 };
 
 export const send2FACode = async (
@@ -108,7 +83,7 @@ export const send2FACode = async (
     name: string,
     code: string
 ): Promise<void> => {
-    await getTransporter().sendMail({
+    const { error } = await getResend().emails.send({
         from: from(),
         to,
         subject: 'Your Momentum sign-in code',
@@ -119,4 +94,5 @@ export const send2FACode = async (
              <p style="color:#999;font-size:13px;">This code expires in <strong>10 minutes</strong>. Do not share it.</p>`
         ),
     });
+    if (error) throw new Error(error.message);
 };
