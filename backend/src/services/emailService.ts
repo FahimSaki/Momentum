@@ -25,8 +25,8 @@ function getTransporter(): nodemailer.Transporter {
 
     _transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
-        port: 465,  // was 587 with STARTTLS
-        secure: true,          // SSL — more reliable on Render than STARTTLS (port 587)
+        port: 587,  // STARTTLS port, not SSL/TLS port 465
+        secure: false,         // STARTTLS, not SSL/TLS
         auth: { user, pass },
         family: 4,             // IPv4 only, avoids IPv6 issues on some Render instances
         connectionTimeout: 15000,
