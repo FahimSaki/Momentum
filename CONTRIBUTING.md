@@ -94,7 +94,7 @@ The API base URL is resolved automatically by `lib/constants/api_base_url.dart`:
 |---------|---------|
 | Android emulator (debug) | `http://10.0.2.2:10000` |
 | iOS simulator (debug) | `http://127.0.0.1:10000` |
-| Release / web | `https://momentum-to2e.onrender.com` |
+| Release / web | `https://momentum-production-f728.up.railway.app` |
 
 To point at a different server, edit `api_base_url.dart` locally (do not commit personal URLs).
 

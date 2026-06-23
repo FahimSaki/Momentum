@@ -95,7 +95,7 @@ flutter pub get
 |-------|---------|-----|
 | Debug | Android emulator | `http://10.0.2.2:10000` |
 | Debug | iOS simulator | `http://127.0.0.1:10000` |
-| Release / Web | Any | `https://momentum-to2e.onrender.com` |
+| Release / Web | Any | `https://momentum-production-f728.up.railway.app` |
 
 For a custom server, edit the file locally before running. Do not commit personal server addresses.
 

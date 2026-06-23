@@ -70,7 +70,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
         await user.save();
 
-        // Await the email so any failure is visible in Render logs immediately.
+        // Await the email so any failure is visible in Railway logs immediately.
         // The account is already created — user can request resend if this fails.
         try {
             await sendVerificationEmail(trimmedEmail, name.trim(), otp);

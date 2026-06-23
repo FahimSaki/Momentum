@@ -103,7 +103,7 @@ The `JWT_SECRET` environment variable must be a long, random string. Generate on
 openssl rand -hex 32
 ```
 
-Never commit this value to source control. On Render, set it as an environment variable in the dashboard.
+Never commit this value to source control. On Railway, set it as an environment variable in the dashboard.
 
 ### FCM Tokens
 
@@ -129,14 +129,14 @@ Credentials (`credentials: true`) are enabled so the browser can send the `Autho
 
 ## Recommendations for Production Self-Hosting
 
-1. **Use HTTPS everywhere.** Render provides TLS automatically. For self-hosted servers, use Let's Encrypt via Caddy or Nginx.
+1. **Use HTTPS everywhere.** Railway provides TLS automatically. For self-hosted servers, use Let's Encrypt via Caddy or Nginx.
 2. **Set `NODE_ENV=production`.** This disables stack traces in API error responses.
 3. **Set `ALLOWED_ORIGINS`** to a comma-separated list of your frontend domains instead of relying on the `*` default.
 4. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
 5. **Restrict MongoDB network access** to the server's IP only.
 6. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
 7. **Add rate limiting** to the auth endpoints (`/auth/login`, `/auth/register`) using `express-rate-limit` to prevent brute-force attacks. This is not currently implemented.
-8. **Store Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
+8. **Store Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Railway, Heroku).
 
 ---
 

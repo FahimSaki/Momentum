@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'dart:io' show Platform;
 
-const String _production = 'https://momentum-to2e.onrender.com';
+const String _production = 'https://momentum-production-f728.up.railway.app';
 
 /// Compile-time base URL. Use this for the vast majority of API calls.
 const String apiBaseUrl = kIsWeb

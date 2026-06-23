@@ -98,14 +98,14 @@ jobs:
               fi
             done
           }
-          check_endpoint "https://momentum-to2e.onrender.com/wake-up" "Wake-up"
+          check_endpoint "https://momentum-production-f728.up.railway.app" "Wake-up"
           echo "⏳ Allowing backend time to fully initialize..."
           sleep 30
-          check_endpoint "https://momentum-to2e.onrender.com/health" "Health"
+          check_endpoint "https://momentum-production-f728.up.railway.app/health" "Health"
           echo "📊 Backend status check completed successfully"
 
   build:
-    needs: [ code-quality, check-backend ]
+    needs: [code-quality, check-backend]
     strategy:
       fail-fast: false
       matrix:
@@ -340,7 +340,8 @@ jobs:
             - iOS Simulator
             - macOS
           draft: false
-          prerelease: contains(github.ref_name, 'beta') || contains(github.ref_name,
+          prerelease:
+            contains(github.ref_name, 'beta') || contains(github.ref_name,
             'alpha')
           generate_release_notes: true
         env:
@@ -359,7 +360,7 @@ jobs:
 
   notify:
     if: always()
-    needs: [ code-quality, check-backend, build, release ]
+    needs: [code-quality, check-backend, build, release]
     runs-on: ubuntu-latest
     steps:
       - name: Notify Build Status

@@ -19,16 +19,16 @@ function getTransporter(): nodemailer.Transporter {
             `  EMAIL_USER="${user ?? 'undefined'}"\n` +
             `  EMAIL_APP_PASSWORD="${pass ? '[set]' : 'undefined'}"\n` +
             `  → Add both to your local backend/.env file for development.\n` +
-            `  → Verify both are set in the Render dashboard for production.`
+            `  → Verify both are set in the Railway dashboard for production.`
         );
     }
 
     _transporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,  // was 587 with STARTTLS
-        secure: true,          // SSL — more reliable on Render than STARTTLS (port 587)
+        secure: true,          // SSL — more reliable on Railway than STARTTLS (port 587)
         auth: { user, pass },
-        family: 4,             // IPv4 only, avoids IPv6 issues on some Render instances
+        family: 4,             // IPv4 only, avoids IPv6 issues on some Railway instances
         connectionTimeout: 15000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
@@ -40,7 +40,7 @@ function getTransporter(): nodemailer.Transporter {
 
 // ── Startup verification ──────────────────────────────────────────────────────
 // Called from index.ts after dotenv.config() and MongoDB connect.
-// Shows pass/fail in Render logs immediately on every deploy.
+// Shows pass/fail in Railway logs immediately on every deploy.
 export const verifyEmailTransporter = async (): Promise<void> => {
     try {
         await getTransporter().verify();
@@ -54,7 +54,7 @@ export const verifyEmailTransporter = async (): Promise<void> => {
         console.error('  2. EMAIL_APP_PASSWORD = 16-char App Password, NO spaces');
         console.error('     → myaccount.google.com/security → 2-Step Verification → App passwords');
         console.error('  3. Gmail 2-Step Verification must be ON');
-        console.error('  4. Check for leading/trailing spaces in the Render env var field');
+        console.error('  4. Check for leading/trailing spaces in the Railway env var field');
     }
 };
 

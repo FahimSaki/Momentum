@@ -8,9 +8,9 @@ Common problems and how to fix them.
 
 ### App shows blank screen or infinite loading after login
 
-The `SplashPage` validates the stored JWT by calling `GET /auth/validate`. If the backend is unreachable (e.g. Render free-tier is sleeping) the request times out and the app falls through to the login page.
+The `SplashPage` validates the stored JWT by calling `GET /auth/validate`. If the backend is unreachable (e.g. Railway free-tier is sleeping) the request times out and the app falls through to the login page.
 
-**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For a permanent fix, upgrade to a paid Render plan or set up a keep-alive cron.
+**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For a permanent fix, upgrade to a paid Railway plan or set up a keep-alive cron.
 
 ---
 
@@ -150,7 +150,7 @@ The server logs a warning that no service account was found. Set one of `FIREBAS
 
 The cron is scheduled at `5 0 * * *` UTC (12:05 AM). Verify:
 
-1. The server was running at that time (check Render logs).
+1. The server was running at that time (check Railway logs).
 2. The `startScheduler()` call in `backend/src/index.ts` is reached after DB connection.
 3. Trigger manually to confirm the logic works: `POST /manual-cleanup` (or `GET /manual-cleanup`).
 

@@ -109,10 +109,10 @@ await mongoose.connect(process.env.MONGODB_URI, {
 
 ### Logging
 
-The backend logs every incoming request (method, URL) to stdout. On Render this is visible in the Logs tab. For production, consider replacing `console.log` with a structured logger (e.g. `pino`) and shipping logs to a log aggregation service.
+The backend logs every incoming request (method, URL) to stdout. On Railway this is visible in the Logs tab. For production, consider replacing `console.log` with a structured logger (e.g. `pino`) and shipping logs to a log aggregation service.
 
 On the Flutter side, all service calls use the `logger` package. In release builds, the `Logger` defaults to `Level.warning` – verbose debug logs are suppressed automatically.
 
 ### Node.js Memory
 
-The cleanup job calls `global.gc()` if garbage collection is available (requires the `--expose-gc` Node.js flag). On Render and most hosts this flag is not set, so the call is a no-op. Monitor memory usage in the Render dashboard; if memory grows steadily over days, a daily server restart (via Render's native restart option) is a practical workaround until the leak is diagnosed.
+The cleanup job calls `global.gc()` if garbage collection is available (requires the `--expose-gc` Node.js flag). On Railway and most hosts this flag is not set, so the call is a no-op. Monitor memory usage in the Railway dashboard; if memory grows steadily over days, a daily server restart (via Railway's native restart option) is a practical workaround until the leak is diagnosed.

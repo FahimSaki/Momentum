@@ -24,15 +24,10 @@ export const initFirebase = (): void => {
                 fs.readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8')
             );
             source = `file at ${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`;
-        } else if (fs.existsSync('/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json')) {
-            serviceAccount = JSON.parse(
-                fs.readFileSync(
-                    '/etc/secrets/momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json',
-                    'utf8'
-                )
-            );
-            source = 'Render mounted secret file';
-        } else {
+        }
+
+        // ── 3. Local development file ───────────────────────────────────────
+        else {
             const localPath = path.join(
                 __dirname,
                 '../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json'
@@ -42,7 +37,7 @@ export const initFirebase = (): void => {
                 return;
             }
             serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-            source = `local dev file at ${localPath}`;
+            source = `firebase secret file at ${localPath}`;
         }
 
         admin.initializeApp({
@@ -51,6 +46,7 @@ export const initFirebase = (): void => {
 
         firebaseInitialised = true;
         console.log(`✅ Firebase initialised (source: ${source})`);
+
     } catch (err) {
         console.error('❌ Firebase init failed:', err);
     }
@@ -71,6 +67,7 @@ export const sendNotification = async (
         if (!user) { console.log('❌ User not found:', userId); return false; }
 
         const tokens: string[] = [];
+
         if (user.fcmTokens?.length) {
             tokens.push(...user.fcmTokens.map((t) => t.token));
         } else if (user.fcmToken) {
@@ -82,7 +79,6 @@ export const sendNotification = async (
             return false;
         }
 
-        // ALL values in the data map MUST be strings (FCM requirement)
         const dataMap: Record<string, string> = {
             type: payload.type ?? '',
             title: payload.title,
@@ -99,24 +95,19 @@ export const sendNotification = async (
         await Promise.allSettled(
             tokens.map(async (token) => {
                 try {
-                    // ── CRITICAL: always send BOTH `notification` and `data` ──────────
-                    // A message with ONLY `data` is delivered silently on Android when
-                    // the app is in the background (the system does not show a banner).
-                    // Including `notification` tells the Android/iOS system to render a
-                    // visible heads-up notification automatically, even when the app is
-                    // closed. The `data` payload is then available in the background
-                    // handler and the notification tap handler for routing.
                     await admin.messaging().send({
                         token,
+
                         notification: {
                             title: payload.title,
                             body: payload.body,
                         },
+
                         data: dataMap,
+
                         android: {
-                            priority: 'high',          // wake up the device
+                            priority: 'high',
                             notification: {
-                                // Must match the channel created in Flutter
                                 channelId: 'momentum_high_importance',
                                 sound: 'default',
                                 priority: 'high',
@@ -124,9 +115,9 @@ export const sendNotification = async (
                                 notificationCount: 1,
                             },
                         },
+
                         apns: {
                             headers: {
-                                // 10 = high priority on APNs
                                 'apns-priority': '10',
                             },
                             payload: {
@@ -137,12 +128,12 @@ export const sendNotification = async (
                                     },
                                     sound: 'default',
                                     badge: 1,
-                                    // Required for background execution on iOS
                                     'content-available': 1,
                                     'mutable-content': 1,
                                 },
                             },
                         },
+
                         webpush: {
                             notification: {
                                 title: payload.title,
@@ -151,10 +142,12 @@ export const sendNotification = async (
                             },
                         },
                     });
+
                     console.log(`✅ FCM sent to ${token.substring(0, 20)}...`);
                 } catch (err: any) {
                     const code = err?.errorInfo?.code ?? '';
                     console.error(`❌ FCM send error (${code}):`, err?.message ?? err);
+
                     if ([
                         'messaging/invalid-registration-token',
                         'messaging/registration-token-not-registered',

@@ -2,7 +2,7 @@
 
 Base URL:
 
-- **Production**: `https://momentum-to2e.onrender.com`
+- **Production**: `https://momentum-production-f728.up.railway.app`
 - **Local development**: `http://localhost:10000`
 
 All protected endpoints require the header:
