@@ -110,7 +110,7 @@ flutter run
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Dev and production setup, environment variables, Firebase config |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, state management |
 | [docs/API.md](docs/API.md) | All REST endpoints with request/response examples |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Railway, VPS, Docker deployment instructions |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Render, VPS, Docker deployment instructions |
 | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common errors and fixes |
 | [docs/SECURITY.md](docs/SECURITY.md) | Auth model, permissions, secure storage |
 

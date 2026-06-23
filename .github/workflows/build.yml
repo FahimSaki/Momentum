@@ -98,10 +98,10 @@ jobs:
               fi
             done
           }
-          check_endpoint "https://momentum-production-f728.up.railway.app" "Wake-up"
+          check_endpoint "https://momentum-g7ah.onrender.com" "Wake-up"
           echo "⏳ Allowing backend time to fully initialize..."
           sleep 30
-          check_endpoint "https://momentum-production-f728.up.railway.app/health" "Health"
+          check_endpoint "https://momentum-g7ah.onrender.com/health" "Health"
           echo "📊 Backend status check completed successfully"
 
   build:

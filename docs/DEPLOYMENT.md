@@ -1,17 +1,17 @@
 # Deployment Guide
 
-This guide covers deploying Momentum's backend to Railway.com (current production setup) and the Flutter frontend as a web app to Vercel, as well as building native app binaries for Android and iOS.
+This guide covers deploying Momentum's backend to Render.com (current production setup) and the Flutter frontend as a web app to Vercel, as well as building native app binaries for Android and iOS.
 
 ---
 
-## Backend – Railway.com
+## Backend – Render.com
 
-The production backend is hosted at `https://momentum-production-f728.up.railway.app`.
+The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 
 ### Initial Deploy
 
 1. Push your repository to GitHub.
-2. Go to [railway.com](https://railway.com) → New → **Web Service**.
+2. Go to [render.com](https://render.com) → New → **Web Service**.
 3. Connect your GitHub repo and configure:
 
 | Setting | Value |
@@ -33,28 +33,28 @@ The production backend is hosted at `https://momentum-production-f728.up.railway
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Paste the full contents of your Firebase service account JSON as a single-line string |
 | `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (e.g. `https://yourapp.vercel.app,https://yourcustomdomain.com`) |
 
-> **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Railway** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
+> **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
 
 > If `ALLOWED_ORIGINS` is not set, the server defaults to allowing all origins (`*`). Set it explicitly in production.
 
-1. Click **Create Web Service**. Railway runs `npm install && npm run build` to compile TypeScript, then starts the server with `npm start` (which runs `node dist/index.js`).
+1. Click **Create Web Service**. Render runs `npm install && npm run build` to compile TypeScript, then starts the server with `npm start` (which runs `node dist/index.js`).
 
 ### Keep-Alive
 
-Railway free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use you should either:
+Render free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use you should either:
 
-- Upgrade to a paid Railway plan (always-on), or
+- Upgrade to a paid Render plan (always-on), or
 - Set up an external cron (e.g. cron-job.org) to hit `GET /wake-up` every 10 minutes.
 
 ### Redeployment
 
-Every push to `main` triggers a new Railway build automatically if auto-deploy is enabled in the Railway dashboard. Railway re-runs the full build command (`npm install && npm run build`) on each deploy so compiled output is always up to date.
+Every push to `main` triggers a new Render build automatically if auto-deploy is enabled in the Render dashboard. Render re-runs the full build command (`npm install && npm run build`) on each deploy so compiled output is always up to date.
 
 ### MongoDB Atlas Setup
 
 1. Create a free cluster at [cloud.mongodb.com](https://cloud.mongodb.com).
 2. Create a database user with read/write access.
-3. Whitelist `0.0.0.0/0` (all IPs) under Network Access – Railway's outbound IPs change.
+3. Whitelist `0.0.0.0/0` (all IPs) under Network Access – Render's outbound IPs change.
 4. Copy the connection string (`mongodb+srv://...`) and set it as `MONGODB_URI`.
 
 The app creates all collections automatically on first use. No migration scripts are required for a fresh deployment.
@@ -93,7 +93,7 @@ Or connect the GitHub repo in the Vercel dashboard and set:
 
 ### CORS
 
-The backend reads allowed origins from the `ALLOWED_ORIGINS` environment variable (comma-separated). Add your Vercel deployment URL and any custom domain to that variable on Railway. If `ALLOWED_ORIGINS` is unset, all origins are allowed.
+The backend reads allowed origins from the `ALLOWED_ORIGINS` environment variable (comma-separated). Add your Vercel deployment URL and any custom domain to that variable on Render. If `ALLOWED_ORIGINS` is unset, all origins are allowed.
 
 ---
 
