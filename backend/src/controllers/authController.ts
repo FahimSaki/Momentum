@@ -43,7 +43,36 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
         const trimmedEmail = email.toLowerCase().trim();
         const existing = await User.findOne({ email: trimmedEmail });
+
         if (existing) {
+            // If the account exists but was never verified, allow re-registration.
+            // was working — they have a DB record but never received the OTP.
+            if (!existing.isEmailVerified) {
+                const hashedPassword = await bcrypt.hash(password, 12);
+                const otp = generateOTP();
+
+                await User.findByIdAndUpdate(existing._id, {
+                    password: hashedPassword,
+                    name: name.trim(),
+                    emailVerificationCode: otp,
+                    emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                });
+
+                try {
+                    await sendVerificationEmail(trimmedEmail, name.trim(), otp);
+                    console.log(`✅ Re-sent verification email to ${trimmedEmail}`);
+                } catch (emailErr: any) {
+                    console.error(`❌ Failed to re-send verification email to ${trimmedEmail}:`, emailErr?.message ?? emailErr);
+                }
+
+                res.status(201).json({
+                    message: 'Account created. Check your email for a 6-digit verification code.',
+                    requiresVerification: true,
+                    email: trimmedEmail,
+                });
+                return;
+            }
+
             res.status(400).json({ message: 'An account with this email already exists. Please login instead.' });
             return;
         }
@@ -70,14 +99,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
         await user.save();
 
-        // Await the email so any failure is visible in Render logs immediately.
-        // The account is already created — user can request resend if this fails.
         try {
             await sendVerificationEmail(trimmedEmail, name.trim(), otp);
             console.log(`✅ Verification email sent to ${trimmedEmail}`);
         } catch (emailErr: any) {
             console.error(`❌ Failed to send verification email to ${trimmedEmail}:`, emailErr?.message ?? emailErr);
-            // Still return 201 — account exists and user can use "Resend" to get the code
         }
 
         res.status(201).json({
@@ -87,7 +113,18 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         });
     } catch (err: any) {
         console.error('Register error:', err);
-        if (err.code === 11000) { res.status(400).json({ message: 'An account with this email already exists' }); return; }
+        if (err.code === 11000) {
+            // Identify which field caused the duplicate so we give an accurate message.
+            // inviteId also has a unique index and can trigger 11000.
+            const field = Object.keys(err.keyValue || {})[0];
+            if (field === 'email') {
+                res.status(400).json({ message: 'An account with this email already exists. Please login instead.' });
+            } else {
+                // Transient inviteId collision — extremely rare, safe to retry.
+                res.status(500).json({ message: 'Registration failed due to a server conflict. Please try again.' });
+            }
+            return;
+        }
         res.status(500).json({ message: 'Server error during registration' });
     }
 };
@@ -158,7 +195,6 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
             emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
 
-        // Await so the client gets a real error if the email service is down
         try {
             await sendVerificationEmail(user.email, user.name, otp);
             console.log(`✅ Verification email resent to ${user.email}`);
@@ -194,26 +230,34 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) { res.status(401).json({ message: 'Invalid email or password' }); return; }
 
-        // Block unverified accounts and auto-resend code
         if (!user.isEmailVerified) {
-            const otp = generateOTP();
-            await User.findByIdAndUpdate(user._id, {
-                emailVerificationCode: otp,
-                emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            });
-            try {
-                await sendVerificationEmail(user.email, user.name, otp);
-                console.log(`✅ Verification email (re)sent to ${user.email} on login attempt`);
-            } catch (emailErr: any) {
-                console.error(`❌ Failed to send verification email on login to ${user.email}:`, emailErr?.message ?? emailErr);
-            }
+            // Legacy accounts created before email verification was required have no
+            // stored OTP code. They proved ownership via password so auto-verify them
+            // and fall through to normal login rather than blocking them forever.
+            if (!user.emailVerificationCode) {
+                await User.findByIdAndUpdate(user._id, { isEmailVerified: true }, { runValidators: false });
+                // Fall through to the login logic below
+            } else {
+                // Newly registered but unverified — resend OTP and block
+                const otp = generateOTP();
+                await User.findByIdAndUpdate(user._id, {
+                    emailVerificationCode: otp,
+                    emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                });
+                try {
+                    await sendVerificationEmail(user.email, user.name, otp);
+                    console.log(`✅ Verification email (re)sent to ${user.email} on login attempt`);
+                } catch (emailErr: any) {
+                    console.error(`❌ Failed to send verification email on login to ${user.email}:`, emailErr?.message ?? emailErr);
+                }
 
-            res.status(403).json({
-                message: 'Please verify your email first. A new code has been sent.',
-                requiresVerification: true,
-                email: user.email,
-            });
-            return;
+                res.status(403).json({
+                    message: 'Please verify your email first. A new code has been sent.',
+                    requiresVerification: true,
+                    email: user.email,
+                });
+                return;
+            }
         }
 
         // 2FA challenge
@@ -224,14 +268,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
             });
 
-            // Await the 2FA email — if this fails the user is completely stuck,
-            // so we must surface the error rather than pretending it was sent.
             try {
                 await send2FACode(user.email, user.name, otp);
                 console.log(`✅ 2FA code sent to ${user.email}`);
             } catch (emailErr: any) {
                 console.error(`❌ Failed to send 2FA code to ${user.email}:`, emailErr?.message ?? emailErr);
-                // Clear the code so user can attempt login again later
                 await User.findByIdAndUpdate(user._id, {
                     twoFactorCode: undefined,
                     twoFactorExpires: undefined,
