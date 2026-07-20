@@ -138,7 +138,7 @@ export const sendVerificationEmail = async (
             `Welcome, ${name}!`,
             `<p style="color:#444;font-size:15px;">Enter this code to verify your email address:</p>
              ${codeBlock(code)}
-             <p style="color:#999;font-size:13px;">Expires in <strong>24 hours</strong>.</p>`
+             <p style="color:#999;font-size:13px;">Expires in <strong>5 minutes</strong>.</p>`
         )
     );
 };

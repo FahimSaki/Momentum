@@ -5,6 +5,11 @@ import { randomInt } from 'crypto';
 import User from '../models/User';
 import { sendVerificationEmail, send2FACode } from '../services/emailService';
 
+// Email verification codes are valid for this long. resendVerification's
+// 60-second cooldown derives "time since last send" from this value — keep
+// them in sync.
+const EMAIL_VERIFICATION_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
 function generateOTP(): string {
     return randomInt(100000, 999999).toString();
 }
@@ -55,7 +60,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
                     password: hashedPassword,
                     name: name.trim(),
                     emailVerificationCode: otp,
-                    emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                    emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
                 });
 
                 try {
@@ -86,7 +91,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             name: name.trim(),
             isEmailVerified: false,
             emailVerificationCode: otp,
-            emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
             twoFactorEnabled: false,
             isActive: true,
             lastLoginAt: new Date(),
@@ -182,7 +187,7 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
 
         // Simple rate limit: block if a code was sent in the last 60 seconds
         if (user.emailVerificationExpires) {
-            const elapsed = (24 * 60 * 60 * 1000) - (user.emailVerificationExpires.getTime() - Date.now());
+            const elapsed = EMAIL_VERIFICATION_EXPIRY_MS - (user.emailVerificationExpires.getTime() - Date.now());
             if (elapsed < 60_000) {
                 res.status(429).json({ message: 'Please wait before requesting another code.' });
                 return;
@@ -192,7 +197,7 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
         const otp = generateOTP();
         await User.findByIdAndUpdate(user._id, {
             emailVerificationCode: otp,
-            emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
         });
 
         try {
@@ -242,7 +247,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 const otp = generateOTP();
                 await User.findByIdAndUpdate(user._id, {
                     emailVerificationCode: otp,
-                    emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                    emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
                 });
                 try {
                     await sendVerificationEmail(user.email, user.name, otp);
