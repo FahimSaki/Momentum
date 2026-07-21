@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +22,11 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   final List<String> _selectedAssignees = [];
   bool _isLoading = false;
 
+  // Caps the dialog's width on tablets/desktop/web so it doesn't stretch
+  // edge-to-edge on large screens. Phones (isMobile) keep the original
+  // full-bleed sizing driven by insetPadding.
+  static const double _maxDialogWidth = 480;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -34,6 +40,9 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
       builder: (context, db, _) {
         final selectedTeam = db.selectedTeam;
         final isDark = Theme.of(context).brightness == Brightness.dark;
+        final dialogWidth = isMobile(context)
+            ? double.infinity
+            : _maxDialogWidth;
 
         return Dialog(
           shape: RoundedRectangleBorder(
@@ -43,318 +52,327 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
             horizontal: 20,
             vertical: 40,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: dialogWidth),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                   ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(24),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.add_task_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            selectedTeam != null
-                                ? 'New Team Task'
-                                : 'New Personal Task',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          if (selectedTeam != null)
-                            Text(
-                              selectedTeam.name,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.8),
-                                fontSize: 13,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                        size: 22,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Content
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      // Task name
-                      TextField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Task Name *',
-                          prefixIcon: Icon(
-                            Icons.drive_file_rename_outline_rounded,
-                          ),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        enabled: !_isLoading,
-                        textCapitalization: TextCapitalization.sentences,
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Description
-                      TextField(
-                        controller: _descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Description (optional)',
-                          prefixIcon: Icon(Icons.notes_rounded),
+                        child: const Icon(
+                          Icons.add_task_rounded,
+                          color: Colors.white,
+                          size: 22,
                         ),
-                        maxLines: 2,
-                        enabled: !_isLoading,
-                        textCapitalization: TextCapitalization.sentences,
                       ),
-                      const SizedBox(height: 14),
-
-                      // Priority
-                      DropdownButtonFormField<String>(
-                        initialValue: _priority,
-                        decoration: const InputDecoration(
-                          labelText: 'Priority',
-                          prefixIcon: Icon(Icons.flag_rounded),
-                        ),
-                        items: [
-                          _priorityItem('low', 'Low', const Color(0xFF22C55E)),
-                          _priorityItem(
-                            'medium',
-                            'Medium',
-                            const Color(0xFFF59E0B),
-                          ),
-                          _priorityItem(
-                            'high',
-                            'High',
-                            const Color(0xFFF97316),
-                          ),
-                          _priorityItem(
-                            'urgent',
-                            'Urgent',
-                            const Color(0xFFE53E3E),
-                          ),
-                        ],
-                        onChanged: _isLoading
-                            ? null
-                            : (v) => setState(() => _priority = v ?? 'medium'),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // Due date
-                      GestureDetector(
-                        onTap: _isLoading
-                            ? null
-                            : () async {
-                                final date = await showDatePicker(
-                                  context: context,
-                                  initialDate: DateTime.now().add(
-                                    const Duration(days: 1),
-                                  ),
-                                  firstDate: DateTime.now(),
-                                  lastDate: DateTime.now().add(
-                                    const Duration(days: 365),
-                                  ),
-                                );
-                                if (date != null) {
-                                  setState(() => _dueDate = date);
-                                }
-                              },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF232236)
-                                : const Color(0xFFF5F3FF),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF2D2C44)
-                                  : const Color(0xFFDDD6FE),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today_rounded,
-                                size: 18,
-                                color: _dueDate != null
-                                    ? const Color(0xFF6366F1)
-                                    : (isDark
-                                          ? const Color(0xFF9B99C8)
-                                          : const Color(0xFF6B66A3)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              selectedTeam != null
+                                  ? 'New Team Task'
+                                  : 'New Personal Task',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
                               ),
-                              const SizedBox(width: 12),
+                            ),
+                            if (selectedTeam != null)
                               Text(
-                                _dueDate != null
-                                    ? 'Due: ${_dueDate!.year}-${_dueDate!.month.toString().padLeft(2, '0')}-${_dueDate!.day.toString().padLeft(2, '0')}'
-                                    : 'Set due date (optional)',
+                                selectedTeam.name,
                                 style: TextStyle(
-                                  color: _dueDate != null
-                                      ? Theme.of(
-                                          context,
-                                        ).colorScheme.inversePrimary
-                                      : (isDark
-                                            ? const Color(0xFF5A587A)
-                                            : const Color(0xFFB0ADDB)),
-                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.8),
+                                  fontSize: 13,
                                 ),
                               ),
-                              const Spacer(),
-                              if (_dueDate != null)
-                                GestureDetector(
-                                  onTap: () => setState(() => _dueDate = null),
-                                  child: Icon(
-                                    Icons.close_rounded,
-                                    size: 16,
-                                    color: isDark
-                                        ? const Color(0xFF9B99C8)
-                                        : const Color(0xFF6B66A3),
-                                  ),
-                                ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
 
-                      // Team-specific options
-                      if (selectedTeam != null) ...[
-                        const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          initialValue: _assignmentType,
+                // Content
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Task name
+                        TextField(
+                          controller: _nameController,
                           decoration: const InputDecoration(
-                            labelText: 'Assign To',
-                            prefixIcon: Icon(Icons.group_rounded),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'individual',
-                              child: Text('Select Members'),
+                            labelText: 'Task Name *',
+                            prefixIcon: Icon(
+                              Icons.drive_file_rename_outline_rounded,
                             ),
-                            DropdownMenuItem(
-                              value: 'team',
-                              child: Text('Entire Team'),
+                          ),
+                          enabled: !_isLoading,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Description
+                        TextField(
+                          controller: _descriptionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Description (optional)',
+                            prefixIcon: Icon(Icons.notes_rounded),
+                          ),
+                          maxLines: 2,
+                          enabled: !_isLoading,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Priority
+                        DropdownButtonFormField<String>(
+                          initialValue: _priority,
+                          decoration: const InputDecoration(
+                            labelText: 'Priority',
+                            prefixIcon: Icon(Icons.flag_rounded),
+                          ),
+                          items: [
+                            _priorityItem(
+                              'low',
+                              'Low',
+                              const Color(0xFF22C55E),
+                            ),
+                            _priorityItem(
+                              'medium',
+                              'Medium',
+                              const Color(0xFFF59E0B),
+                            ),
+                            _priorityItem(
+                              'high',
+                              'High',
+                              const Color(0xFFF97316),
+                            ),
+                            _priorityItem(
+                              'urgent',
+                              'Urgent',
+                              const Color(0xFFE53E3E),
                             ),
                           ],
                           onChanged: _isLoading
                               ? null
-                              : (v) => setState(() {
-                                  _assignmentType = v ?? 'individual';
-                                  if (_assignmentType == 'team') {
-                                    _selectedAssignees.clear();
-                                  }
-                                }),
+                              : (v) =>
+                                    setState(() => _priority = v ?? 'medium'),
                         ),
-                        if (_assignmentType == 'individual') ...[
+                        const SizedBox(height: 14),
+
+                        // Due date
+                        GestureDetector(
+                          onTap: _isLoading
+                              ? null
+                              : () async {
+                                  final date = await showDatePicker(
+                                    context: context,
+                                    initialDate: DateTime.now().add(
+                                      const Duration(days: 1),
+                                    ),
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 365),
+                                    ),
+                                  );
+                                  if (date != null) {
+                                    setState(() => _dueDate = date);
+                                  }
+                                },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF232236)
+                                  : const Color(0xFFF5F3FF),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isDark
+                                    ? const Color(0xFF2D2C44)
+                                    : const Color(0xFFDDD6FE),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 18,
+                                  color: _dueDate != null
+                                      ? const Color(0xFF6366F1)
+                                      : (isDark
+                                            ? const Color(0xFF9B99C8)
+                                            : const Color(0xFF6B66A3)),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _dueDate != null
+                                      ? 'Due: ${_dueDate!.year}-${_dueDate!.month.toString().padLeft(2, '0')}-${_dueDate!.day.toString().padLeft(2, '0')}'
+                                      : 'Set due date (optional)',
+                                  style: TextStyle(
+                                    color: _dueDate != null
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.inversePrimary
+                                        : (isDark
+                                              ? const Color(0xFF5A587A)
+                                              : const Color(0xFFB0ADDB)),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (_dueDate != null)
+                                  GestureDetector(
+                                    onTap: () =>
+                                        setState(() => _dueDate = null),
+                                    child: Icon(
+                                      Icons.close_rounded,
+                                      size: 16,
+                                      color: isDark
+                                          ? const Color(0xFF9B99C8)
+                                          : const Color(0xFF6B66A3),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Team-specific options
+                        if (selectedTeam != null) ...[
                           const SizedBox(height: 14),
-                          _buildMemberSelection(selectedTeam, isDark),
+                          DropdownButtonFormField<String>(
+                            initialValue: _assignmentType,
+                            decoration: const InputDecoration(
+                              labelText: 'Assign To',
+                              prefixIcon: Icon(Icons.group_rounded),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'individual',
+                                child: Text('Select Members'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'team',
+                                child: Text('Entire Team'),
+                              ),
+                            ],
+                            onChanged: _isLoading
+                                ? null
+                                : (v) => setState(() {
+                                    _assignmentType = v ?? 'individual';
+                                    if (_assignmentType == 'team') {
+                                      _selectedAssignees.clear();
+                                    }
+                                  }),
+                          ),
+                          if (_assignmentType == 'individual') ...[
+                            const SizedBox(height: 14),
+                            _buildMemberSelection(selectedTeam, isDark),
+                          ],
                         ],
+                        const SizedBox(height: 20),
                       ],
-                      const SizedBox(height: 20),
+                    ),
+                  ),
+                ),
+
+                // Actions
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _createTask,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_rounded, size: 18),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Create Task',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-
-              // Actions
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _createTask,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.add_rounded, size: 18),
-                                  SizedBox(width: 6),
-                                  Text(
-                                    'Create Task',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
