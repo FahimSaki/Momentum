@@ -47,6 +47,8 @@ export interface IUser {
     twoFactorEnabled: boolean;
     twoFactorCode?: string;
     twoFactorExpires?: Date;
+    deleteAccountCode?: string;
+    deleteAccountExpires?: Date;
     name: string;
     avatar?: string;
     bio?: string;

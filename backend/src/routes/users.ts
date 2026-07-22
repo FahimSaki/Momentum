@@ -8,7 +8,8 @@ import {
     findByInviteId,
     searchUsers,
     changePassword,
-    deleteAccount,
+    requestAccountDeletion,
+    confirmAccountDeletion,
     enableTwoFactor,
     disableTwoFactor,
 } from '../controllers/userController';
@@ -26,7 +27,8 @@ router.delete('/fcm-token', removeFcmToken);
 router.get('/invite/:inviteId', findByInviteId);
 router.get('/search', searchUsers);
 router.put('/change-password', changePassword);
-router.delete('/account', deleteAccount);
+router.post('/request-account-deletion', requestAccountDeletion);
+router.post('/confirm-account-deletion', confirmAccountDeletion);
 router.post('/2fa/enable', enableTwoFactor);
 router.post('/2fa/disable', disableTwoFactor);
 

@@ -159,3 +159,20 @@ export const send2FACode = async (
         )
     );
 };
+
+export const sendAccountDeletionCode = async (
+    to: string,
+    name: string,
+    code: string
+): Promise<void> => {
+    await sendMail(
+        to,
+        'Confirm account deletion — Momentum',
+        baseTemplate(
+            `Confirm account deletion, ${name}`,
+            `<p style="color:#444;font-size:15px;">Enter this code to permanently delete your Momentum account. This removes your tasks, team memberships, and account data.</p>
+             ${codeBlock(code)}
+             <p style="color:#999;font-size:13px;">Expires in <strong>10 minutes</strong>. If you didn't request this, ignore this email — your account will remain unchanged.</p>`
+        )
+    );
+};

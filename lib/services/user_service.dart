@@ -118,4 +118,37 @@ class UserService {
       rethrow;
     }
   }
+
+  Future<void> requestAccountDeletion() async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/request-account-deletion'),
+        headers: _headers,
+      );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to send verification code');
+      }
+    } catch (e, st) {
+      _logger.e('Error requesting account deletion', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<void> confirmAccountDeletion(String code) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/confirm-account-deletion'),
+        headers: _headers,
+        body: json.encode({'code': code}),
+      );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to delete account');
+      }
+    } catch (e, st) {
+      _logger.e('Error confirming account deletion', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
 }

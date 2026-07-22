@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/user.dart';
+import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/services/user_service.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   UserService? _userService;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isRequestingDeletion = false;
 
   @override
   void initState() {
@@ -152,6 +154,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       _buildInviteIdCard(),
                       const SizedBox(height: 16),
                       _buildPrivacySettings(),
+                      const SizedBox(height: 24),
+                      _buildDangerZone(),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -361,6 +365,142 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  Widget _buildDangerZone() {
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.red.withValues(alpha: 0.4)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                const SizedBox(width: 8),
+                Text(
+                  'Danger Zone',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Deleting your account is permanent. All tasks, team '
+              'memberships, and history will be lost and cannot be '
+              'recovered.',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isRequestingDeletion ? null : _startAccountDeletion,
+                icon: _isRequestingDeletion
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_forever, color: Colors.red),
+                label: Text(
+                  _isRequestingDeletion ? 'Sending code...' : 'Delete Account',
+                  style: const TextStyle(color: Colors.red),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startAccountDeletion() async {
+    if (_userService == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete Account'),
+          ],
+        ),
+        content: const Text(
+          'This will permanently delete your account, tasks, and team '
+          'memberships. This cannot be undone.\n\n'
+          "We'll email you a verification code to confirm.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Send Code'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRequestingDeletion = true);
+    try {
+      await _userService!.requestAccountDeletion();
+      if (!mounted) return;
+      setState(() => _isRequestingDeletion = false);
+
+      final deleted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) =>
+            _DeleteAccountVerificationDialog(userService: _userService!),
+      );
+
+      if (deleted == true && mounted) {
+        await AuthService.instance.logout();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (r) => false);
+        }
+      }
+    } catch (e, stackTrace) {
+      _logger.e(
+        'Error requesting account deletion',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      if (mounted) {
+        setState(() => _isRequestingDeletion = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to send code: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _updatePrivacySetting(String setting, dynamic value) async {
     try {
       User updatedUser;
@@ -433,5 +573,127 @@ class _UserProfilePageState extends State<UserProfilePage> {
         );
       }
     }
+  }
+}
+
+// ── Delete-account OTP dialog ─────────────────────────────────────────────
+
+class _DeleteAccountVerificationDialog extends StatefulWidget {
+  final UserService userService;
+  const _DeleteAccountVerificationDialog({required this.userService});
+
+  @override
+  State<_DeleteAccountVerificationDialog> createState() =>
+      _DeleteAccountVerificationDialogState();
+}
+
+class _DeleteAccountVerificationDialogState
+    extends State<_DeleteAccountVerificationDialog> {
+  final _codeController = TextEditingController();
+  bool _isVerifying = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final code = _codeController.text.trim();
+    if (code.length != 6) {
+      setState(() => _error = 'Enter the 6-digit code from your email');
+      return;
+    }
+    setState(() {
+      _isVerifying = true;
+      _error = null;
+    });
+    try {
+      await widget.userService.confirmAccountDeletion(code);
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Row(
+        children: [
+          Icon(Icons.delete_forever_rounded, color: Colors.red),
+          SizedBox(width: 10),
+          Text('Confirm Deletion'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enter the 6-digit code sent to your email to permanently '
+            'delete your account.',
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _codeController,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 10,
+            ),
+            decoration: const InputDecoration(
+              hintText: '000000',
+              counterText: '',
+            ),
+            enabled: !_isVerifying,
+            onChanged: (_) => setState(() => _error = null),
+            onSubmitted: (_) => _verify(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(color: Colors.red, fontSize: 13),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isVerifying
+              ? null
+              : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _isVerifying ? null : _verify,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          child: _isVerifying
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Delete Forever'),
+        ),
+      ],
+    );
   }
 }

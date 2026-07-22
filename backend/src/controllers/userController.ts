@@ -1,13 +1,22 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'crypto';
+import { sendAccountDeletionCode } from '../services/emailService';
+
+// Verification codes for account deletion are valid for this long.
+const DELETE_ACCOUNT_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
+function generateOTP(): string {
+    return randomInt(100000, 999999).toString();
+}
 
 // ── Get current user profile ──────────────────────────────────────────────
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const user = await User.findById(req.userId)
-            .select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires')
+            .select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires -deleteAccountCode -deleteAccountExpires')
             .populate('teams', 'name description');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
         res.json(user);
@@ -200,14 +209,77 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Delete account ────────────────────────────────────────────────────────
+// ── Request account deletion (sends verification code) ────────────────────
 
-export const deleteAccount = async (req: Request, res: Response): Promise<void> => {
+export const requestAccountDeletion = async (req: Request, res: Response): Promise<void> => {
     try {
-        await User.findByIdAndUpdate(req.userId, { isActive: false });
-        res.json({ message: 'Account deactivated successfully' });
+        const user = await User.findById(req.userId).select('+deleteAccountExpires');
+        if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+
+        // Simple rate limit: block if a code was already sent recently and hasn't expired
+        if (user.deleteAccountExpires) {
+            const elapsed = DELETE_ACCOUNT_CODE_EXPIRY_MS - (user.deleteAccountExpires.getTime() - Date.now());
+            if (elapsed < 60_000) {
+                res.status(429).json({ message: 'Please wait before requesting another code.' });
+                return;
+            }
+        }
+
+        const otp = generateOTP();
+
+        await User.findByIdAndUpdate(req.userId, {
+            deleteAccountCode: otp,
+            deleteAccountExpires: new Date(Date.now() + DELETE_ACCOUNT_CODE_EXPIRY_MS),
+        });
+
+        try {
+            await sendAccountDeletionCode(user.email, user.name, otp);
+        } catch (emailErr: any) {
+            console.error('Failed to send account deletion code:', emailErr?.message ?? emailErr);
+            res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
+            return;
+        }
+
+        res.json({ message: 'A verification code has been sent to your email.' });
     } catch (err) {
-        console.error('Delete account error:', err);
+        console.error('Request account deletion error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ── Confirm account deletion (verifies code, deactivates account) ─────────
+
+export const confirmAccountDeletion = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { code } = req.body as { code?: string };
+        if (!code?.trim()) { res.status(400).json({ message: 'Verification code is required' }); return; }
+
+        const user = await User.findById(req.userId)
+            .select('+deleteAccountCode +deleteAccountExpires');
+        if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+
+        if (!user.deleteAccountCode || !user.deleteAccountExpires) {
+            res.status(400).json({ message: 'No verification code found. Please request a new one.' });
+            return;
+        }
+        if (new Date() > user.deleteAccountExpires) {
+            res.status(400).json({ message: 'Verification code expired. Please request a new one.' });
+            return;
+        }
+        if (user.deleteAccountCode !== code.trim()) {
+            res.status(400).json({ message: 'Invalid verification code' });
+            return;
+        }
+
+        await User.findByIdAndUpdate(req.userId, {
+            isActive: false,
+            deleteAccountCode: undefined,
+            deleteAccountExpires: undefined,
+        });
+
+        res.json({ message: 'Account deleted successfully' });
+    } catch (err) {
+        console.error('Confirm account deletion error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };
@@ -220,7 +292,7 @@ export const enableTwoFactor = async (req: Request, res: Response): Promise<void
             req.userId,
             { twoFactorEnabled: true },
             { new: true }
-        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires');
+        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires -deleteAccountCode -deleteAccountExpires');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
         res.json({ message: 'Two-factor authentication enabled', twoFactorEnabled: true });
     } catch (err) {
@@ -237,7 +309,7 @@ export const disableTwoFactor = async (req: Request, res: Response): Promise<voi
             req.userId,
             { twoFactorEnabled: false, twoFactorCode: undefined, twoFactorExpires: undefined },
             { new: true }
-        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires');
+        ).select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires -deleteAccountCode -deleteAccountExpires');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
         res.json({ message: 'Two-factor authentication disabled', twoFactorEnabled: false });
     } catch (err) {
