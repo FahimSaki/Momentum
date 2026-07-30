@@ -6,18 +6,39 @@ An overview of Momentum's authentication model, permission system, data protecti
 
 ## Authentication
 
+### Token Lifecycle
+
+Two different things both get casually called "the JWT" — worth being precise about which is which:
+
+- **`JWT_SECRET`** — the signing key, held only in the server's environment variables. It stays fixed by design: the same secret has to be present both when a token is signed and later when it's verified, or every previously issued token would suddenly fail validation. Rotating it is a deliberate, rare action (see Token Rotation below), not something that happens per request.
+- **The token itself** — the string returned to the client after login. A new one is minted on every successful sign-in, signed with the fixed secret above, and expires after 7 days.
+
+End-to-end:
+
+1. `POST /auth/login`, `POST /auth/verify-2fa`, or `POST /auth/google` calls `jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' })` on success, producing a fresh token for that session.
+2. The Flutter client stores it (see Token Storage below) and attaches it as `Authorization: Bearer <token>` on every subsequent request.
+3. `authenticateToken` (see Backend Middleware below) verifies the signature and expiry against that same `JWT_SECRET`, loads the user, and checks `isActive` on every protected route.
+4. On expiry or an `isActive: false` account, verification fails, the client gets a `401`/`403`, and is logged out.
+
+The secret is meant to be constant; the tokens are what's generated and rotated, once per login.
+
 ### Registration and Login
 
 Passwords are hashed with **bcryptjs** (12 salt rounds) before being stored. Plain-text passwords never touch the database.
 
-On login the server returns a signed **JSON Web Token** (JWT) with a 7-day expiry (`expiresIn: '7d'`). The JWT payload contains only `{ userId }` – no sensitive user data.
+New accounts must verify their email before they can log in. Registration emails a 6-digit OTP (5-minute expiry) via the Gmail REST API (see [DEPLOYMENT.md](DEPLOYMENT.md)); the account stays `isEmailVerified: false` until `POST /auth/verify-email` succeeds. Accounts created before this system existed are auto-verified the next time they log in successfully with a password, rather than being locked out.
 
-Google OAuth is scaffolded (`passport-google-oauth20` is in `package.json`) but not yet implemented. Accounts created via email/password have a `password` field; the login controller checks for its absence and returns an appropriate error if a user tries to log in with a password on a Google-only account.
+Once the email is verified, login behaves as follows:
+
+- If the account has **two-factor authentication** enabled (`twoFactorEnabled: true`), the server emails a second 6-digit OTP (10-minute expiry) and responds with `requiresTwoFactor: true` instead of a token. The JWT is only issued after `POST /auth/verify-2fa` succeeds.
+- Otherwise the server immediately returns a signed **JSON Web Token** (JWT) with a 7-day expiry (`expiresIn: '7d'`). The JWT payload contains only `{ userId }` – no sensitive user data.
+
+**Google Sign-In is fully implemented** (`POST /auth/google`) — there's no Passport dependency involved. The Flutter app obtains a Google ID token via the `google_sign_in` package; the backend verifies it server-side against Google's `tokeninfo` endpoint (and checks the `aud` claim against `GOOGLE_CLIENT_ID` when that env var is set) before issuing a Momentum JWT. Accounts created via email/password have a `password` field; the login controller checks for its absence and returns an appropriate error if a user tries to log in with a password on a Google-only account.
 
 ### Token Storage
 
 | Platform | Storage mechanism |
-|----------|------------------|
+| ---------- | ------------------ |
 | Android | Android Keystore via `flutter_secure_storage` |
 | iOS | iOS Keychain via `flutter_secure_storage` |
 | Web | In-memory only (`SharedPreferences` on web is not used for tokens) |
@@ -27,7 +48,9 @@ Tokens are never stored in plain `SharedPreferences` or `localStorage`.
 
 ### Token Validation
 
-On every app launch, `SplashPage` calls `GET /auth/validate`. The backend verifies the JWT signature and expiry, then fetches the full `User` document to confirm the account still exists. An invalid or expired token triggers a full logout and clears all stored credentials.
+Every protected route passes through `authenticateToken` (`backend/src/middleware/middle_auth.ts`), which verifies the JWT signature and expiry, loads the full `User` document, and rejects the request if the account has since been deactivated (`isActive: false`) — this closes the gap where a soft-deleted account's still-valid token could otherwise keep authenticating for the remainder of its 7-day lifetime.
+
+On every app launch, `SplashPage` additionally calls `GET /auth/validate`, which runs through the same middleware. An invalid, expired, or deactivated-account token triggers a full logout and clears all stored credentials.
 
 ### Token Rotation
 
@@ -44,6 +67,7 @@ Every protected route passes through `authenticateToken` (`backend/src/middlewar
 1. Extracts the `Authorization: Bearer <token>` header.
 2. Verifies the JWT signature with `JWT_SECRET`.
 3. Fetches the `User` document and attaches it to `req.user` and `req.userId`.
+4. Rejects the request if the account has been deactivated (`isActive: false`).
 
 If any step fails, the request is rejected with `401` or `403` before reaching the controller.
 
@@ -52,7 +76,7 @@ If any step fails, the request is rejected with `401` or `403` before reaching t
 Task creation, editing, and deletion are gated by helper functions in `backend/src/controllers/taskController.ts`:
 
 | Action | Who can perform it |
-|--------|--------------------|
+| -------- | -------------------- |
 | Create task | Any authenticated user (personal); team owner or admin (team task) |
 | Edit task | Team owner / admin, or the user who created the task (`assignedBy`) |
 | Delete task | Team owner / admin, or the user who created the task |
@@ -63,7 +87,7 @@ These checks run server-side on every request. The frontend enforces the same ru
 ### Team Permissions
 
 | Role | Can create tasks | Can edit/delete tasks | Can invite members | Can change settings | Can delete team |
-|------|:-:|:-:|:-:|:-:|:-:|
+| ------ | :-: | :-: | :-: | :-: | :-: |
 | owner | ✓ | ✓ (all) | ✓ | ✓ | ✓ |
 | admin | ✓ | ✓ (all) | ✓ | ✓ | ✗ |
 | member | ✗ | ✗ | ✗ (unless `allowMemberInvite`) | ✗ | ✗ |
@@ -86,6 +110,7 @@ All controller inputs are validated before touching the database:
 - Enum values (`priority`, `role`, `assignmentType`, `status`) are validated by Mongoose schema enums.
 - `profileVisibility` keys are checked against a whitelist before being saved.
 - MongoDB ObjectId parameters (`:teamId`, `:taskId`, etc.) are implicitly validated by Mongoose's `findById` – invalid IDs cause a `CastError`.
+- User-supplied search text (`GET /users/search`) has regex metacharacters escaped before being used in a MongoDB query, preventing ReDoS via crafted search terms.
 
 ---
 

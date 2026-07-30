@@ -25,6 +25,11 @@ export const authenticateToken = async (
             return;
         }
 
+        if (!user.isActive) {
+            res.status(401).json({ message: 'This account has been deactivated' });
+            return;
+        }
+
         req.user = user;
         req.userId = user._id.toString();
         next();

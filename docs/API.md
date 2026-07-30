@@ -17,7 +17,7 @@ Authorization: Bearer <jwt_token>
 
 ### POST /auth/register
 
-Register a new user account.
+Register a new user account. Registration does **not** return a token — the account must verify its email before it can log in.
 
 **Request body**
 
@@ -33,30 +33,53 @@ Register a new user account.
 
 ```json
 {
-  "token": "<jwt>",
-  "user": {
-    "_id": "...",
-    "name": "Jane Doe",
-    "email": "jane@example.com",
-    "inviteId": "swift-tiger-1234",
-    "isPublic": true,
-    "profileVisibility": { "showEmail": false, "showName": true, "showBio": true },
-    "notificationSettings": { "email": true, "push": true, "inApp": true, "taskAssigned": true, "taskCompleted": true, "teamInvitations": true, "dailyReminder": false },
-    "teams": [],
-    "createdAt": "...",
-    "updatedAt": "..."
-  },
-  "message": "Registration successful"
+  "message": "Account created. Check your email for a 6-digit verification code.",
+  "requiresVerification": true,
+  "email": "jane@example.com"
 }
 ```
 
-**Errors**: `400` missing fields / password under 6 chars / email already exists
+A 6-digit OTP (5-minute expiry) is emailed via the Gmail REST API (see [DEPLOYMENT.md](DEPLOYMENT.md) for the required env vars). Re-registering with the same, still-unverified email resends a fresh code instead of erroring.
+
+**Errors**: `400` missing fields / password under 6 chars / email already registered and verified
+
+---
+
+### POST /auth/verify-email
+
+Confirm the OTP sent at registration (or by `resend-verification`).
+
+**Request body**
+
+```json
+{ "email": "jane@example.com", "code": "123456" }
+```
+
+**Response 200** `{ "message": "Email verified successfully. You can now log in." }`
+
+**Errors**: `400` missing/invalid/expired code, `404` account not found
+
+---
+
+### POST /auth/resend-verification
+
+Request a new verification OTP. Rate-limited to one request per 60 seconds.
+
+**Request body**
+
+```json
+{ "email": "jane@example.com" }
+```
+
+**Response 200** `{ "message": "Verification code sent to your email." }`
+
+**Errors**: `404` account not found, `429` requested again too soon
 
 ---
 
 ### POST /auth/login
 
-Authenticate an existing user.
+Authenticate an existing user. The response shape depends on the account's email-verification and 2FA state — check for `requiresVerification` / `requiresTwoFactor` before assuming `token` is present.
 
 **Request body**
 
@@ -67,23 +90,90 @@ Authenticate an existing user.
 }
 ```
 
-**Response 200**
+**Response 200 — normal login**
 
 ```json
 {
   "token": "<jwt>",
-  "user": { ... },
+  "user": {
+    "_id": "...",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "isEmailVerified": true,
+    "twoFactorEnabled": false,
+    "inviteId": "swift-tiger-1234",
+    "isPublic": true,
+    "profileVisibility": { "showEmail": false, "showName": true, "showBio": true },
+    "notificationSettings": { "email": true, "push": true, "inApp": true, "taskAssigned": true, "taskCompleted": true, "teamInvitations": true, "dailyReminder": false },
+    "teams": [],
+    "createdAt": "...",
+    "updatedAt": "..."
+  },
   "message": "Login successful"
 }
 ```
 
-**Errors**: `401` invalid credentials, `401` Google-only account
+**Response 200 — 2FA enabled** (no token yet — call `POST /auth/verify-2fa` next)
+
+```json
+{
+  "message": "A verification code has been sent to your email.",
+  "requiresTwoFactor": true,
+  "email": "jane@example.com"
+}
+```
+
+**Response 403 — email not verified** (no token; a fresh code was just sent — call `POST /auth/verify-email`)
+
+```json
+{
+  "message": "Please verify your email first. A new code has been sent.",
+  "requiresVerification": true,
+  "email": "jane@example.com"
+}
+```
+
+**Errors**: `401` invalid credentials, `401` Google-only account (no `password` set)
+
+---
+
+### POST /auth/verify-2fa
+
+Complete login for an account with two-factor authentication enabled.
+
+**Request body**
+
+```json
+{ "email": "jane@example.com", "code": "123456" }
+```
+
+**Response 200** — identical shape to a normal login (`token`, `user`, `"message": "Login successful"`)
+
+**Errors**: `400` missing/invalid/expired code, `404` account not found
+
+---
+
+### POST /auth/google
+
+Sign in with a Google ID token, registering the account automatically on first use.
+
+**Request body**
+
+```json
+{ "idToken": "<google_id_token>" }
+```
+
+The backend verifies the token server-side against Google's `tokeninfo` endpoint (and checks the `aud` claim against `GOOGLE_CLIENT_ID` when that env var is set) — no separate client secret needs to reach the app beyond the OAuth client ID already configured for `google_sign_in` in Flutter.
+
+**Response 200** — identical shape to a normal login, with `"message": "Google sign-in successful"`
+
+**Errors**: `401` invalid Google token or wrong audience, `400` Google didn't return an email
 
 ---
 
 ### POST /auth/logout
 
-Invalidate the session server-side (stateless – client should discard the token).
+Invalidate the session client-side (stateless – the client discards the token; there is no server-side token blacklist).
 
 **Response 200** `{ "message": "Logged out successfully" }`
 
@@ -91,7 +181,7 @@ Invalidate the session server-side (stateless – client should discard the toke
 
 ### GET /auth/validate  *(protected)*
 
-Verify a JWT is still valid and return the current user.
+Verify a JWT is still valid, belongs to an active (non-deactivated) account, and return the current user.
 
 **Response 200**
 
@@ -99,11 +189,17 @@ Verify a JWT is still valid and return the current user.
 {
   "valid": true,
   "userId": "...",
-  "user": { "id": "...", "name": "Jane Doe", "email": "jane@example.com" }
+  "user": {
+    "id": "...",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "isEmailVerified": true,
+    "twoFactorEnabled": false
+  }
 }
 ```
 
-**Errors**: `401` / `403` invalid or expired token
+**Errors**: `401` / `403` invalid, expired, or deactivated-account token
 
 ---
 
@@ -116,10 +212,11 @@ Fetch tasks assigned to the authenticated user.
 **Query parameters**
 
 | Param | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `userId` | string | Override – defaults to authenticated user |
 | `teamId` | string | Filter by team |
 | `type` | `personal` \| `team` \| `all` | Default: `all` |
+| `status` | `active` \| `archived` \| `all` | Default: `active`. `active` includes non-archived tasks plus tasks archived earlier today |
 
 **Response 200** – array of Task objects (see schema below)
 
@@ -183,7 +280,7 @@ Toggle the completion state of a task for the current day.
 }
 ```
 
-The response `task` object contains the full updated document including `completedDays` and `completedBy`.
+(`"Task unmarked successfully"` when `isCompleted` is `false`.) The response `task` object contains the full updated document including `completedDays` and `completedBy`.
 
 ---
 
@@ -247,7 +344,7 @@ Dashboard statistics for the authenticated user.
 
 Get tasks for a specific team.
 
-**Query parameters**: `status` (`active` | `archived`, default: `active`)
+**Query parameters**: `status` (`active` | `archived` | `all`, default: `active`)
 
 **Permissions**: team members only.
 
@@ -390,6 +487,24 @@ Remove a member from the team.
 **Permissions**: owner can remove anyone; admin can remove members (not other admins); a user may remove themselves.
 
 **Response 200** `{ "message": "Member removed successfully" }`
+
+---
+
+### PATCH /teams/:teamId/members/:memberId/role
+
+Change a member's role between `member` and `admin`. The owner's role can't be changed here.
+
+**Request body**
+
+```json
+{ "role": "admin" }
+```
+
+**Permissions**: owner can promote or demote any non-owner member; admin can only promote a `member` to `admin`.
+
+**Response 200** `{ "message": "Member role updated successfully", "member": { ... } }`
+
+**Errors**: `400` invalid role / target is the owner, `403` insufficient permission, `404` member not found
 
 ---
 
@@ -550,11 +665,45 @@ Change the authenticated user's password.
 
 ---
 
-### DELETE /users/account
+### POST /users/2fa/enable
 
-Deactivate the user's account (sets `isActive: false`).
+Turn on two-factor authentication for the authenticated account. Future logins require an emailed OTP in addition to the password (see `POST /auth/login` / `POST /auth/verify-2fa`).
 
-**Response 200** `{ "message": "Account deactivated successfully" }`
+**Response 200** `{ "message": "Two-factor authentication enabled", "twoFactorEnabled": true }`
+
+---
+
+### POST /users/2fa/disable
+
+Turn off two-factor authentication.
+
+**Response 200** `{ "message": "Two-factor authentication disabled", "twoFactorEnabled": false }`
+
+---
+
+### POST /users/request-account-deletion
+
+Start account deletion. Emails a 6-digit OTP (10-minute expiry) to the user; does **not** deactivate the account by itself.
+
+**Response 200** `{ "message": "A verification code has been sent to your email." }`
+
+**Errors**: `429` requested again too soon
+
+---
+
+### POST /users/confirm-account-deletion
+
+Confirm the OTP from `request-account-deletion` and deactivate the account (`isActive: false`, soft-delete).
+
+**Request body**
+
+```json
+{ "code": "123456" }
+```
+
+**Response 200** `{ "message": "Account deleted successfully" }`
+
+**Errors**: `400` missing/invalid/expired code
 
 ---
 
@@ -567,7 +716,7 @@ Fetch notifications for the authenticated user.
 **Query parameters**
 
 | Param | Type | Default | Description |
-|-------|------|---------|-------------|
+| ------- | ------ | --------- | ------------- |
 | `page` | number | 1 | Page number |
 | `limit` | number | 20 | Results per page (max 50) |
 | `unreadOnly` | boolean | false | Return only unread notifications |
@@ -714,7 +863,7 @@ All errors return:
 ```
 
 | Status | Meaning |
-|--------|---------|
+| -------- | --------- |
 | 400 | Bad request / validation error |
 | 401 | Missing or invalid token |
 | 403 | Valid token but insufficient permission |

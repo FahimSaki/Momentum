@@ -15,7 +15,7 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 3. Connect your GitHub repo and configure:
 
 | Setting | Value |
-|---------|-------|
+| --------- | ------- |
 | Runtime | Node |
 | Root directory | `backend` |
 | Build command | `npm install && npm run build` |
@@ -25,15 +25,21 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 1. Under **Environment**, add the following variables:
 
 | Key | Value |
-|-----|-------|
+| ----- | ------- |
 | `MONGODB_URI` | Your MongoDB Atlas connection string |
 | `JWT_SECRET` | A long random secret (use `openssl rand -hex 32`) |
 | `PORT` | `10000` |
 | `NODE_ENV` | `production` |
+| `GMAIL_CLIENT_ID` | OAuth2 client ID for the Gmail account that sends OTP emails |
+| `GMAIL_CLIENT_SECRET` | OAuth2 client secret for that same client |
+| `GMAIL_REFRESH_TOKEN` | Refresh token scoped to `gmail.send` for that client |
+| `EMAIL_FROM` | The Gmail address the refresh token belongs to (or a verified "Send mail as" alias on it) |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Paste the full contents of your Firebase service account JSON as a single-line string |
 | `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (e.g. `https://yourapp.vercel.app,https://yourcustomdomain.com`) |
 
 > **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
+
+> **Why Gmail's REST API and not SMTP?** Render blocks outbound SMTP on ports 465 and 587, so a `nodemailer`/SMTP setup silently times out there. Momentum sends mail over HTTPS (port 443) via the Gmail API instead (`backend/src/services/emailService.ts`). Without all four `GMAIL_*` / `EMAIL_FROM` variables the server still boots, but registration, 2FA, and account-deletion codes are never delivered — see [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
 
 > If `ALLOWED_ORIGINS` is not set, the server defaults to allowing all origins (`*`). Set it explicitly in production.
 
@@ -86,7 +92,7 @@ vercel --prod
 Or connect the GitHub repo in the Vercel dashboard and set:
 
 | Setting | Value |
-|---------|-------|
+| --------- | ------- |
 | Framework preset | Other |
 | Build command | `flutter build web --release` |
 | Output directory | `build/web` |
@@ -188,22 +194,30 @@ The workflow at `.github/workflows/build.yml` runs on every push and pull reques
 ### Required Repository Secrets
 
 | Secret | Used for |
-|--------|---------|
+| -------- | --------- |
 | `GOOGLE_SERVICES_JSON` | Android Firebase config (base64-encoded) |
 | `GOOGLE_SERVICES_PLIST` | iOS Firebase config (base64-encoded) |
+
+The CI workflow only checks the already-deployed production server (`/wake-up`, `/health`); it doesn't run the backend or send email, so the `GMAIL_*` variables aren't needed as repository secrets — they only live on Render.
 
 ---
 
 ## Environment Variable Reference
 
 | Variable | Required | Description |
-|----------|----------|-------------|
+| ---------- | ---------- | ------------- |
 | `MONGODB_URI` | Yes | MongoDB connection string |
 | `JWT_SECRET` | Yes | Secret for signing JWTs |
 | `PORT` | No | Server port (default 10000) |
 | `NODE_ENV` | No | `development` or `production` |
 | `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins; defaults to `*` if unset |
+| `GMAIL_CLIENT_ID` | Yes† | OAuth2 client ID for outgoing email |
+| `GMAIL_CLIENT_SECRET` | Yes† | OAuth2 client secret for outgoing email |
+| `GMAIL_REFRESH_TOKEN` | Yes† | OAuth2 refresh token (`gmail.send` scope) |
+| `EMAIL_FROM` | Yes† | Sending address; must match a verified alias on the Gmail account |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | No* | Path to service account JSON file |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | No* | Full service account JSON as a single-line string |
 
 \* One of these is required for push notifications. If neither is set the server starts normally but FCM calls are skipped.
+
+† The server still boots without these, but registration, 2FA, and account-deletion emails are never delivered — treat them as required for a usable deployment. See [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
