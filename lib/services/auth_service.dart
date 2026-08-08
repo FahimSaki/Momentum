@@ -31,6 +31,8 @@ class AuthService {
     serverClientId: kIsWeb ? null : _googleClientId,
   );
 
+  StreamSubscription<GoogleSignInAccount?>? _webAuthSub;
+
   final List<JwtCallback> _jwtListeners = [];
 
   void onJwtAvailable(JwtCallback cb) => _jwtListeners.add(cb);
@@ -59,7 +61,6 @@ class AuthService {
 
     if (response.statusCode == 201) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      // Returns {requiresVerification: true, email: '...'}
       return data;
     }
 
@@ -133,12 +134,51 @@ class AuthService {
     }
   }
 
-  // ── Google Sign-In ──────────────────────────────────────────────────────────
+  // ── Google Sign-In (mobile) ──────────────────────────────────────────────────
+  //
+  // On Android/iOS, GoogleSignIn().signIn() drives the native picker and
+  // returns a real, signed idToken. Not used on web — see below.
 
   Future<Map<String, dynamic>> googleSignIn() async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
     if (googleUser == null) throw Exception('Google sign-in cancelled');
+    return _exchangeGoogleAccount(googleUser);
+  }
 
+  // ── Google Sign-In (web) ─────────────────────────────────────────────────────
+  //
+  // GoogleSignIn().signIn() is deprecated on web and falls back to a plain
+  // People API REST call for profile info — that path can never populate
+  // idToken, since idToken is a JWT cryptographically signed by Google
+  // Identity Services, and the plugin won't fabricate that signature from
+  // unsigned REST data. The only way to get a real idToken on web is to
+  // render Google's own button (google_sign_in_button.dart) and listen for
+  // the resulting account here.
+
+  void listenForWebGoogleSignIn(
+    void Function(Map<String, dynamic> result) onSuccess,
+    void Function(Object error) onError,
+  ) {
+    _webAuthSub?.cancel();
+    _webAuthSub = _googleSignIn.onCurrentUserChanged.listen((account) async {
+      if (account == null) return;
+      try {
+        final result = await _exchangeGoogleAccount(account);
+        onSuccess(result);
+      } catch (e) {
+        onError(e);
+      }
+    });
+  }
+
+  void disposeWebGoogleSignInListener() {
+    _webAuthSub?.cancel();
+    _webAuthSub = null;
+  }
+
+  Future<Map<String, dynamic>> _exchangeGoogleAccount(
+    GoogleSignInAccount googleUser,
+  ) async {
     final GoogleSignInAuthentication googleAuth =
         await googleUser.authentication;
     final idToken = googleAuth.idToken;
