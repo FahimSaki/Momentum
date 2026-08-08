@@ -26,16 +26,27 @@ class AuthService {
   static const String _googleClientId =
       '213940967151-bju2m1cc7b7vnflibkb6hb6j0h2a1ug9.apps.googleusercontent.com';
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? _googleClientId : null,
-    serverClientId: kIsWeb ? null : _googleClientId,
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
-  StreamSubscription<GoogleSignInAccount?>? _webAuthSub;
+  // google_sign_in v7 made GoogleSignIn a singleton and requires an explicit
+  // async initialize() call — exactly once — before any other method on the
+  // instance is touched. This future is cached so every call site (mobile
+  // interactive sign-in, the web button flow, and logout) awaits the same
+  // initialization instead of re-triggering it.
+  Future<void>? _googleSignInInit;
+
+  StreamSubscription<GoogleSignInAuthenticationEvent>? _webAuthSub;
 
   final List<JwtCallback> _jwtListeners = [];
 
   void onJwtAvailable(JwtCallback cb) => _jwtListeners.add(cb);
+
+  Future<void> _ensureGoogleSignInInitialized() {
+    return _googleSignInInit ??= _googleSignIn.initialize(
+      clientId: kIsWeb ? _googleClientId : null,
+      serverClientId: kIsWeb ? null : _googleClientId,
+    );
+  }
 
   // ── Register ────────────────────────────────────────────────────────────────
 
@@ -136,39 +147,53 @@ class AuthService {
 
   // ── Google Sign-In (mobile) ──────────────────────────────────────────────────
   //
-  // On Android/iOS, GoogleSignIn().signIn() drives the native picker and
-  // returns a real, signed idToken. Not used on web — see below.
+  // On Android/iOS, GoogleSignIn.instance.authenticate() drives the native
+  // picker and returns a real, signed GoogleSignInAccount (or throws). Not
+  // used on web — see below, since web doesn't support authenticate().
 
   Future<Map<String, dynamic>> googleSignIn() async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) throw Exception('Google sign-in cancelled');
-    return _exchangeGoogleAccount(googleUser);
+    await _ensureGoogleSignInInitialized();
+    try {
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+      return await _exchangeGoogleAccount(googleUser);
+    } on GoogleSignInException catch (e, stackTrace) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw Exception('Google sign-in cancelled');
+      }
+      _logger.e('Google sign-in failed', error: e, stackTrace: stackTrace);
+      rethrow;
+    }
   }
 
   // ── Google Sign-In (web) ─────────────────────────────────────────────────────
   //
-  // GoogleSignIn().signIn() is deprecated on web and falls back to a plain
-  // People API REST call for profile info — that path can never populate
-  // idToken, since idToken is a JWT cryptographically signed by Google
-  // Identity Services, and the plugin won't fabricate that signature from
-  // unsigned REST data. The only way to get a real idToken on web is to
-  // render Google's own button (google_sign_in_button.dart) and listen for
-  // the resulting account here.
+  // Web has no authenticate() — sign-in must go through Google's own rendered
+  // button (google_sign_in_button.dart). We listen to authenticationEvents
+  // instead of the old onCurrentUserChanged callback to find out when that
+  // button produces a signed-in account.
 
   void listenForWebGoogleSignIn(
     void Function(Map<String, dynamic> result) onSuccess,
     void Function(Object error) onError,
   ) {
     _webAuthSub?.cancel();
-    _webAuthSub = _googleSignIn.onCurrentUserChanged.listen((account) async {
-      if (account == null) return;
-      try {
-        final result = await _exchangeGoogleAccount(account);
-        onSuccess(result);
-      } catch (e) {
-        onError(e);
-      }
-    });
+    unawaited(
+      _ensureGoogleSignInInitialized().then((_) {
+        _webAuthSub = _googleSignIn.authenticationEvents.listen((event) async {
+          final GoogleSignInAccount? account = switch (event) {
+            GoogleSignInAuthenticationEventSignIn() => event.user,
+            GoogleSignInAuthenticationEventSignOut() => null,
+          };
+          if (account == null) return;
+          try {
+            final result = await _exchangeGoogleAccount(account);
+            onSuccess(result);
+          } catch (e) {
+            onError(e);
+          }
+        })..onError((Object e) => onError(e));
+      }),
+    );
   }
 
   void disposeWebGoogleSignInListener() {
@@ -179,8 +204,9 @@ class AuthService {
   Future<Map<String, dynamic>> _exchangeGoogleAccount(
     GoogleSignInAccount googleUser,
   ) async {
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
+    // authentication is synchronous in v7 — it's just the cached outcome of
+    // the authenticate() / authenticationEvents step above, not a new call.
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
     final idToken = googleAuth.idToken;
     if (idToken == null) throw Exception('Failed to get Google ID token');
 
@@ -284,6 +310,7 @@ class AuthService {
         _storage.delete(key: _AuthKeys.userData),
       ]);
       try {
+        await _ensureGoogleSignInInitialized();
         await _googleSignIn.signOut();
       } catch (_) {}
       if (token != null) _notifyServerLogout(token);
