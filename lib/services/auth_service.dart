@@ -41,20 +41,11 @@ class AuthService {
 
   void onJwtAvailable(JwtCallback cb) => _jwtListeners.add(cb);
 
-  Future<void> ensureGoogleSignInInitialized() =>
-      _ensureGoogleSignInInitialized();
-
   Future<void> _ensureGoogleSignInInitialized() {
-    final init = _googleSignInInit ??= _googleSignIn.initialize(
+    return _googleSignInInit ??= _googleSignIn.initialize(
       clientId: kIsWeb ? _googleClientId : null,
       serverClientId: kIsWeb ? null : _googleClientId,
     );
-    return init.catchError((Object error) {
-      if (identical(_googleSignInInit, init)) {
-        _googleSignInInit = null;
-      }
-      throw error;
-    });
   }
 
   // ── Register ────────────────────────────────────────────────────────────────
