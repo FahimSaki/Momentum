@@ -6,12 +6,10 @@ import 'package:google_sign_in_web/web_only.dart' as web;
 /// still the element that actually receives the click and drives sign-in
 /// (a plain custom button can't call authenticate() on web; see auth_service.dart).
 ///
-/// Note: google_sign_in_web's button is a real platform view, and platform
-/// views have known quirks with opacity/z-order in Flutter web (see
-/// flutter/flutter#144987 — they can render on top regardless of widget
-/// order). Verify after deploying that only the fake button is visible and
-/// that clicking it still signs you in; if the real button shows through,
-/// drop the Stack and just return `web.renderButton(...)` directly.
+/// Note: opacity must be a small non-zero value, not exactly 0.0. Flutter web
+/// drops platform views (which is what Google's real button is) from hit
+/// testing entirely at opacity 0.0 — invisible AND unclickable. A near-zero
+/// value like 0.02 stays visually imperceptible while keeping it interactive.
 Widget buildGoogleSignInButton() {
   return LayoutBuilder(
     builder: (context, constraints) {
@@ -29,7 +27,7 @@ Widget buildGoogleSignInButton() {
             _FakeGoogleButton(isDark: isDark),
             Positioned.fill(
               child: Opacity(
-                opacity: 0.0,
+                opacity: 0.02,
                 child: web.renderButton(
                   configuration: web.GSIButtonConfiguration(
                     theme: web.GSIButtonTheme.outline,
