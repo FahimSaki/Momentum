@@ -21,11 +21,14 @@ class _LoginPageState extends State<LoginPage> {
   bool isLoading = false;
   bool isGoogleLoading = false;
   String? error;
+  Future<void>? _webGoogleSignInReady;
 
   @override
   void initState() {
     super.initState();
     if (kIsWeb) {
+      _webGoogleSignInReady = AuthService.instance
+          .ensureGoogleSignInInitialized();
       // On web, sign-in completes via the rendered Google button below,
       // not via a button we drive ourselves — listen for the result
       // instead of calling AuthService.googleSignIn() imperatively.
@@ -265,7 +268,47 @@ class _LoginPageState extends State<LoginPage> {
             if (kIsWeb)
               Column(
                 children: [
-                  Center(child: buildGoogleSignInButton()),
+                  FutureBuilder<void>(
+                    future: _webGoogleSignInReady,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const SizedBox(
+                          height: 50,
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return OutlinedButton(
+                          onPressed: () {
+                            setState(() {
+                              error = snapshot.error.toString().replaceFirst(
+                                'Exception: ',
+                                '',
+                              );
+                              _webGoogleSignInReady = AuthService.instance
+                                  .ensureGoogleSignInInitialized();
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Retry Google Sign-In setup'),
+                        );
+                      }
+
+                      return Center(child: buildGoogleSignInButton());
+                    },
+                  ),
                   if (isGoogleLoading) ...[
                     const SizedBox(height: 12),
                     const SizedBox(
