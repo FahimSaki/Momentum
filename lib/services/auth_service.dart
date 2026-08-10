@@ -173,7 +173,7 @@ class AuthService {
   // button produces a signed-in account.
 
   void listenForWebGoogleSignIn(
-    void Function(Map<String, dynamic> result) onSuccess,
+    Future<void> Function(Map<String, dynamic> result) onSuccess,
     void Function(Object error) onError,
   ) {
     _webAuthSub?.cancel();
@@ -187,7 +187,7 @@ class AuthService {
           if (account == null) return;
           try {
             final result = await _exchangeGoogleAccount(account);
-            onSuccess(result);
+            await onSuccess(result);
           } catch (e) {
             onError(e);
           }
