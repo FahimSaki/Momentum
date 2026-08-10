@@ -9,7 +9,7 @@ import 'package:google_sign_in_web/web_only.dart' as web;
 /// Note: opacity must be a small non-zero value, not exactly 0.0. Flutter web
 /// drops platform views (which is what Google's real button is) from hit
 /// testing entirely at opacity 0.0 — invisible AND unclickable. A near-zero
-/// value like 0.02 stays visually imperceptible while keeping it interactive.
+/// value like 0.01 stays visually imperceptible while keeping it interactive.
 Widget buildGoogleSignInButton() {
   return LayoutBuilder(
     builder: (context, constraints) {
@@ -27,7 +27,7 @@ Widget buildGoogleSignInButton() {
             _FakeGoogleButton(isDark: isDark),
             Positioned.fill(
               child: Opacity(
-                opacity: 0.02,
+                opacity: 0.01,
                 child: web.renderButton(
                   configuration: web.GSIButtonConfiguration(
                     theme: web.GSIButtonTheme.outline,
