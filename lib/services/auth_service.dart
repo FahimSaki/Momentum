@@ -172,28 +172,34 @@ class AuthService {
   // instead of the old onCurrentUserChanged callback to find out when that
   // button produces a signed-in account.
 
-  void listenForWebGoogleSignIn(
+  Future<void> listenForWebGoogleSignIn(
     Future<void> Function(Map<String, dynamic> result) onSuccess,
     void Function(Object error) onError,
-  ) {
-    _webAuthSub?.cancel();
-    unawaited(
-      _ensureGoogleSignInInitialized().then((_) {
-        _webAuthSub = _googleSignIn.authenticationEvents.listen((event) async {
-          final GoogleSignInAccount? account = switch (event) {
-            GoogleSignInAuthenticationEventSignIn() => event.user,
-            GoogleSignInAuthenticationEventSignOut() => null,
-          };
-          if (account == null) return;
-          try {
-            final result = await _exchangeGoogleAccount(account);
-            await onSuccess(result);
-          } catch (e) {
-            onError(e);
-          }
-        })..onError((Object e) => onError(e));
-      }),
-    );
+  ) async {
+    await _ensureGoogleSignInInitialized();
+    await _webAuthSub?.cancel();
+
+    // With google_sign_in 7.x, web authentication is entirely event-driven:
+    // renderButton() can only report success through authenticationEvents. Make
+    // sure this listener is active before the UI exposes the Google button, and
+    // also ask the plugin to report any lightweight/already-completed web
+    // session through the same stream. This avoids the login page hanging when
+    // GIS has accepted the account but the app missed the event.
+    _webAuthSub = _googleSignIn.authenticationEvents.listen((event) async {
+      final GoogleSignInAccount? account = switch (event) {
+        GoogleSignInAuthenticationEventSignIn() => event.user,
+        GoogleSignInAuthenticationEventSignOut() => null,
+      };
+      if (account == null) return;
+      try {
+        final result = await _exchangeGoogleAccount(account);
+        await onSuccess(result);
+      } catch (e) {
+        onError(e);
+      }
+    })..onError((Object e) => onError(e));
+
+    _googleSignIn.attemptLightweightAuthentication();
   }
 
   void disposeWebGoogleSignInListener() {

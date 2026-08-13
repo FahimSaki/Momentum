@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
@@ -20,6 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
   bool isLoading = false;
   bool isGoogleLoading = false;
+  bool isWebGoogleReady = !kIsWeb;
   String? error;
 
   @override
@@ -29,29 +32,42 @@ class _LoginPageState extends State<LoginPage> {
       // On web, sign-in completes via the rendered Google button below,
       // not via a button we drive ourselves — listen for the result
       // instead of calling AuthService.googleSignIn() imperatively.
-      AuthService.instance.listenForWebGoogleSignIn(
-        (result) async {
-          if (!mounted) return;
-          setState(() {
-            isGoogleLoading = true;
-            error = null;
-          });
-          try {
-            await _initAndNavigate(
-              result['token'] as String,
-              result['userId'] as String,
-            );
-          } finally {
-            if (mounted) setState(() => isGoogleLoading = false);
-          }
-        },
-        (e) {
-          if (!mounted) return;
-          final msg = e.toString().replaceFirst('Exception: ', '');
-          if (!msg.contains('cancelled')) {
-            setState(() => error = msg);
-          }
-        },
+      unawaited(
+        AuthService.instance
+            .listenForWebGoogleSignIn(
+              (result) async {
+                if (!mounted) return;
+                setState(() {
+                  isGoogleLoading = true;
+                  error = null;
+                });
+                try {
+                  await _initAndNavigate(
+                    result['token'] as String,
+                    result['userId'] as String,
+                  );
+                } finally {
+                  if (mounted) setState(() => isGoogleLoading = false);
+                }
+              },
+              (e) {
+                if (!mounted) return;
+                final msg = e.toString().replaceFirst('Exception: ', '');
+                if (!msg.contains('cancelled')) {
+                  setState(() => error = msg);
+                }
+              },
+            )
+            .then((_) {
+              if (mounted) setState(() => isWebGoogleReady = true);
+            })
+            .catchError((Object e) {
+              if (!mounted) return;
+              setState(() {
+                isWebGoogleReady = false;
+                error = e.toString().replaceFirst('Exception: ', '');
+              });
+            }),
       );
     }
   }
@@ -265,7 +281,19 @@ class _LoginPageState extends State<LoginPage> {
             if (kIsWeb)
               Column(
                 children: [
-                  Center(child: buildGoogleSignInButton()),
+                  if (isWebGoogleReady)
+                    Center(child: buildGoogleSignInButton())
+                  else
+                    const SizedBox(
+                      height: 50,
+                      child: Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
                   if (isGoogleLoading) ...[
                     const SizedBox(height: 12),
                     const SizedBox(
