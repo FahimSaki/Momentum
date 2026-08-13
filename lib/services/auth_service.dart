@@ -36,6 +36,7 @@ class AuthService {
   Future<void>? _googleSignInInit;
 
   StreamSubscription<GoogleSignInAuthenticationEvent>? _webAuthSub;
+  bool _isExchangingWebGoogleAccount = false;
 
   final List<JwtCallback> _jwtListeners = [];
 
@@ -179,27 +180,29 @@ class AuthService {
     await _ensureGoogleSignInInitialized();
     await _webAuthSub?.cancel();
 
-    // With google_sign_in 7.x, web authentication is entirely event-driven:
-    // renderButton() can only report success through authenticationEvents. Make
-    // sure this listener is active before the UI exposes the Google button, and
-    // also ask the plugin to report any lightweight/already-completed web
-    // session through the same stream. This avoids the login page hanging when
-    // GIS has accepted the account but the app missed the event.
+    // With google_sign_in 7.x, web authentication is event-driven: the
+    // rendered Google button reports success through authenticationEvents. Do
+    // not also call attemptLightweightAuthentication() here. On the web that can
+    // trigger Google's FedCM auto re-auth flow while the rendered button is
+    // trying to sign in, which produces browser errors like "Only one
+    // navigator.credentials.get request may be outstanding at one time" and
+    // can hit Google's 10-minute auto re-auth throttle.
     _webAuthSub = _googleSignIn.authenticationEvents.listen((event) async {
       final GoogleSignInAccount? account = switch (event) {
         GoogleSignInAuthenticationEventSignIn() => event.user,
         GoogleSignInAuthenticationEventSignOut() => null,
       };
-      if (account == null) return;
+      if (account == null || _isExchangingWebGoogleAccount) return;
+      _isExchangingWebGoogleAccount = true;
       try {
         final result = await _exchangeGoogleAccount(account);
         await onSuccess(result);
       } catch (e) {
         onError(e);
+      } finally {
+        _isExchangingWebGoogleAccount = false;
       }
     })..onError((Object e) => onError(e));
-
-    _googleSignIn.attemptLightweightAuthentication();
   }
 
   void disposeWebGoogleSignInListener() {
