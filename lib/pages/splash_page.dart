@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/theme/theme_provider.dart';
@@ -14,6 +15,7 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   final Logger _logger = Logger();
+  String? _googleRedirectError;
 
   @override
   void initState() {
@@ -23,6 +25,42 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _checkAuthStatus() async {
     try {
+      // If we've just been redirected back from Google (web only), finish
+      // that sign-in first — it takes priority over any stored session,
+      // and the URL fragment needs to be read and cleared exactly once,
+      // here, before the normal stored-token check below runs.
+      if (kIsWeb && AuthService.instance.hasWebGoogleRedirectResult()) {
+        try {
+          final result = await AuthService.instance.completeWebGoogleRedirect();
+          if (!mounted) return;
+          final taskDatabase = Provider.of<TaskDatabase>(
+            context,
+            listen: false,
+          );
+          await taskDatabase.initialize(
+            jwt: result['token'] as String,
+            userId: result['userId'] as String,
+          );
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, '/home');
+          return;
+        } catch (e, stackTrace) {
+          _logger.e(
+            'Google redirect sign-in failed',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          if (!mounted) return;
+          final msg = e.toString().replaceFirst('Exception: ', '');
+          if (msg.contains('cancelled')) {
+            Navigator.pushReplacementNamed(context, '/login');
+          } else {
+            setState(() => _googleRedirectError = msg);
+          }
+          return;
+        }
+      }
+
       // Add a small delay for better UX
       await Future.delayed(const Duration(milliseconds: 1500));
 
@@ -115,21 +153,48 @@ class _SplashPageState extends State<SplashPage> {
               ),
             ),
             const SizedBox(height: 16),
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(
-                Theme.of(context).colorScheme.primary,
+            if (_googleRedirectError == null) ...[
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).colorScheme.primary,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Loading...',
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(
-                  context,
-                ).colorScheme.inversePrimary.withValues(alpha: 0.7),
+              const SizedBox(height: 16),
+              Text(
+                'Loading...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.inversePrimary.withValues(alpha: 0.7),
+                ),
               ),
-            ),
+            ] else ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Text(
+                    _googleRedirectError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.pushReplacementNamed(context, '/login'),
+                child: const Text('Back to Login'),
+              ),
+            ],
           ],
         ),
       ),

@@ -50,7 +50,7 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 Render free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use you should either:
 
 - Upgrade to a paid Render plan (always-on), or
-- Set up an external cron (e.g. cron-job.org) to hit `GET /wake-up` every 10 minutes.
+- Set up an external cron to hit `GET /wake-up` every 10 minutes.
 
 ### Redeployment
 

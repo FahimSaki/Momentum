@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/pages/email_verification_page.dart';
 import 'package:momentum/pages/two_factor_page.dart';
 import 'package:momentum/services/auth_service.dart';
-import 'package:momentum/services/google_sign_in_button.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:provider/provider.dart';
 
@@ -22,63 +19,12 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
   bool isLoading = false;
   bool isGoogleLoading = false;
-  bool isWebGoogleReady = !kIsWeb;
   String? error;
-
-  @override
-  void initState() {
-    super.initState();
-    if (kIsWeb) {
-      // On web, sign-in completes via the rendered Google button below,
-      // not via a button we drive ourselves — listen for the result
-      // instead of calling AuthService.googleSignIn() imperatively.
-      unawaited(
-        AuthService.instance
-            .listenForWebGoogleSignIn(
-              (result) async {
-                if (!mounted) return;
-                setState(() {
-                  isGoogleLoading = true;
-                  error = null;
-                });
-                try {
-                  await _initAndNavigate(
-                    result['token'] as String,
-                    result['userId'] as String,
-                  );
-                } finally {
-                  if (mounted) setState(() => isGoogleLoading = false);
-                }
-              },
-              (e) {
-                if (!mounted) return;
-                final msg = e.toString().replaceFirst('Exception: ', '');
-                if (!msg.contains('cancelled')) {
-                  setState(() => error = msg);
-                }
-              },
-            )
-            .then((_) {
-              if (mounted) setState(() => isWebGoogleReady = true);
-            })
-            .catchError((Object e) {
-              if (!mounted) return;
-              setState(() {
-                isWebGoogleReady = false;
-                error = e.toString().replaceFirst('Exception: ', '');
-              });
-            }),
-      );
-    }
-  }
 
   @override
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
-    if (kIsWeb) {
-      AuthService.instance.disposeWebGoogleSignInListener();
-    }
     super.dispose();
   }
 
@@ -136,9 +82,8 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Mobile only — drives the native account picker via authenticate().
   void loginWithGoogle() async {
-    // Mobile only — on web the rendered button drives sign-in and
-    // initState()'s listener handles the result.
     setState(() {
       isGoogleLoading = true;
       error = null;
@@ -160,6 +105,15 @@ class _LoginPageState extends State<LoginPage> {
     } finally {
       if (mounted) setState(() => isGoogleLoading = false);
     }
+  }
+
+  /// Web only — full-page redirect to Google. No popup, so there's nothing
+  /// for COOP to block anywhere in this flow. This navigates away
+  /// immediately; the result is picked up on SplashPage once Google
+  /// redirects back (see splash_page.dart).
+  void _loginWithGoogleWeb() {
+    setState(() => isGoogleLoading = true);
+    AuthService.instance.beginWebGoogleRedirect();
   }
 
   @override
@@ -275,86 +229,59 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 16),
 
-            // Google Sign-In — web renders Google's own button (the only
-            // way to get a real idToken there); mobile keeps the custom
-            // button driving the native picker.
-            if (kIsWeb)
-              Column(
-                children: [
-                  if (isWebGoogleReady)
-                    Center(child: buildGoogleSignInButton())
-                  else
-                    const SizedBox(
-                      height: 50,
-                      child: Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    ),
-                  if (isGoogleLoading) ...[
-                    const SizedBox(height: 12),
-                    const SizedBox(
+            // Google Sign-In — same button on every platform now. Only the
+            // tap handler differs: web does a full-page redirect (no popup,
+            // no COOP exposure), mobile drives the native account picker.
+            OutlinedButton(
+              onPressed: (isLoading || isGoogleLoading)
+                  ? null
+                  : (kIsWeb ? _loginWithGoogleWeb : loginWithGoogle),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                side: BorderSide(
+                  color: isDark
+                      ? const Color(0xFF3D3B5C)
+                      : const Color(0xFFDDD6FE),
+                ),
+              ),
+              child: isGoogleLoading
+                  ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
-                ],
-              )
-            else
-              OutlinedButton(
-                onPressed: (isLoading || isGoogleLoading)
-                    ? null
-                    : loginWithGoogle,
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  side: BorderSide(
-                    color: isDark
-                        ? const Color(0xFF3D3B5C)
-                        : const Color(0xFFDDD6FE),
-                  ),
-                ),
-                child: isGoogleLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4285F4),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Center(
-                              child: Text(
-                                'G',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4285F4),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'G',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          const Text(
-                            'Continue with Google',
-                            style: TextStyle(fontSize: 15),
-                          ),
-                        ],
-                      ),
-              ),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Continue with Google',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                      ],
+                    ),
+            ),
             const SizedBox(height: 16),
             TextButton(
               onPressed: (isLoading || isGoogleLoading)

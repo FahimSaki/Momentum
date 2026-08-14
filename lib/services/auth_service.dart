@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:logger/logger.dart';
 import 'package:momentum/config/api_base_url.dart';
+import 'package:momentum/services/web_auth_redirect.dart'
+    show getGoogleRedirectFragment, clearUrlFragment, navigateTo;
 
 abstract class _AuthKeys {
   static const jwt = 'auth_jwt';
@@ -30,13 +32,11 @@ class AuthService {
 
   // google_sign_in v7 made GoogleSignIn a singleton and requires an explicit
   // async initialize() call — exactly once — before any other method on the
-  // instance is touched. This future is cached so every call site (mobile
-  // interactive sign-in, the web button flow, and logout) awaits the same
-  // initialization instead of re-triggering it.
+  // instance is touched. This future is cached so every call site awaits
+  // the same initialization instead of re-triggering it. Web no longer
+  // touches GoogleSignIn.instance at all — see beginWebGoogleRedirect()
+  // below — so this only matters for the mobile path now.
   Future<void>? _googleSignInInit;
-
-  StreamSubscription<GoogleSignInAuthenticationEvent>? _webAuthSub;
-  bool _isExchangingWebGoogleAccount = false;
 
   final List<JwtCallback> _jwtListeners = [];
 
@@ -149,8 +149,7 @@ class AuthService {
   // ── Google Sign-In (mobile) ──────────────────────────────────────────────────
   //
   // On Android/iOS, GoogleSignIn.instance.authenticate() drives the native
-  // picker and returns a real, signed GoogleSignInAccount (or throws). Not
-  // used on web — see below, since web doesn't support authenticate().
+  // picker and returns a real, signed GoogleSignInAccount (or throws).
 
   Future<Map<String, dynamic>> googleSignIn() async {
     await _ensureGoogleSignInInitialized();
@@ -168,57 +167,94 @@ class AuthService {
 
   // ── Google Sign-In (web) ─────────────────────────────────────────────────────
   //
-  // Web has no authenticate() — sign-in must go through Google's own rendered
-  // button (google_sign_in_button.dart). We listen to authenticationEvents
-  // instead of the old onCurrentUserChanged callback to find out when that
-  // button produces a signed-in account.
+  // The GIS-rendered button (google_sign_in_web's renderButton) relies on a
+  // popup relaying its result back to this page via postMessage. Confirmed
+  // by reproduction: accounts.google.com's own strict Cross-Origin-Opener-
+  // Policy blocks that relay regardless of what COOP value this page sends
+  // — the popup completes and closes itself but the result never arrives.
+  // A full-page redirect sidesteps the problem entirely: there's no popup
+  // and no cross-window messaging involved at any point.
 
-  Future<void> listenForWebGoogleSignIn(
-    Future<void> Function(Map<String, dynamic> result) onSuccess,
-    void Function(Object error) onError,
-  ) async {
-    await _ensureGoogleSignInInitialized();
-    await _webAuthSub?.cancel();
-
-    // With google_sign_in 7.x, web authentication is event-driven: the
-    // rendered Google button reports success through authenticationEvents. Do
-    // not also call attemptLightweightAuthentication() here. On the web that can
-    // trigger Google's FedCM auto re-auth flow while the rendered button is
-    // trying to sign in, which produces browser errors like "Only one
-    // navigator.credentials.get request may be outstanding at one time" and
-    // can hit Google's 10-minute auto re-auth throttle.
-    _webAuthSub = _googleSignIn.authenticationEvents.listen((event) async {
-      final GoogleSignInAccount? account = switch (event) {
-        GoogleSignInAuthenticationEventSignIn() => event.user,
-        GoogleSignInAuthenticationEventSignOut() => null,
-      };
-      if (account == null || _isExchangingWebGoogleAccount) return;
-      _isExchangingWebGoogleAccount = true;
-      try {
-        final result = await _exchangeGoogleAccount(account);
-        await onSuccess(result);
-      } catch (e) {
-        onError(e);
-      } finally {
-        _isExchangingWebGoogleAccount = false;
-      }
-    })..onError((Object e) => onError(e));
+  /// Kicks off the redirect. Call from a button tap; this navigates away
+  /// immediately, so there's nothing to await — the result is picked up by
+  /// completeWebGoogleRedirect() on the next page load.
+  void beginWebGoogleRedirect() {
+    navigateTo(_buildGoogleRedirectUrl());
   }
 
-  void disposeWebGoogleSignInListener() {
-    _webAuthSub?.cancel();
-    _webAuthSub = null;
+  /// Cheap, synchronous check for whether the current URL is a return from
+  /// beginWebGoogleRedirect() (i.e. it carries '#id_token=...' or
+  /// '#error=...'). Check this before completeWebGoogleRedirect() so a
+  /// normal page load doesn't show a loading state for no reason.
+  bool hasWebGoogleRedirectResult() {
+    if (!kIsWeb) return false;
+    final fragment = getGoogleRedirectFragment();
+    if (fragment == null || fragment.isEmpty) return false;
+    return fragment.contains('id_token=') || fragment.contains('error=');
   }
 
-  Future<Map<String, dynamic>> _exchangeGoogleAccount(
-    GoogleSignInAccount googleUser,
-  ) async {
-    // authentication is synchronous in v7 — it's just the cached outcome of
-    // the authenticate() / authenticationEvents step above, not a new call.
-    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
-    final idToken = googleAuth.idToken;
-    if (idToken == null) throw Exception('Failed to get Google ID token');
+  /// Reads and clears the redirect result, then exchanges the token with
+  /// the backend exactly like the mobile flow does. Only call this after
+  /// hasWebGoogleRedirectResult() returns true.
+  Future<Map<String, dynamic>> completeWebGoogleRedirect() async {
+    final fragment = getGoogleRedirectFragment();
+    clearUrlFragment();
 
+    if (fragment == null || fragment.isEmpty) {
+      throw Exception('No sign-in result found');
+    }
+
+    final params = Uri.splitQueryString(fragment);
+
+    final googleError = params['error'];
+    if (googleError != null) {
+      throw Exception(
+        googleError == 'access_denied'
+            ? 'Google sign-in cancelled'
+            : 'Google sign-in failed: $googleError',
+      );
+    }
+
+    final idToken = params['id_token'];
+    if (idToken == null || idToken.isEmpty) {
+      throw Exception('Google did not return a sign-in token');
+    }
+
+    return _exchangeIdToken(idToken);
+  }
+
+  String _buildGoogleRedirectUrl() {
+    final redirectUri = '${Uri.base.origin}/';
+    final params = {
+      'client_id': _googleClientId,
+      'redirect_uri': redirectUri,
+      'response_type': 'id_token',
+      'scope': 'openid email profile',
+      'nonce': _generateNonce(),
+      'prompt': 'select_account',
+    };
+    final query = params.entries
+        .map(
+          (e) =>
+              '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+        )
+        .join('&');
+    return 'https://accounts.google.com/o/oauth2/v2/auth?$query';
+  }
+
+  String _generateNonce([int length = 32]) {
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => chars[random.nextInt(chars.length)],
+    ).join();
+  }
+
+  // ── Shared token exchange ─────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> _exchangeIdToken(String idToken) async {
     final response = await http
         .post(
           Uri.parse('$apiBaseUrl/auth/google'),
@@ -238,6 +274,15 @@ class AuthService {
     }
 
     throw Exception(_safeDecodeError(response.body));
+  }
+
+  Future<Map<String, dynamic>> _exchangeGoogleAccount(
+    GoogleSignInAccount googleUser,
+  ) async {
+    final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    if (idToken == null) throw Exception('Failed to get Google ID token');
+    return _exchangeIdToken(idToken);
   }
 
   // ── Verify 2FA code ──────────────────────────────────────────────────────────

@@ -360,9 +360,24 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        if (process.env.GOOGLE_CLIENT_ID && googleData.aud !== process.env.GOOGLE_CLIENT_ID) {
-            res.status(401).json({ message: 'Token not issued for this application' });
-            return;
+        // GOOGLE_CLIENT_ID may hold a single client ID or a comma-separated
+        // allowlist (mobile serverClientId + web clientId from two GCP
+        // projects). Split on commas and check membership — a strict
+        // equality check here would reject every token whenever the env var
+        // holds more than one ID.
+        if (process.env.GOOGLE_CLIENT_ID) {
+            const allowedClientIds = process.env.GOOGLE_CLIENT_ID
+                .split(',')
+                .map((id) => id.trim())
+                .filter(Boolean);
+
+            if (allowedClientIds.length > 0 && !allowedClientIds.includes(googleData.aud)) {
+                console.warn(
+                    `Google auth aud mismatch: received "${googleData.aud}", allowed: [${allowedClientIds.join(', ')}]`
+                );
+                res.status(401).json({ message: 'Token not issued for this application' });
+                return;
+            }
         }
 
         const { sub: googleId, email, name, picture: avatar } = googleData;
