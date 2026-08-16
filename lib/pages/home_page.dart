@@ -54,8 +54,8 @@ class _HomePageState extends State<HomePage>
     try {
       final authData = await AuthService.instance.getStoredAuthData();
       if (authData != null && mounted) {
-        final valid = await AuthService.instance.validateToken();
-        if (valid && mounted) {
+        final tokenStatus = await AuthService.instance.validateToken();
+        if (tokenStatus == TokenStatus.valid && mounted) {
           await db.initialize(
             jwt: authData['token'],
             userId: authData['userId'],
@@ -156,6 +156,7 @@ class _HomePageState extends State<HomePage>
               : null,
           body: Column(
             children: [
+              if (db.isOffline) const _OfflineBanner(),
               _TabBar(controller: _tabController),
               Expanded(
                 child: TabBarView(
@@ -244,6 +245,40 @@ class _HomePageState extends State<HomePage>
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Offline banner ────────────────────────────────────────────────────────────
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: Colors.orange.withValues(alpha: 0.15),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 14,
+            color: Colors.orange.shade800,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Offline — showing your last synced data',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.orange.shade800,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -449,7 +484,13 @@ class _TaskRow extends StatelessWidget {
               : task.dueDate != null
               ? Text(DateHelpers.formatDueDate(task.dueDate!))
               : null,
-          trailing: task.isOverdue
+          trailing: task.isPendingSync
+              ? Icon(
+                  Icons.cloud_off_rounded,
+                  size: 18,
+                  color: Colors.grey.shade500,
+                )
+              : task.isOverdue
               ? const Icon(Icons.warning, color: Colors.orange, size: 20)
               : task.isDueSoon
               ? const Icon(Icons.access_time, color: Colors.amber, size: 20)

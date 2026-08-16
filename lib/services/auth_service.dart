@@ -17,6 +17,14 @@ abstract class _AuthKeys {
 
 typedef JwtCallback = Future<void> Function(String jwt);
 
+/// Result of checking the stored session against the server.
+/// [valid] covers both a confirmed-good token AND "couldn't reach the
+/// server to check" — in the latter case we keep the cached session and
+/// let the rest of the app fall back to offline data rather than forcing
+/// a login. Only an explicit 401/403 from the server produces
+/// [requiresLogin].
+enum TokenStatus { valid, requiresLogin }
+
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
@@ -328,11 +336,16 @@ class AuthService {
     }
   }
 
-  Future<bool> validateToken() async {
-    try {
-      final authData = await getStoredAuthData();
-      if (authData == null) return false;
+  /// Checks the stored token against the server. Returns
+  /// [TokenStatus.requiresLogin] only when the server explicitly rejects
+  /// the token (401/403) — everything else, including no connectivity at
+  /// all, returns [TokenStatus.valid] so the session survives being
+  /// offline. See [TokenStatus] for the reasoning.
+  Future<TokenStatus> validateToken() async {
+    final authData = await getStoredAuthData();
+    if (authData == null) return TokenStatus.requiresLogin;
 
+    try {
       final response = await http
           .get(
             Uri.parse('$apiBaseUrl/auth/validate'),
@@ -342,16 +355,28 @@ class AuthService {
 
       if (response.statusCode == 200) {
         await _notifyListeners(authData['token'] as String);
-        return true;
+        return TokenStatus.valid;
       }
 
       if (response.statusCode == 401 || response.statusCode == 403) {
         await logout();
+        return TokenStatus.requiresLogin;
       }
-      return false;
+
+      // Any other status (5xx, etc.) isn't proof the token itself is bad —
+      // don't sign the user out over a server hiccup.
+      _logger.w('Unexpected /auth/validate status: ${response.statusCode}');
+      return TokenStatus.valid;
     } catch (e, st) {
-      _logger.e('Token validation error', error: e, stackTrace: st);
-      return false;
+      // No connectivity, DNS failure, timeout, etc. — we simply can't ask
+      // the server right now. Keep the existing session and let the rest
+      // of the app fall back to cached data instead of forcing a login.
+      _logger.w(
+        'Token validation could not reach the server — assuming offline',
+        error: e,
+        stackTrace: st,
+      );
+      return TokenStatus.valid;
     }
   }
 

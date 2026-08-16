@@ -2,6 +2,24 @@ import 'package:momentum/models/completion_record.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/user.dart';
 
+/// Tracks whether a task's create request has reached the backend yet.
+/// Anything loaded from the server is [synced]. Tasks created while
+/// offline start as [pendingCreate] until the sync queue replays them
+/// successfully; if the server rejects the replay, they move to
+/// [syncFailed] instead of being retried forever.
+enum TaskSyncStatus { synced, pendingCreate, syncFailed }
+
+TaskSyncStatus _syncStatusFromJson(String? value) {
+  switch (value) {
+    case 'pendingCreate':
+      return TaskSyncStatus.pendingCreate;
+    case 'syncFailed':
+      return TaskSyncStatus.syncFailed;
+    default:
+      return TaskSyncStatus.synced;
+  }
+}
+
 class Task {
   final String id;
   String name;
@@ -21,6 +39,17 @@ class Task {
   String assignmentType;
   DateTime createdAt;
   DateTime updatedAt;
+  TaskSyncStatus syncStatus;
+
+  static const String _localIdPrefix = 'local_';
+
+  /// True if [id] is a client-generated placeholder rather than a real
+  /// MongoDB id (i.e. the task was created offline and hasn't reached the
+  /// backend yet).
+  static bool isLocalId(String id) => id.startsWith(_localIdPrefix);
+
+  static String generateLocalId() =>
+      '$_localIdPrefix${DateTime.now().microsecondsSinceEpoch}';
 
   Task({
     required this.id,
@@ -41,6 +70,7 @@ class Task {
     this.assignmentType = 'individual',
     required this.createdAt,
     required this.updatedAt,
+    this.syncStatus = TaskSyncStatus.synced,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -87,6 +117,7 @@ class Task {
       assignmentType: json['assignmentType'] ?? 'individual',
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      syncStatus: _syncStatusFromJson(json['syncStatus'] as String?),
     );
   }
 
@@ -109,6 +140,7 @@ class Task {
     'assignmentType': assignmentType,
     'createdAt': createdAt.toIso8601String(),
     'updatedAt': updatedAt.toIso8601String(),
+    'syncStatus': syncStatus.name,
   };
 
   bool isAssignedTo(String userId) => assignedTo.any((u) => u.id == userId);
@@ -128,6 +160,13 @@ class Task {
       return _sameDay(c.completedAt.toLocal(), today);
     });
   }
+
+  /// True if this task hasn't been confirmed by the backend yet, or the
+  /// backend rejected it on retry.
+  bool get isPendingSync => syncStatus != TaskSyncStatus.synced;
+
+  /// True only while the task still lives solely on this device.
+  bool get isLocalOnly => Task.isLocalId(id);
 
   bool get isOverdue {
     if (dueDate == null || isArchived) return false;

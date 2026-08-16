@@ -71,13 +71,14 @@ class _SplashPageState extends State<SplashPage> {
       if (!mounted) return;
 
       if (authData != null) {
-        // Validate token with server
-        final isValidToken = await AuthService.instance.validateToken();
-        _logger.i('Token validation result: $isValidToken');
+        // Validate token with server — TokenStatus.valid also covers "no
+        // network to check with", so the session survives being offline.
+        final tokenStatus = await AuthService.instance.validateToken();
+        _logger.i('Token validation result: $tokenStatus');
 
         if (!mounted) return;
 
-        if (isValidToken) {
+        if (tokenStatus == TokenStatus.valid) {
           // Initialize TaskDatabase with stored credentials
           final taskDatabase = Provider.of<TaskDatabase>(
             context,
@@ -92,7 +93,7 @@ class _SplashPageState extends State<SplashPage> {
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/home');
         } else {
-          _logger.w('Invalid token detected, logging out.');
+          _logger.w('Session requires login, logging out.');
           await AuthService.instance.logout();
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/login');

@@ -152,7 +152,22 @@ class _ActiveCard extends StatelessWidget {
           ),
         ),
         subtitle: _Subtitle(task: task),
-        trailing: task.isOverdue
+        trailing: task.isPendingSync
+            ? Tooltip(
+                message: task.syncStatus == TaskSyncStatus.syncFailed
+                    ? 'This task failed to sync — delete and try again'
+                    : 'Waiting to sync',
+                child: Icon(
+                  task.syncStatus == TaskSyncStatus.syncFailed
+                      ? Icons.sync_problem_rounded
+                      : Icons.cloud_off_rounded,
+                  size: 18,
+                  color: task.syncStatus == TaskSyncStatus.syncFailed
+                      ? Colors.red.shade400
+                      : Colors.grey.shade500,
+                ),
+              )
+            : task.isOverdue
             ? const Icon(Icons.warning, color: Colors.orange)
             : task.isDueSoon
             ? const Icon(Icons.access_time, color: Colors.amber)

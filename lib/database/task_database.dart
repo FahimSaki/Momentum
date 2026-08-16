@@ -3,11 +3,15 @@ import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_invitation.dart';
 import 'package:momentum/models/app_notification.dart';
+import 'package:momentum/models/pending_task_create.dart';
 import 'package:momentum/services/team_service.dart';
 import 'package:momentum/services/task_service.dart';
 import 'package:momentum/services/notification_service.dart';
 import 'package:momentum/database/widget_service.dart';
 import 'package:momentum/database/timer_service.dart';
+import 'package:momentum/database/local_cache_service.dart';
+import 'package:momentum/database/sync_queue_service.dart';
+import 'package:momentum/utils/network_utils.dart';
 import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -29,8 +33,8 @@ class TaskDatabase extends ChangeNotifier {
   int unreadNotificationCount = 0;
 
   // Dashboard stats — populated from backend, team-scoped when a team is selected.
-  // Updated during initialize(), _refreshData(), selectTeam(), and as a
-  // fire-and-forget call after task mutations so the numbers stay current.
+  // Updated during initialize(), _refreshData(), selectTeam(), and after
+  // every task mutation so the numbers stay current.
   Map<String, int> dashboardStats = {
     'totalTasks': 0,
     'completedToday': 0,
@@ -51,6 +55,11 @@ class TaskDatabase extends ChangeNotifier {
   final WidgetService _widgetService = WidgetService();
   TimerService? _timerService;
 
+  // Offline support
+  final LocalCacheService _cacheService = LocalCacheService();
+  final SyncQueueService _syncQueueService = SyncQueueService();
+  bool _isOffline = false;
+
   bool _isInitialized = false;
 
   // ── Getters ───────────────────────────────────────────────────────────────
@@ -58,6 +67,10 @@ class TaskDatabase extends ChangeNotifier {
   List<DateTime> get historicalCompletions =>
       List.unmodifiable(_historicalCompletions);
   bool get isInitialized => _isInitialized;
+
+  /// True when the most recent data fetch had to fall back to cached data
+  /// because the network was unreachable.
+  bool get isOffline => _isOffline;
 
   List<Task> get activeTasks => currentTasks
       .where((task) => !task.isCompletedToday() && !task.isArchived)
@@ -114,6 +127,11 @@ class TaskDatabase extends ChangeNotifier {
         await _notificationService?.init(jwtToken: jwt);
       }
 
+      // Replay anything queued from a previous offline session before we
+      // fetch fresh data, so a successfully-synced task shows up as synced
+      // rather than as a stale local placeholder.
+      await _flushPendingOperations();
+
       await Future.wait([
         _loadUserTeams(),
         _loadPendingInvitations(),
@@ -143,7 +161,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  void clearData() {
+  Future<void> clearData() async {
     logger.i('Clearing TaskDatabase data');
     currentTasks.clear();
     personalTasks.clear();
@@ -166,6 +184,9 @@ class TaskDatabase extends ChangeNotifier {
     _teamService = null;
     _taskService = null;
     _isInitialized = false;
+    _isOffline = false;
+    await _cacheService.clearAll();
+    await _syncQueueService.clear();
     notifyListeners();
   }
 
@@ -205,9 +226,21 @@ class TaskDatabase extends ChangeNotifier {
       currentTasks.clear();
       currentTasks.addAll(filtered);
       _organizeTasksByType();
+      _isOffline = false;
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
       notifyListeners();
     } catch (e, stackTrace) {
-      logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
+      if (isNetworkError(e)) {
+        logger.w('Offline — showing cached tasks');
+        final cached = await _cacheService.loadTasks(selectedTeam?.id);
+        currentTasks.clear();
+        currentTasks.addAll(cached);
+        _organizeTasksByType();
+        _isOffline = true;
+        notifyListeners();
+      } else {
+        logger.e('Error loading tasks', error: e, stackTrace: stackTrace);
+      }
     }
   }
 
@@ -233,8 +266,17 @@ class TaskDatabase extends ChangeNotifier {
       final teams = await _teamService?.getUserTeams() ?? [];
       userTeams.clear();
       userTeams.addAll(teams);
+      await _cacheService.saveTeams(userTeams);
     } catch (e, stackTrace) {
-      logger.e('Error loading user teams', error: e, stackTrace: stackTrace);
+      if (isNetworkError(e)) {
+        logger.w('Offline — showing cached teams');
+        final cached = await _cacheService.loadTeams();
+        userTeams.clear();
+        userTeams.addAll(cached);
+        _isOffline = true;
+      } else {
+        logger.e('Error loading user teams', error: e, stackTrace: stackTrace);
+      }
     }
   }
 
@@ -258,12 +300,25 @@ class TaskDatabase extends ChangeNotifier {
           await _taskService?.getTaskHistory(teamId: selectedTeam?.id) ?? [];
       _historicalCompletions.clear();
       _historicalCompletions.addAll(historicalData);
-    } catch (e, stackTrace) {
-      logger.w(
-        'Could not load historical completions (non-critical)',
-        error: e,
-        stackTrace: stackTrace,
+      await _cacheService.saveHistoricalCompletions(
+        selectedTeam?.id,
+        _historicalCompletions,
       );
+    } catch (e, stackTrace) {
+      if (isNetworkError(e)) {
+        final cached = await _cacheService.loadHistoricalCompletions(
+          selectedTeam?.id,
+        );
+        _historicalCompletions.clear();
+        _historicalCompletions.addAll(cached);
+        _isOffline = true;
+      } else {
+        logger.w(
+          'Could not load historical completions (non-critical)',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -276,12 +331,19 @@ class TaskDatabase extends ChangeNotifier {
         teamId: selectedTeam?.id,
       );
       dashboardStats = stats;
+      await _cacheService.saveDashboardStats(selectedTeam?.id, stats);
     } catch (e, stackTrace) {
-      logger.w(
-        'Could not load dashboard stats (non-critical)',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      if (isNetworkError(e)) {
+        final cached = await _cacheService.loadDashboardStats(selectedTeam?.id);
+        if (cached != null) dashboardStats = cached;
+        _isOffline = true;
+      } else {
+        logger.w(
+          'Could not load dashboard stats (non-critical)',
+          error: e,
+          stackTrace: stackTrace,
+        );
+      }
     }
   }
 
@@ -508,6 +570,7 @@ class TaskDatabase extends ChangeNotifier {
       _organizeTasksByType();
 
       await updateWidget();
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
       notifyListeners();
 
       // Refresh task list in background after a short delay
@@ -524,6 +587,22 @@ class TaskDatabase extends ChangeNotifier {
 
       return task;
     } catch (e, stackTrace) {
+      // Personal tasks (no team) can be created offline and synced later.
+      // Team tasks always need the server, since membership/permissions
+      // have to be checked there.
+      final isPersonalTask = teamId == null || teamId.isEmpty;
+      if (isPersonalTask && isNetworkError(e)) {
+        return _createTaskOffline(
+          name: name.trim(),
+          description: description?.trim(),
+          assignedTo: assignedTo,
+          priority: priority,
+          dueDate: dueDate,
+          tags: tags ?? [],
+          assignmentType: assignmentType,
+        );
+      }
+
       logger.e(
         'Error in TaskDatabase.createTask',
         error: e,
@@ -535,10 +614,8 @@ class TaskDatabase extends ChangeNotifier {
         userMessage = 'App not ready - please restart and try again';
       } else if (msg.contains('Selected team not found')) {
         userMessage = 'Selected team is no longer available';
-      } else if (msg.contains('Network error')) {
+      } else if (isNetworkError(e)) {
         userMessage = 'Network error - check your connection';
-      } else if (msg.contains('timeout')) {
-        userMessage = 'Request timeout - please try again';
       } else if (msg.contains('401') || msg.contains('unauthorized')) {
         userMessage = 'Session expired - please login again';
       } else if (msg.contains('403') || msg.contains('permission')) {
@@ -551,7 +628,125 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
+  /// Saves a personal task locally with a placeholder id and queues it to
+  /// be created on the server once the connection is back.
+  Future<Task> _createTaskOffline({
+    required String name,
+    String? description,
+    List<String>? assignedTo,
+    required String priority,
+    DateTime? dueDate,
+    required List<String> tags,
+    required String assignmentType,
+  }) async {
+    final localId = Task.generateLocalId();
+    final now = DateTime.now();
+
+    final placeholder = Task(
+      id: localId,
+      name: name,
+      description: description,
+      priority: priority,
+      dueDate: dueDate,
+      tags: tags,
+      isTeamTask: false,
+      assignmentType: assignmentType,
+      createdAt: now,
+      updatedAt: now,
+      syncStatus: TaskSyncStatus.pendingCreate,
+    );
+
+    currentTasks.add(placeholder);
+    _organizeTasksByType();
+    _isOffline = true;
+
+    await _syncQueueService.enqueue(
+      PendingTaskCreate(
+        localId: localId,
+        name: name,
+        description: description,
+        assignedTo: assignedTo,
+        teamId: null,
+        priority: priority,
+        dueDate: dueDate,
+        tags: tags,
+        assignmentType: assignmentType,
+        queuedAt: now,
+      ),
+    );
+    await _cacheService.saveTasks(null, currentTasks);
+
+    logger.i('No connection — queued "$name" to sync when back online');
+    notifyListeners();
+    return placeholder;
+  }
+
+  /// Replays queued personal-task creations. Called before every load
+  /// (initialize, polling tick, manual refresh) so a reconnect gets picked
+  /// up automatically without any action from the user.
+  Future<void> _flushPendingOperations() async {
+    if (_taskService == null) return;
+    final pending = await _syncQueueService.getPending();
+    if (pending.isEmpty) return;
+
+    bool changed = false;
+    bool stillOffline = false;
+
+    for (final op in pending) {
+      try {
+        final synced = await _taskService!.createTask(
+          name: op.name,
+          description: op.description,
+          assignedTo: op.assignedTo,
+          teamId: op.teamId,
+          priority: op.priority,
+          dueDate: op.dueDate,
+          tags: op.tags,
+          assignmentType: op.assignmentType,
+        );
+
+        final index = currentTasks.indexWhere((t) => t.id == op.localId);
+        if (index != -1) {
+          currentTasks[index] = synced;
+        } else {
+          currentTasks.add(synced);
+        }
+
+        await _syncQueueService.remove(op.localId);
+        changed = true;
+        logger.i('Synced offline task ${op.localId} -> ${synced.id}');
+      } catch (e) {
+        if (isNetworkError(e)) {
+          // Still offline — leave the rest queued and try again next tick.
+          stillOffline = true;
+          break;
+        }
+        // The server actively rejected it (validation, etc.) — don't
+        // retry forever, just flag it so the user can see and re-create it.
+        logger.w('Server rejected queued task "${op.name}": $e');
+        final index = currentTasks.indexWhere((t) => t.id == op.localId);
+        if (index != -1) {
+          currentTasks[index].syncStatus = TaskSyncStatus.syncFailed;
+        }
+        await _syncQueueService.remove(op.localId);
+        changed = true;
+      }
+    }
+
+    if (!stillOffline) _isOffline = false;
+    if (changed) {
+      _organizeTasksByType();
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
+      notifyListeners();
+    }
+  }
+
   Future<void> completeTask(String taskId, bool isCompleted) async {
+    if (Task.isLocalId(taskId)) {
+      throw Exception(
+        "This task hasn't finished syncing yet — try again in a moment",
+      );
+    }
     try {
       if (_taskService == null) throw Exception('Task service not initialized');
 
@@ -585,6 +780,7 @@ class TaskDatabase extends ChangeNotifier {
       }
 
       await updateWidget();
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
 
       // Update dashboard stats from backend (fire-and-forget)
       _loadDashboardStats().catchError(
@@ -601,10 +797,8 @@ class TaskDatabase extends ChangeNotifier {
       String userMessage =
           'Failed to ${isCompleted ? 'complete' : 'uncomplete'} task';
       final msg = e.toString();
-      if (msg.contains('Network error')) {
+      if (isNetworkError(e)) {
         userMessage = 'Network error - check your connection';
-      } else if (msg.contains('timeout')) {
-        userMessage = 'Request timeout - please try again';
       } else if (msg.contains('401') || msg.contains('unauthorized')) {
         userMessage = 'Session expired - please login again';
       }
@@ -613,6 +807,11 @@ class TaskDatabase extends ChangeNotifier {
   }
 
   Future<void> updateTask(String taskId, Map<String, dynamic> updates) async {
+    if (Task.isLocalId(taskId)) {
+      throw Exception(
+        "This task hasn't finished syncing yet — try again in a moment",
+      );
+    }
     try {
       final updatedTask = await _taskService!.updateTask(taskId, updates);
       final index = currentTasks.indexWhere((t) => t.id == taskId);
@@ -620,6 +819,7 @@ class TaskDatabase extends ChangeNotifier {
         currentTasks[index] = updatedTask;
         _organizeTasksByType();
         await updateWidget();
+        await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
         notifyListeners();
       }
     } catch (e, stackTrace) {
@@ -629,12 +829,24 @@ class TaskDatabase extends ChangeNotifier {
   }
 
   Future<void> deleteTask(String taskId) async {
+    if (Task.isLocalId(taskId)) {
+      // Never reached the server — just drop it locally and out of the
+      // sync queue, no network call needed.
+      currentTasks.removeWhere((t) => t.id == taskId);
+      personalTasks.removeWhere((t) => t.id == taskId);
+      teamTasks.removeWhere((t) => t.id == taskId);
+      await _syncQueueService.remove(taskId);
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
+      notifyListeners();
+      return;
+    }
     try {
       await _taskService!.deleteTask(taskId);
       currentTasks.removeWhere((t) => t.id == taskId);
       _organizeTasksByType();
       await _loadHistoricalCompletions();
       await updateWidget();
+      await _cacheService.saveTasks(selectedTeam?.id, currentTasks);
 
       // Update dashboard stats from backend (fire-and-forget)
       _loadDashboardStats().catchError(
@@ -736,6 +948,7 @@ class TaskDatabase extends ChangeNotifier {
   Future<void> _refreshData() async {
     try {
       if (!_isInitialized) return;
+      await _flushPendingOperations();
       await Future.wait([
         _loadTasks(),
         _loadNotifications(),

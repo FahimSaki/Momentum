@@ -10,17 +10,14 @@
 .svn/
 migrate_working_dir/
 .env
-script.txt
 supabase_cmd.sql
-frontend.txt
-backend.txt
-history.txt
 momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 backend/node_modules
 backend/dist
 debug/backend_old/node_modules
+notes.md
 
 # IntelliJ related
 *.iml

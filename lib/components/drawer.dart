@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/components/drawer_tile.dart';
+import 'package:momentum/database/task_database.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
@@ -36,6 +37,8 @@ class MyDrawer extends StatelessWidget {
 
     if (shouldLogout == true && context.mounted) {
       try {
+        final db = Provider.of<TaskDatabase>(context, listen: false);
+
         // Close the drawer first
         Navigator.of(context).pop();
 
@@ -44,7 +47,11 @@ class MyDrawer extends StatelessWidget {
           context,
         ).pushNamedAndRemoveUntil('/login', (route) => false);
 
-        // Run logout in background
+        // Clear in-memory + cached data so the next login on this device
+        // doesn't briefly show this account's tasks.
+        await db.clearData();
+
+        // Run server logout in background
         AuthService.instance.logout().catchError((e) {
           _logger.e('Logout error: $e');
         });
