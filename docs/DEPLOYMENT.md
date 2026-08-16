@@ -39,7 +39,7 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 
 > **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
 
-> **Why Gmail's REST API and not SMTP?** Render blocks outbound SMTP on ports 465 and 587, so a `nodemailer`/SMTP setup silently times out there. Momentum sends mail over HTTPS (port 443) via the Gmail API instead (`backend/src/services/emailService.ts`). Without all four `GMAIL_*` / `EMAIL_FROM` variables the server still boots, but registration, 2FA, and account-deletion codes are never delivered — see [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
+> **Why Gmail's REST API and not SMTP?** Render blocks outbound SMTP on ports 465 and 587, so a `nodemailer`/SMTP setup silently times out there. Momentum sends mail over HTTPS (port 443) via the Gmail API instead (`backend/src/services/emailService.ts`). Without all four `GMAIL_*` / `EMAIL_FROM` variables the server still boots, but registration, 2FA, and account-deletion codes are never delivered – see [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
 
 > If `ALLOWED_ORIGINS` is not set, the server defaults to allowing all origins (`*`). Set it explicitly in production.
 
@@ -47,10 +47,7 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 
 ### Keep-Alive
 
-Render free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use you should either:
-
-- Upgrade to a paid Render plan (always-on), or
-- Set up an external cron to hit `GET /wake-up` every 10 minutes.
+Render free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use, upgrade to a paid Render plan (always-on).
 
 ### Redeployment
 

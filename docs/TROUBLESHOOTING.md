@@ -10,7 +10,7 @@ Common problems and how to fix them.
 
 The `SplashPage` validates the stored JWT by calling `GET /auth/validate`. If the backend is unreachable (e.g. Render free-tier is sleeping) the request times out and the app falls through to the login page.
 
-**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For a permanent fix, upgrade to a paid Render plan or set up a keep-alive cron.
+**Fix**: wake the backend first by hitting `/wake-up`, then reopen the app. For a permanent fix, upgrade to a paid Render plan.
 
 ---
 
