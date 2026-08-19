@@ -39,22 +39,22 @@ class MyDrawer extends StatelessWidget {
       try {
         final db = Provider.of<TaskDatabase>(context, listen: false);
 
-        // Close the drawer first
+        // Close the drawer first.
         Navigator.of(context).pop();
 
-        // Navigate immediately (before logout finishes)
+        // Finish clearing the local session before showing the login page.
+        // Previously this navigated immediately and let logout continue in
+        // the background. If the user signed back in quickly, that delayed
+        // logout could delete the freshly-persisted token or clear the newly
+        // initialized TaskDatabase, causing authenticated calls like GET
+        // /tasks to be sent without a usable access token after relogin.
+        await AuthService.instance.logout();
+        await db.clearData();
+
+        if (!context.mounted) return;
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil('/login', (route) => false);
-
-        // Clear in-memory + cached data so the next login on this device
-        // doesn't briefly show this account's tasks.
-        await db.clearData();
-
-        // Run server logout in background
-        AuthService.instance.logout().catchError((e) {
-          _logger.e('Logout error: $e');
-        });
       } catch (e) {
         _logger.e('Logout navigation error: $e');
       }

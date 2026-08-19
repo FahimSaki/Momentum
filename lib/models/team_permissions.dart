@@ -66,12 +66,13 @@ class TeamPermissions {
     canEditAllTasks: false,
     canDeleteOwnTasks: false, // Members can't delete tasks
     canDeleteAllTasks: false,
-    canCompleteTasks: true, // Members CAN complete tasks assigned to them
+    canCompleteTasks:
+        true, // Members CAN complete any team task, not just ones assigned to them
     canInviteMembers: false,
     canRemoveMembers: false,
     canEditSettings: false,
     canDeleteTeam: false,
-    canViewTasks: true, // Members CAN view tasks
+    canViewTasks: true, // Members CAN view every team task
     canAssignTasks: false,
   );
 

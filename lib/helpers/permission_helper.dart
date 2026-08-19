@@ -19,8 +19,12 @@ class PermissionHelper {
     return permissions.canDeleteTask(task.assignedBy?.id ?? '', userId);
   }
 
-  static bool canUserCompleteTask(Task task, String userId) {
-    return task.isAssignedTo(userId);
+  // Any team member can complete any team task now — completion is no
+  // longer restricted to the task's original assignee(s), so this only
+  // needs team membership, not the task itself. (Currently unused by any
+  // call site, updated for consistency with the backend rule.)
+  static bool canUserCompleteTask(Team team, String userId) {
+    return team.isMember(userId);
   }
 
   static String getUserRole(Team team, String userId) {

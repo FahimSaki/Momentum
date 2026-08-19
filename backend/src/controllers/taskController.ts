@@ -218,10 +218,24 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
             .populate('assignedBy', 'name email avatar');
         if (!task) { res.status(404).json({ message: 'Task not found' }); return; }
 
-        const isAssignee = task.assignedTo.some((a: any) => a._id.toString() === userId);
-        if (!isAssignee) {
-            res.status(403).json({ message: 'You can only complete tasks assigned to you' });
-            return;
+        // Team tasks: any team member can complete any team task, not just
+        // whoever it's assigned to. Personal tasks: only the task's own
+        // assignee (its creator) can complete it. Same rule applies whether
+        // isCompleted is true or false, so un-completing follows it too.
+        if (task.team) {
+            const team = await getTaskTeam(task);
+            if (!team) { res.status(404).json({ message: 'Team not found' }); return; }
+            const isMember = team.members.some((m) => m.user.toString() === userId);
+            if (!isMember) {
+                res.status(403).json({ message: 'You are not a team member' });
+                return;
+            }
+        } else {
+            const isAssignee = task.assignedTo.some((a: any) => a._id.toString() === userId);
+            if (!isAssignee) {
+                res.status(403).json({ message: 'You can only complete tasks assigned to you' });
+                return;
+            }
         }
 
         // Backend is the sole authority for completion timestamps — never trust client clock
@@ -279,15 +293,26 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
 
         await task.save();
 
-        if (isCompleted) {
-            const toNotify = task.assignedTo
-                .map((a: any) => a._id?.toString() ?? a.toString())
-                .filter((id: string) => id !== userId);
+        // ── Completion notifications (team tasks only) ──────────────────────
+        // Recipients = the task's original assignee(s) plus whoever assigned
+        // it (always owner/admin, per canCreateTask), minus whoever just
+        // completed it. "Assigned to A, completed by B" -> notify A and the
+        // assigner. Self-assigned/personal tasks resolve to an empty set, so
+        // nobody gets notified about their own completion.
+        if (isCompleted && task.team) {
+            const recipients = new Set<string>();
+
+            for (const assignee of task.assignedTo as any[]) {
+                const assigneeId = assignee._id?.toString() ?? assignee.toString();
+                if (assigneeId !== userId) recipients.add(assigneeId);
+            }
+
             if (task.assignedBy) {
                 const assignerId = (task.assignedBy as any)._id?.toString() ?? task.assignedBy.toString();
-                if (!toNotify.includes(assignerId)) toNotify.push(assignerId);
+                if (assignerId !== userId) recipients.add(assignerId);
             }
-            for (const recipientId of toNotify) {
+
+            for (const recipientId of recipients) {
                 try {
                     await sendTaskCompletedNotification(task, req.user, recipientId);
                 } catch (e) {
@@ -413,11 +438,9 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
         const isMember = team.members.some((m) => m.user.toString() === userId);
         if (!isMember) { res.status(403).json({ message: 'Access denied' }); return; }
 
-        const member = team.members.find((m) => m.user.toString() === userId);
-        const isPrivileged = member && ['owner', 'admin'].includes(member.role);
-
+        // Every team member sees every team task, not just tasks assigned
+        // to them — anyone on the team can complete any team task.
         const query: Record<string, any> = { team: teamId };
-        if (!isPrivileged) query.assignedTo = userId;
 
         if (status === 'active') {
             const todayStart = new Date();

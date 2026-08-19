@@ -429,14 +429,60 @@ class _DashboardTab extends StatelessWidget {
   }
 }
 
-class _TaskRow extends StatelessWidget {
+class _TaskRow extends StatefulWidget {
   final Task task;
   final TaskDatabase db;
 
   const _TaskRow({required this.task, required this.db});
 
   @override
+  State<_TaskRow> createState() => _TaskRowState();
+}
+
+class _TaskRowState extends State<_TaskRow> {
+  // Guards against a single tap firing completeTask() more than once. The
+  // old version had a separate GestureDetector on the leading dot *and*
+  // ListTile.onTap, both wired to _toggle(), with no guard at all — two
+  // independent triggers on one tap, and nothing to stop a third eager tap
+  // going out before the first one finished. Each of those extra calls
+  // showed up as its own duplicate "task completed" notification.
+  bool _isToggling = false;
+
+  Future<void> _toggle(bool complete) async {
+    if (_isToggling) return;
+    setState(() => _isToggling = true);
+    try {
+      await widget.db.completeTask(widget.task.id, complete);
+      await widget.db.refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(complete ? '✅ Task completed!' : '↩️ Task unmarked'),
+            backgroundColor: complete ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isToggling = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final task = widget.task;
     final isCompleted = task.isCompletedToday();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -452,24 +498,32 @@ class _TaskRow extends StatelessWidget {
             horizontal: 8,
             vertical: 4,
           ),
-          leading: GestureDetector(
-            onTap: () => _toggle(context, !isCompleted),
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: isCompleted ? Colors.green : Colors.grey,
-                  width: 2,
+          // Purely visual — no tap handler of its own. ListTile.onTap below
+          // is the single source of truth for toggling this row.
+          leading: _isToggling
+              ? const Padding(
+                  padding: EdgeInsets.all(2.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isCompleted ? Colors.green : Colors.grey,
+                      width: 2,
+                    ),
+                    color: isCompleted ? Colors.green : Colors.transparent,
+                  ),
+                  child: isCompleted
+                      ? const Icon(Icons.check, color: Colors.white, size: 16)
+                      : null,
                 ),
-                color: isCompleted ? Colors.green : Colors.transparent,
-              ),
-              child: isCompleted
-                  ? const Icon(Icons.check, color: Colors.white, size: 16)
-                  : null,
-            ),
-          ),
           title: Text(
             task.name,
             style: TextStyle(
@@ -495,38 +549,10 @@ class _TaskRow extends StatelessWidget {
               : task.isDueSoon
               ? const Icon(Icons.access_time, color: Colors.amber, size: 20)
               : null,
-          onTap: () => _toggle(context, !isCompleted),
+          onTap: _isToggling ? null : () => _toggle(!isCompleted),
         ),
       ),
     );
-  }
-
-  Future<void> _toggle(BuildContext context, bool complete) async {
-    try {
-      await db.completeTask(task.id, complete);
-      await db.refreshData();
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(complete ? '✅ Task completed!' : '↩️ Task unmarked'),
-            backgroundColor: complete ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: ${e.toString().replaceFirst('Exception: ', '')}',
-            ),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
   }
 }
 

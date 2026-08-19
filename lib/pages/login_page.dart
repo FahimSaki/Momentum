@@ -30,6 +30,9 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _initAndNavigate(String jwt, String userId) async {
     final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (db.isInitialized || db.jwtToken != null || db.userId != null) {
+      await db.clearData();
+    }
     await db.initialize(jwt: jwt, userId: userId);
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/home');

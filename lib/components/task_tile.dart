@@ -172,7 +172,10 @@ class _ActiveCard extends StatelessWidget {
             : task.isDueSoon
             ? const Icon(Icons.access_time, color: Colors.amber)
             : null,
-        onTap: isLoading ? null : () => onToggle(true),
+        // No ListTile.onTap here on purpose. It used to duplicate the
+        // Checkbox's onChanged — both wired to the same toggle — which
+        // risked firing completeTask() twice for one tap landing on the
+        // checkbox. The Checkbox above is the single source of truth now.
       ),
     );
   }
