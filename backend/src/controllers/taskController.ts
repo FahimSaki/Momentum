@@ -29,12 +29,29 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
             dueDate,
             tags = [],
             assignmentType = 'individual',
+            clientId,
         } = req.body;
         const assignerId = req.userId;
 
         if (!name?.trim()) {
             res.status(400).json({ message: 'Task name is required' });
             return;
+        }
+
+        // clientId means this request came from the offline sync queue,
+        // which retries on any client-side failure — including a request
+        // that actually succeeded server-side but timed out on the client
+        // before the response arrived. If a task for this exact clientId
+        // already exists, return it instead of creating a duplicate.
+        if (clientId) {
+            const existing = await Task.findOne({ assignedBy: assignerId, clientId })
+                .populate('assignedTo', 'name email avatar')
+                .populate('assignedBy', 'name email avatar')
+                .populate('team', 'name');
+            if (existing) {
+                res.status(200).json({ message: 'Task already created', task: existing });
+                return;
+            }
         }
 
         const team = teamId ? await Team.findById(teamId) : null;
@@ -76,9 +93,28 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
             tags,
             isTeamTask: !!teamId,
             assignmentType,
+            clientId: clientId || undefined,
         });
 
-        await task.save();
+        try {
+            await task.save();
+        } catch (saveErr: any) {
+            // Lost a race to a concurrent retry with the same clientId —
+            // that retry's save won, so return the task it created instead
+            // of surfacing a duplicate-key error to the client.
+            if (saveErr.code === 11000 && clientId) {
+                const existing = await Task.findOne({ assignedBy: assignerId, clientId })
+                    .populate('assignedTo', 'name email avatar')
+                    .populate('assignedBy', 'name email avatar')
+                    .populate('team', 'name');
+                if (existing) {
+                    res.status(200).json({ message: 'Task already created', task: existing });
+                    return;
+                }
+            }
+            throw saveErr;
+        }
+
         await task.populate([
             { path: 'assignedTo', select: 'name email avatar' },
             { path: 'assignedBy', select: 'name email avatar' },

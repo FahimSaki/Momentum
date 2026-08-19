@@ -97,6 +97,7 @@ class TaskService {
     DateTime? dueDate,
     List<String>? tags,
     String assignmentType = 'individual',
+    String? clientId,
   }) async {
     try {
       final body = <String, dynamic>{
@@ -119,6 +120,14 @@ class TaskService {
       }
       if (tags != null && tags.isNotEmpty) {
         body['tags'] = tags;
+      }
+      if (clientId != null && clientId.isNotEmpty) {
+        // Lets the backend recognise a retried request (e.g. the client
+        // timed out waiting for a response the server actually finished
+        // producing) and return the existing task instead of creating a
+        // second one. Only set for tasks replayed from the offline sync
+        // queue — see TaskDatabase._flushPendingOperationsOnce.
+        body['clientId'] = clientId;
       }
 
       final response = await http
@@ -269,24 +278,20 @@ class TaskService {
         };
       }
 
-      return {
-        'totalTasks': 0,
-        'completedToday': 0,
-        'overdueTasks': 0,
-        'upcomingTasks': 0,
-      };
+      // Previously returned zeroed defaults here instead of throwing, which
+      // meant TaskDatabase._loadDashboardStats() could never tell a real
+      // network failure apart from a normal empty response — its offline
+      // cache-fallback branch never ran, so dashboard numbers silently
+      // reset to 0 whenever this was called while offline instead of
+      // showing the last-known cached values.
+      throw Exception('Failed to fetch dashboard stats');
     } catch (e, stackTrace) {
       _logger.e(
         'Error fetching dashboard stats',
         error: e,
         stackTrace: stackTrace,
       );
-      return {
-        'totalTasks': 0,
-        'completedToday': 0,
-        'overdueTasks': 0,
-        'upcomingTasks': 0,
-      };
+      rethrow;
     }
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/error_handler.dart';
 import 'package:momentum/components/responsive_layout.dart';
+import 'package:momentum/utils/network_utils.dart';
 import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/components/task_edit_delete_dialogs.dart';
@@ -38,14 +39,27 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 
   Future<void> _loadTeamData() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
       if (db.userId == null) throw Exception('User not authenticated');
-      final fresh = await db.getTeamDetails(widget.team.id);
-      _userRole = PermissionHelper.getUserRole(fresh, db.userId!);
+
+      // Start from the team we already have (passed in from the cached
+      // team list on TeamSelectionPage) so there's still something to work
+      // with if the refresh below can't reach the server.
+      Team teamForContext = widget.team;
+      try {
+        teamForContext = await db.getTeamDetails(widget.team.id);
+      } catch (e) {
+        if (!isNetworkError(e)) rethrow;
+        _logger.w('Offline — using cached team details for ${widget.team.id}');
+      }
+
+      _userRole = PermissionHelper.getUserRole(teamForContext, db.userId!);
       _permissions = TeamPermissions.forRole(_userRole);
-      db.selectTeam(fresh);
-      setState(() => _isLoading = false);
+      // Always select the team — even with stale/cached data — so
+      // TaskDatabase loads, or falls back to cached, tasks for it.
+      db.selectTeam(teamForContext);
+      if (mounted) setState(() => _isLoading = false);
     } catch (e, st) {
       _logger.e('Error loading team', error: e, stackTrace: st);
       if (mounted) {
@@ -394,6 +408,10 @@ class _TeamHomePageState extends State<TeamHomePage> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
+                  if (db.isOffline) ...[
+                    _OfflineTeamBanner(),
+                    const SizedBox(height: 12),
+                  ],
                   _RoleCard(userRole: _userRole),
                   const SizedBox(height: 16),
                   const DashboardStats(),
@@ -441,6 +459,39 @@ class _TeamHomePageState extends State<TeamHomePage> {
 }
 
 // ── Sub-widgets ───────────────────────────────────────────────────────────────
+
+class _OfflineTeamBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 14,
+            color: Colors.orange.shade800,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Offline — showing this team\'s last synced data',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.orange.shade800,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _RoleCard extends StatelessWidget {
   final String userRole;

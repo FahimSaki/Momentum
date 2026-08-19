@@ -36,6 +36,13 @@ const taskSchema = new Schema<ITaskDocument>(
             pattern: { type: String, enum: ['daily', 'weekly', 'monthly'] },
             interval: { type: Number, default: 1 },
         },
+        // Set only for tasks created through the offline sync queue (see
+        // Flutter's TaskDatabase._flushPendingOperationsOnce). Lets
+        // POST /tasks recognise a retried request — e.g. the client timed
+        // out waiting for a response the server had actually already
+        // finished producing — and return the existing task instead of
+        // creating a second one.
+        clientId: { type: String },
     },
     { timestamps: true }
 );
@@ -45,5 +52,8 @@ taskSchema.index({ assignedBy: 1 });
 taskSchema.index({ team: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ isArchived: 1, team: 1 });
+// Sparse: only enforced on documents that actually have a clientId, so
+// the many existing/normal tasks with no clientId never collide on it.
+taskSchema.index({ assignedBy: 1, clientId: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model<ITaskDocument>('Task', taskSchema);

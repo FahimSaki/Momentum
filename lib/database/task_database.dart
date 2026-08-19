@@ -684,7 +684,27 @@ class TaskDatabase extends ChangeNotifier {
   /// Replays queued personal-task creations. Called before every load
   /// (initialize, polling tick, manual refresh) so a reconnect gets picked
   /// up automatically without any action from the user.
-  Future<void> _flushPendingOperations() async {
+  ///
+  /// Guarded against overlapping calls: a polling tick firing while a
+  /// manual pull-to-refresh is still in flight (or two ticks overlapping
+  /// because the first is still waiting on a slow/just-woken backend)
+  /// previously meant two independent runs of this method could both read
+  /// the same queued item before either removed it, and both POST it —
+  /// creating two real tasks on the server from one offline creation. Any
+  /// caller that arrives while a flush is already running now awaits that
+  /// same attempt instead of starting a second one.
+  Future<void>? _pendingFlushFuture;
+
+  Future<void> _flushPendingOperations() {
+    final inFlight = _pendingFlushFuture;
+    if (inFlight != null) return inFlight;
+
+    final flush = _flushPendingOperationsOnce();
+    _pendingFlushFuture = flush;
+    return flush.whenComplete(() => _pendingFlushFuture = null);
+  }
+
+  Future<void> _flushPendingOperationsOnce() async {
     if (_taskService == null) return;
     final pending = await _syncQueueService.getPending();
     if (pending.isEmpty) return;
@@ -694,6 +714,11 @@ class TaskDatabase extends ChangeNotifier {
 
     for (final op in pending) {
       try {
+        // clientId (the placeholder's local id) lets the backend recognise
+        // a retry of this exact operation — e.g. this same attempt already
+        // succeeded server-side once but the client never saw the response
+        // (timed out waiting on a Render free-tier instance waking up) —
+        // and hand back the existing task instead of creating another one.
         final synced = await _taskService!.createTask(
           name: op.name,
           description: op.description,
@@ -703,6 +728,7 @@ class TaskDatabase extends ChangeNotifier {
           dueDate: op.dueDate,
           tags: op.tags,
           assignmentType: op.assignmentType,
+          clientId: op.localId,
         );
 
         final index = currentTasks.indexWhere((t) => t.id == op.localId);
