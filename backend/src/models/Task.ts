@@ -52,8 +52,17 @@ taskSchema.index({ assignedBy: 1 });
 taskSchema.index({ team: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ isArchived: 1, team: 1 });
-// Sparse: only enforced on documents that actually have a clientId, so
-// the many existing/normal tasks with no clientId never collide on it.
-taskSchema.index({ assignedBy: 1, clientId: 1 }, { unique: true, sparse: true });
+// `sparse` on a COMPOUND index only excludes a document missing ALL of the
+// index's fields — every task has `assignedBy`, so this was indexing
+// every task and colliding on the second one any user created without a
+// clientId. `partialFilterExpression` only builds an index entry for
+// documents that actually have a clientId, which is what was intended.
+taskSchema.index(
+    { assignedBy: 1, clientId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { clientId: { $exists: true } },
+    }
+);
 
 export default mongoose.model<ITaskDocument>('Task', taskSchema);

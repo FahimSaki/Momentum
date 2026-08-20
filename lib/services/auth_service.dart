@@ -109,7 +109,9 @@ class AuthService {
       return {'requiresTwoFactor': true, 'email': data['email']};
     }
 
-    if (response.statusCode == 200 && data['token'] != null) {
+    if (response.statusCode == 200 &&
+        data['token'] != null &&
+        (data['token'] as String).isNotEmpty) {
       await _persist(data);
       return {
         'token': data['token'],
@@ -324,7 +326,24 @@ class AuthService {
       final token = await _storage.read(key: _AuthKeys.jwt);
       final userId = await _storage.read(key: _AuthKeys.userId);
       final userDataJson = await _storage.read(key: _AuthKeys.userData);
-      if (token == null || userId == null || userDataJson == null) return null;
+
+      // A corrupted/undecryptable secure-storage entry can come back as an
+      // empty string rather than null or a thrown error (seen on web when
+      // the underlying encryption key changes between sessions). An empty
+      // token used to pass the `!= null` check below, get handed to
+      // TaskService, and produce header 'Authorization: Bearer ' on every
+      // request — which the backend reads as an empty (falsy) token and
+      // returns 401 "Access token required" instead of us cleanly
+      // detecting "no usable session" and going to /login.
+      if (token == null ||
+          token.isEmpty ||
+          userId == null ||
+          userId.isEmpty ||
+          userDataJson == null ||
+          userDataJson.isEmpty) {
+        return null;
+      }
+
       return {
         'token': token,
         'userId': userId,

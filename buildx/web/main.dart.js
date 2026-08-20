@@ -104512,7 +104512,8 @@ return s==="owner"||s==="admin"},
 m8(a,b){return this.aDy(a,b)},
 aDy(a,b){var s=0,r=A.p(t.H),q=1,p=[],o=this,n,m,l,k,j
 var $async$m8=A.q(function(c,d){if(c===1){p.push(d)
-s=q}for(;;)switch(s){case 0:q=3
+s=q}for(;;)switch(s){case 0:if(a.length===0||b.length===0)throw A.f(A.bo("Cannot initialize session with an empty token or user id"))
+q=3
 l=o.a
 l.eJ("Initializing TaskDatabase with userId: "+b)
 o.as=a
@@ -108868,7 +108869,7 @@ s=1
 break}m=m===200
 if(m&&J.d(n.h(0,"requiresTwoFactor"),!0)){q=A.a5(["requiresTwoFactor",!0,"email",n.h(0,"email")],l,t.z)
 s=1
-break}s=m&&n.h(0,"token")!=null?4:5
+break}s=m&&n.h(0,"token")!=null&&A.bn(n.h(0,"token")).length!==0?4:5
 break
 case 4:s=6
 return A.j(p.qa(n),$async$zH)
@@ -108980,7 +108981,7 @@ case 8:m=b
 s=9
 return A.j(B.cq.Hq("auth_user_data"),$async$nR)
 case 9:l=b
-if(n==null||m==null||l==null){q=null
+if(n==null||n.length===0||m==null||m.length===0||l==null||l.length===0){q=null
 s=1
 break}i=A.a5(["token",n,"userId",m,"user",B.E.kh(l,null)],t.N,t.z)
 q=i

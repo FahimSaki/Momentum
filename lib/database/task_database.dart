@@ -114,6 +114,18 @@ class TaskDatabase extends ChangeNotifier {
   // ── Initialization ────────────────────────────────────────────────────────
 
   Future<void> initialize({required String jwt, required String userId}) async {
+    // Guards against a corrupted/undecryptable secure-storage read that
+    // returns an empty string instead of null or a thrown error (see
+    // AuthService.getStoredAuthData). An empty jwt here would silently
+    // configure every service with 'Authorization: Bearer ' and the
+    // backend would reject every call with 401 "Access token required"
+    // instead of us cleanly detecting "no usable session" up front.
+    if (jwt.isEmpty || userId.isEmpty) {
+      throw Exception(
+        'Cannot initialize session with an empty token or user id',
+      );
+    }
+
     try {
       logger.i('Initializing TaskDatabase with userId: $userId');
 
