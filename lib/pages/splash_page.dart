@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:momentum/pages/two_factor_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/database/task_database.dart';
 import 'package:momentum/theme/theme_provider.dart';
@@ -33,6 +34,20 @@ class _SplashPageState extends State<SplashPage> {
         try {
           final result = await AuthService.instance.completeWebGoogleRedirect();
           if (!mounted) return;
+
+          // The account may have 2FA turned on — same gate password login
+          // uses. No token yet in that case; hand off to TwoFactorPage to
+          // collect the emailed code before initializing TaskDatabase.
+          if (result['requiresTwoFactor'] == true) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TwoFactorPage(email: result['email'] as String),
+              ),
+            );
+            return;
+          }
+
           final taskDatabase = Provider.of<TaskDatabase>(
             context,
             listen: false,

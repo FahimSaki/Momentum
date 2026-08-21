@@ -7,7 +7,8 @@ import {
     removeFcmToken,
     findByInviteId,
     searchUsers,
-    changePassword,
+    requestPasswordChange,
+    confirmPasswordChange,
     requestAccountDeletion,
     confirmAccountDeletion,
     enableTwoFactor,
@@ -26,7 +27,8 @@ router.post('/fcm-token', registerFcmToken);
 router.delete('/fcm-token', removeFcmToken);
 router.get('/invite/:inviteId', findByInviteId);
 router.get('/search', searchUsers);
-router.put('/change-password', changePassword);
+router.post('/request-password-change', requestPasswordChange);
+router.post('/confirm-password-change', confirmPasswordChange);
 router.post('/request-account-deletion', requestAccountDeletion);
 router.post('/confirm-account-deletion', confirmAccountDeletion);
 router.post('/2fa/enable', enableTwoFactor);

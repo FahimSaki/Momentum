@@ -2,10 +2,11 @@ import { Request, Response } from 'express';
 import User from '../models/User';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'crypto';
-import { sendAccountDeletionCode } from '../services/emailService';
+import { sendAccountDeletionCode, sendPasswordChangeCode } from '../services/emailService';
 
 // Verification codes for account deletion are valid for this long.
 const DELETE_ACCOUNT_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const PASSWORD_CHANGE_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateOTP(): string {
     return randomInt(100000, 999999).toString();
@@ -16,10 +17,17 @@ function generateOTP(): string {
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
     try {
         const user = await User.findById(req.userId)
-            .select('-password -emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires -deleteAccountCode -deleteAccountExpires')
+            .select('-emailVerificationCode -emailVerificationExpires -twoFactorCode -twoFactorExpires -deleteAccountCode -deleteAccountExpires -passwordResetCode -passwordResetExpires -passwordChangeCode -passwordChangeExpires')
             .populate('teams', 'name description');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
-        res.json(user);
+
+        // password is intentionally still selected above so we can derive
+        // hasPassword — it's stripped before the response goes out below.
+        const userObj = user.toObject();
+        const hasPassword = !!userObj.password;
+        delete userObj.password;
+
+        res.json({ ...userObj, hasPassword });
     } catch (err) {
         console.error('Get profile error:', err);
         res.status(500).json({ message: 'Server error' });
@@ -183,28 +191,85 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// ── Change password ───────────────────────────────────────────────────────
+// ── Request password change (step 1: verify current password, send OTP) ───
 
-export const changePassword = async (req: Request, res: Response): Promise<void> => {
+export const requestPasswordChange = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { currentPassword, newPassword } = req.body as { currentPassword?: string; newPassword?: string };
+        const { currentPassword } = req.body as { currentPassword?: string };
+        if (!currentPassword) { res.status(400).json({ message: 'Current password is required' }); return; }
 
-        if (!currentPassword || !newPassword) { res.status(400).json({ message: 'Both passwords are required' }); return; }
-        if (newPassword.length < 6) { res.status(400).json({ message: 'New password must be at least 6 characters' }); return; }
-
-        const user = await User.findById(req.userId);
+        const user = await User.findById(req.userId).select('+passwordChangeExpires');
         if (!user) { res.status(404).json({ message: 'User not found' }); return; }
         if (!user.password) { res.status(400).json({ message: 'Google accounts cannot change password here' }); return; }
 
         const isMatch = await bcrypt.compare(currentPassword, user.password);
         if (!isMatch) { res.status(400).json({ message: 'Current password is incorrect' }); return; }
 
+        // Simple rate limit: block if a code was already sent recently and hasn't expired
+        if (user.passwordChangeExpires) {
+            const elapsed = PASSWORD_CHANGE_CODE_EXPIRY_MS - (user.passwordChangeExpires.getTime() - Date.now());
+            if (elapsed < 60_000) {
+                res.status(429).json({ message: 'Please wait before requesting another code.' });
+                return;
+            }
+        }
+
+        const otp = generateOTP();
+        await User.findByIdAndUpdate(req.userId, {
+            passwordChangeCode: otp,
+            passwordChangeExpires: new Date(Date.now() + PASSWORD_CHANGE_CODE_EXPIRY_MS),
+        });
+
+        try {
+            await sendPasswordChangeCode(user.email, user.name, otp);
+        } catch (emailErr: any) {
+            console.error('Failed to send password change code:', emailErr?.message ?? emailErr);
+            res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
+            return;
+        }
+
+        res.json({ message: 'A verification code has been sent to your email.' });
+    } catch (err) {
+        console.error('Request password change error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ── Confirm password change (step 2: verify OTP, apply new password) ───────
+
+export const confirmPasswordChange = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { code, newPassword } = req.body as { code?: string; newPassword?: string };
+        if (!code?.trim()) { res.status(400).json({ message: 'Verification code is required' }); return; }
+        if (!newPassword || newPassword.length < 6) {
+            res.status(400).json({ message: 'New password must be at least 6 characters' });
+            return;
+        }
+
+        const user = await User.findById(req.userId).select('+passwordChangeCode +passwordChangeExpires');
+        if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+
+        if (!user.passwordChangeCode || !user.passwordChangeExpires) {
+            res.status(400).json({ message: 'No verification code found. Please request a new one.' });
+            return;
+        }
+        if (new Date() > user.passwordChangeExpires) {
+            res.status(400).json({ message: 'Verification code expired. Please request a new one.' });
+            return;
+        }
+        if (user.passwordChangeCode !== code.trim()) {
+            res.status(400).json({ message: 'Invalid verification code' });
+            return;
+        }
+
         user.password = await bcrypt.hash(newPassword, 12);
+        user.passwordChangeCode = undefined;
+        user.passwordChangeExpires = undefined;
         await user.save();
 
         res.json({ message: 'Password changed successfully' });
     } catch (err) {
-        console.error('Change password error:', err);
+        console.error('Confirm password change error:', err);
         res.status(500).json({ message: 'Server error' });
     }
 };

@@ -49,6 +49,10 @@ export interface IUser {
     twoFactorExpires?: Date;
     deleteAccountCode?: string;
     deleteAccountExpires?: Date;
+    passwordResetCode?: string;
+    passwordResetExpires?: Date;
+    passwordChangeCode?: string;
+    passwordChangeExpires?: Date;
     name: string;
     avatar?: string;
     bio?: string;
@@ -98,8 +102,6 @@ export interface ITask {
     isTeamTask: boolean;
     assignmentType: 'individual' | 'multiple' | 'team';
     recurrence: IRecurrence;
-    // Set only for tasks created through the offline sync queue; used to
-    // de-duplicate retried creation requests. See models/Task.ts.
     clientId?: string;
     createdAt: Date;
     updatedAt: Date;

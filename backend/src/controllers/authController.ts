@@ -3,12 +3,13 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { randomInt } from 'crypto';
 import User from '../models/User';
-import { sendVerificationEmail, send2FACode } from '../services/emailService';
+import { sendVerificationEmail, send2FACode, sendPasswordResetCode } from '../services/emailService';
 
 // Email verification codes are valid for this long. resendVerification's
 // 60-second cooldown derives "time since last send" from this value — keep
 // them in sync.
 const EMAIL_VERIFICATION_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const PASSWORD_RESET_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function generateOTP(): string {
     return randomInt(100000, 999999).toString();
@@ -31,6 +32,7 @@ function buildUserResponse(user: any) {
         profileVisibility: user.profileVisibility,
         isEmailVerified: user.isEmailVerified,
         twoFactorEnabled: user.twoFactorEnabled,
+        hasPassword: !!user.password,
     };
 }
 
@@ -389,6 +391,10 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
         let user = await User.findOne({ $or: [{ googleId }, { email: email.toLowerCase() }] });
 
         if (!user) {
+            // Brand-new account — always created with twoFactorEnabled: false,
+            // so a first-ever Google sign-in can never hit the 2FA gate below.
+            // isEmailVerified stays true directly here, same as always — no
+            // OTP step for Google sign-ups.
             user = new User({
                 googleId,
                 email: email.toLowerCase(),
@@ -405,18 +411,161 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
                 },
             });
             await user.save();
-        } else {
-            const updates: any = { lastLoginAt: new Date() };
-            if (!user.googleId) { updates.googleId = googleId; updates.isEmailVerified = true; }
-            if (!user.avatar && avatar) updates.avatar = avatar;
+
+            const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET as string, { expiresIn: '7d' });
+            res.json({ token, user: buildUserResponse(user.toObject()), message: 'Google sign-in successful' });
+            return;
+        }
+
+        // Existing account — link identity fields only. lastLoginAt is
+        // intentionally NOT set here; it's set further down, after the 2FA
+        // gate, so a 2FA-enabled account's login timestamp only advances
+        // once the emailed code is actually verified — same ordering
+        // login() already uses for password sign-in.
+        const updates: any = {};
+        if (!user.googleId) { updates.googleId = googleId; updates.isEmailVerified = true; }
+        if (!user.avatar && avatar) updates.avatar = avatar;
+        if (Object.keys(updates).length > 0) {
             await User.findByIdAndUpdate(user._id, updates, { runValidators: false });
             user = await User.findById(user._id) as any;
         }
 
+        // 2FA challenge — same gate login() uses. An account that has
+        // turned on 2FA in Settings now requires the emailed code on
+        // Google sign-in too, not just password sign-in — regardless of
+        // which method was used when the toggle was originally flipped.
+        if (user!.twoFactorEnabled) {
+            const otp = generateOTP();
+            await User.findByIdAndUpdate(user!._id, {
+                twoFactorCode: otp,
+                twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
+            });
+
+            try {
+                await send2FACode(user!.email, user!.name, otp);
+                console.log(`✅ 2FA code sent to ${user!.email} (Google sign-in)`);
+            } catch (emailErr: any) {
+                console.error(`❌ Failed to send 2FA code to ${user!.email}:`, emailErr?.message ?? emailErr);
+                await User.findByIdAndUpdate(user!._id, {
+                    twoFactorCode: undefined,
+                    twoFactorExpires: undefined,
+                });
+                res.status(500).json({
+                    message: 'Failed to send verification code. Please try again or disable 2FA in settings.',
+                });
+                return;
+            }
+
+            res.json({
+                message: 'A verification code has been sent to your email.',
+                requiresTwoFactor: true,
+                email: user!.email,
+            });
+            return;
+        }
+
+        await User.findByIdAndUpdate(user!._id, { lastLoginAt: new Date() }, { runValidators: false });
         const token = jwt.sign({ userId: user!._id }, process.env.JWT_SECRET as string, { expiresIn: '7d' });
-        res.json({ token, user: buildUserResponse(user!.toObject()), message: 'Google sign-in successful' });
+        res.json({ token, user: buildUserResponse({ ...user!.toObject(), lastLoginAt: new Date() }), message: 'Google sign-in successful' });
     } catch (err) {
         console.error('Google auth error:', err);
         res.status(500).json({ message: 'Server error during Google sign-in' });
+    }
+};
+
+// ── Forgot password ───────────────────────────────────────────────────────────
+
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email } = req.body as { email?: string };
+        if (!email?.trim()) { res.status(400).json({ message: 'Email is required' }); return; }
+
+        const trimmedEmail = email.toLowerCase().trim();
+        const user = await User.findOne({ email: trimmedEmail })
+            .select('+passwordResetExpires');
+
+        if (!user) { res.status(404).json({ message: 'No account found with that email' }); return; }
+
+        if (!user.password) {
+            res.status(400).json({ message: 'This account uses Google Sign-In. Please use the Google button to sign in.' });
+            return;
+        }
+
+        // Simple rate limit: block if a code was sent recently and hasn't expired
+        if (user.passwordResetExpires) {
+            const elapsed = PASSWORD_RESET_EXPIRY_MS - (user.passwordResetExpires.getTime() - Date.now());
+            if (elapsed < 60_000) {
+                res.status(429).json({ message: 'Please wait before requesting another code.' });
+                return;
+            }
+        }
+
+        const otp = generateOTP();
+        await User.findByIdAndUpdate(user._id, {
+            passwordResetCode: otp,
+            passwordResetExpires: new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS),
+        });
+
+        try {
+            await sendPasswordResetCode(user.email, user.name, otp);
+            console.log(`✅ Password reset code sent to ${user.email}`);
+        } catch (emailErr: any) {
+            console.error(`❌ Failed to send password reset code to ${user.email}:`, emailErr?.message ?? emailErr);
+            res.status(500).json({ message: 'Failed to send reset code. Please try again.' });
+            return;
+        }
+
+        res.json({ message: 'A password reset code has been sent to your email.' });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ── Reset password ────────────────────────────────────────────────────────────
+
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { email, code, newPassword } = req.body as {
+            email?: string; code?: string; newPassword?: string;
+        };
+        if (!email || !code || !newPassword) {
+            res.status(400).json({ message: 'Email, code, and new password are required' });
+            return;
+        }
+        if (newPassword.length < 6) {
+            res.status(400).json({ message: 'New password must be at least 6 characters' });
+            return;
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() })
+            .select('+passwordResetCode +passwordResetExpires');
+
+        if (!user) { res.status(404).json({ message: 'No account found with that email' }); return; }
+
+        if (!user.passwordResetCode || !user.passwordResetExpires) {
+            res.status(400).json({ message: 'No reset code found. Please request a new one.' });
+            return;
+        }
+        if (new Date() > user.passwordResetExpires) {
+            res.status(400).json({ message: 'Reset code expired. Please request a new one.' });
+            return;
+        }
+        if (user.passwordResetCode !== code.trim()) {
+            res.status(400).json({ message: 'Invalid reset code' });
+            return;
+        }
+
+        user.password = await bcrypt.hash(newPassword, 12);
+        user.passwordResetCode = undefined;
+        user.passwordResetExpires = undefined;
+        user.lastLoginAt = new Date();
+        await user.save();
+
+        const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET as string, { expiresIn: '7d' });
+        res.json({ token, user: buildUserResponse(user.toObject()), message: 'Password reset successful' });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        res.status(500).json({ message: 'Server error' });
     }
 };

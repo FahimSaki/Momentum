@@ -14,6 +14,10 @@ const userSchema = new Schema<IUserDocument>(
         twoFactorExpires: { type: Date, select: false },
         deleteAccountCode: { type: String, select: false },
         deleteAccountExpires: { type: Date, select: false },
+        passwordResetCode: { type: String, select: false },
+        passwordResetExpires: { type: Date, select: false },
+        passwordChangeCode: { type: String, select: false },
+        passwordChangeExpires: { type: Date, select: false },
         name: { type: String, required: true },
 
         avatar: { type: String },

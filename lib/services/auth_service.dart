@@ -156,6 +156,64 @@ class AuthService {
     }
   }
 
+  // ── Forgot password ──────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/auth/forgot-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'email': email.trim().toLowerCase()}),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception(_safeDecodeError(response.body));
+  }
+
+  // ── Reset password ───────────────────────────────────────────────────────────
+  //
+  // On success the backend behaves like login/verify2FA — it returns a
+  // fresh token, since proving the emailed code + choosing a new password
+  // is already a completed sign-in, and asking the user to type the
+  // password they just set a second time would be redundant.
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('$apiBaseUrl/auth/reset-password'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': email.trim().toLowerCase(),
+            'code': code.trim(),
+            'newPassword': newPassword,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200 &&
+        data['token'] != null &&
+        (data['token'] as String).isNotEmpty) {
+      await _persist(data);
+      return {
+        'token': data['token'],
+        'userId': data['user']['_id'],
+        'user': data['user'],
+      };
+    }
+
+    throw Exception(_safeDecodeError(response.body));
+  }
+
   // ── Google Sign-In (mobile) ──────────────────────────────────────────────────
   //
   // On Android/iOS, GoogleSignIn.instance.authenticate() drives the native
@@ -273,8 +331,19 @@ class AuthService {
         )
         .timeout(const Duration(seconds: 15));
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // The account may have 2FA enabled — same gate as password login. No
+    // token yet in that case; the caller (googleSignIn /
+    // completeWebGoogleRedirect) hands this straight back to the UI so it
+    // can route to TwoFactorPage.
+    if (response.statusCode == 200 && data['requiresTwoFactor'] == true) {
+      return {'requiresTwoFactor': true, 'email': data['email']};
+    }
+
+    if (response.statusCode == 200 &&
+        data['token'] != null &&
+        (data['token'] as String).isNotEmpty) {
       await _persist(data);
       return {
         'token': data['token'],

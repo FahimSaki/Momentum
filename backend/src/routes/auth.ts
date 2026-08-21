@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import {
     login, register, verifyEmail, resendVerification,
-    googleAuth, verify2FA,
+    googleAuth, verify2FA, forgotPassword, resetPassword,
 } from '../controllers/authController';
 import { authenticateToken } from '../middleware/middle_auth';
 
@@ -13,6 +13,8 @@ router.post('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
 router.post('/google', googleAuth);
 router.post('/verify-2fa', verify2FA);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 
 router.post('/logout', (_req: Request, res: Response) => {
     res.json({ message: 'Logged out successfully' });

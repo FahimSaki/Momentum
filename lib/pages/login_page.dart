@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/pages/email_verification_page.dart';
+import 'package:momentum/pages/forgot_password_page.dart';
 import 'package:momentum/pages/two_factor_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/database/task_database.dart';
@@ -94,6 +95,20 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final result = await AuthService.instance.googleSignIn();
       if (!mounted) return;
+
+      // Account may have 2FA turned on — same gate password login uses.
+      // No token yet in that case; hand off to TwoFactorPage to collect
+      // the emailed code before initializing the session.
+      if (result['requiresTwoFactor'] == true) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TwoFactorPage(email: result['email'] as String),
+          ),
+        );
+        return;
+      }
+
       await _initAndNavigate(
         result['token'] as String,
         result['userId'] as String,
@@ -112,8 +127,9 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Web only — full-page redirect to Google. No popup, so there's nothing
   /// for COOP to block anywhere in this flow. This navigates away
-  /// immediately; the result is picked up on SplashPage once Google
-  /// redirects back (see splash_page.dart).
+  /// immediately; the result (including a possible 2FA challenge) is
+  /// picked up on SplashPage once Google redirects back (see
+  /// splash_page.dart).
   void _loginWithGoogleWeb() {
     setState(() => isGoogleLoading = true);
     AuthService.instance.beginWebGoogleRedirect();
@@ -169,8 +185,22 @@ class _LoginPageState extends State<LoginPage> {
               enabled: !isLoading && !isGoogleLoading,
               onSubmitted: (_) => login(),
             ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: (isLoading || isGoogleLoading)
+                    ? null
+                    : () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordPage(),
+                        ),
+                      ),
+                child: const Text('Forgot password?'),
+              ),
+            ),
             if (error != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -192,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: (isLoading || isGoogleLoading) ? null : login,
               style: ElevatedButton.styleFrom(

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/database/task_database.dart';
+import 'package:momentum/pages/change_password_page.dart';
 import 'package:momentum/services/user_service.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
@@ -103,7 +104,7 @@ class SettingsPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // ── Security section (2FA) ──────────────────────────────────────
+            // ── Security section (2FA + password) ──────────────────────────
             _buildSectionHeader(
               'Security',
               Icons.shield_rounded,
@@ -113,7 +114,11 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 10),
             _buildCard(
               isDark: isDark,
-              children: [_TwoFactorTile(isDark: isDark)],
+              children: [
+                _TwoFactorTile(isDark: isDark),
+                _buildDivider(isDark),
+                _ChangePasswordTile(isDark: isDark),
+              ],
             ),
 
             const SizedBox(height: 24),
@@ -558,6 +563,135 @@ class _TwoFactorTileState extends State<_TwoFactorTile> {
               thumbColor: Colors.white,
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Change Password entry (stateful, self-contained) ───────────────────────
+
+class _ChangePasswordTile extends StatefulWidget {
+  final bool isDark;
+  const _ChangePasswordTile({required this.isDark});
+
+  @override
+  State<_ChangePasswordTile> createState() => _ChangePasswordTileState();
+}
+
+class _ChangePasswordTileState extends State<_ChangePasswordTile> {
+  bool _loading = true;
+  bool _hasPassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final db = Provider.of<TaskDatabase>(context, listen: false);
+    if (db.jwtToken == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    final userService = UserService(jwtToken: db.jwtToken!);
+    try {
+      final user = await userService.getCurrentUserProfile();
+      if (mounted) {
+        setState(() {
+          _hasPassword = user.hasPassword;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        child: SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (!_hasPassword) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.password_rounded,
+                color: Color(0xFF6366F1),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                "You signed in with Google, so there's no password to change here.",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.isDark
+                      ? const Color(0xFF9B99C8)
+                      : const Color(0xFF6B66A3),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(
+          Icons.password_rounded,
+          color: Color(0xFF6366F1),
+          size: 20,
+        ),
+      ),
+      title: Text(
+        'Change Password',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 15,
+          color: Theme.of(context).colorScheme.inversePrimary,
+        ),
+      ),
+      subtitle: Text(
+        'Update your password — confirmed by email code',
+        style: TextStyle(
+          fontSize: 12,
+          color: widget.isDark
+              ? const Color(0xFF9B99C8)
+              : const Color(0xFF6B66A3),
+        ),
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ChangePasswordPage()),
       ),
     );
   }

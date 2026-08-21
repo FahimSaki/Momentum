@@ -151,4 +151,41 @@ class UserService {
       rethrow;
     }
   }
+
+  Future<void> requestPasswordChange(String currentPassword) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/request-password-change'),
+        headers: _headers,
+        body: json.encode({'currentPassword': currentPassword}),
+      );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to request password change');
+      }
+    } catch (e, st) {
+      _logger.e('Error requesting password change', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
+
+  Future<void> confirmPasswordChange({
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/users/confirm-password-change'),
+        headers: _headers,
+        body: json.encode({'code': code, 'newPassword': newPassword}),
+      );
+      if (response.statusCode != 200) {
+        final data = json.decode(response.body);
+        throw Exception(data['message'] ?? 'Failed to change password');
+      }
+    } catch (e, st) {
+      _logger.e('Error confirming password change', error: e, stackTrace: st);
+      rethrow;
+    }
+  }
 }

@@ -176,3 +176,37 @@ export const sendAccountDeletionCode = async (
         )
     );
 };
+
+export const sendPasswordResetCode = async (
+    to: string,
+    name: string,
+    code: string
+): Promise<void> => {
+    await sendMail(
+        to,
+        'Reset your Momentum password',
+        baseTemplate(
+            `Reset your password, ${name}`,
+            `<p style="color:#444;font-size:15px;">Enter this code to reset your password:</p>
+             ${codeBlock(code)}
+             <p style="color:#999;font-size:13px;">Expires in <strong>10 minutes</strong>. If you didn't request this, you can ignore this email — your password will remain unchanged.</p>`
+        )
+    );
+};
+
+export const sendPasswordChangeCode = async (
+    to: string,
+    name: string,
+    code: string
+): Promise<void> => {
+    await sendMail(
+        to,
+        'Confirm your password change — Momentum',
+        baseTemplate(
+            `Confirm password change, ${name}`,
+            `<p style="color:#444;font-size:15px;">Enter this code to confirm your new password:</p>
+             ${codeBlock(code)}
+             <p style="color:#999;font-size:13px;">Expires in <strong>10 minutes</strong>. If you didn't request this, please secure your account immediately — someone may have your password.</p>`
+        )
+    );
+};

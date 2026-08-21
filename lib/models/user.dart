@@ -17,6 +17,7 @@ class User {
   final ProfileVisibility profileVisibility;
   final bool isEmailVerified;
   final bool twoFactorEnabled;
+  final bool hasPassword;
 
   User({
     required this.id,
@@ -34,6 +35,7 @@ class User {
     required this.profileVisibility,
     this.isEmailVerified = true,
     this.twoFactorEnabled = false,
+    this.hasPassword = true,
   });
 
   factory User.fromJson(Map json) {
@@ -65,6 +67,7 @@ class User {
           : ProfileVisibility(),
       isEmailVerified: json['isEmailVerified'] ?? true,
       twoFactorEnabled: json['twoFactorEnabled'] ?? false,
+      hasPassword: json['hasPassword'] ?? true,
     );
   }
 
@@ -85,6 +88,7 @@ class User {
       'profileVisibility': profileVisibility.toJson(),
       'isEmailVerified': isEmailVerified,
       'twoFactorEnabled': twoFactorEnabled,
+      'hasPassword': hasPassword,
     };
   }
 
