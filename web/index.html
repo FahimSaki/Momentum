@@ -29,6 +29,15 @@
 
 <body>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    // Registers the FCM service worker so push notifications can be
+    // received while this tab isn't focused, or the browser is closed.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      });
+    }
+  </script>
 </body>
 
 </html>

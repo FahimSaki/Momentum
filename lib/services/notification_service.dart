@@ -12,6 +12,15 @@ import 'package:momentum/config/api_base_url.dart';
 import 'package:momentum/firebase_options.dart';
 import 'package:momentum/models/app_notification.dart';
 
+// ── Web Push (VAPID) key ───────────────────────────────────────────────────
+// Firebase Console → Project Settings → Cloud Messaging → "Web configuration"
+// → "Web Push certificates" → Generate key pair (if none exists) → paste the
+// key here. Required for FirebaseMessaging.instance.getToken() on web; no
+// mobile equivalent. Until this is a real key, _registerToken() logs a
+// warning and skips the web token fetch instead of throwing.
+const String _webVapidKey =
+    'BGUgFaghX7Er_jdcK59JEYoP2hU0OURgms1ct2PJgV23KpJj71CxiCnrRJxwrBs5eRk8DZ4IlZxNwFKrXwFJs5I';
+
 // ── Android notification channel ──────────────────────────────────────────
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
   'momentum_high_importance',
@@ -24,9 +33,9 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 );
 
 // ── Background message handler (MUST be top-level, not a class method) ────
-// Do NOT show a local notification here. The backend sends messages with a
-// `notification` field so FCM shows the system banner automatically when the
-// app is in the background or terminated. Showing one here would duplicate it.
+// Mobile only. On web, background messages are handled entirely by
+// web/firebase-messaging-sw.js — a separate worker context this Dart
+// handler never runs in.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -55,14 +64,12 @@ class NotificationService {
   };
 
   // ── Public init ───────────────────────────────────────────────────────────
+  // Runs on every platform now, including web — the old `if (kIsWeb) return;`
+  // guard here was what disabled FCM (and, via TaskDatabase never even
+  // constructing this class on web, the in-app notification list too).
 
   Future<void> init({String? jwtToken}) async {
     _jwtToken = jwtToken;
-
-    if (kIsWeb) {
-      _logger.i('Push notifications disabled on web');
-      return;
-    }
 
     try {
       await _initLocalNotifications();
@@ -114,11 +121,18 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTap,
     );
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
+    // Android notification channels have no web (or iOS) equivalent.
+    // Resolve the platform implementation into a variable first, then await
+    // channel creation as its own statement — a generic type argument
+    // followed directly by a null-aware cascade on the same expression is
+    // what broke the analyzer before.
+    if (!kIsWeb) {
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      await androidPlugin?.createNotificationChannel(channel);
+    }
   }
 
   void _onLocalNotificationTap(NotificationResponse response) {
@@ -150,12 +164,17 @@ class NotificationService {
       return;
     }
 
-    await FirebaseMessaging.instance
-        .setForegroundNotificationPresentationOptions(
-          alert: false,
-          badge: true,
-          sound: false,
-        );
+    // iOS-only concept (controls whether a banner shows while the app is
+    // already foregrounded) — web has no equivalent and some plugin
+    // versions throw UnimplementedError there.
+    if (!kIsWeb) {
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: false,
+            badge: true,
+            sound: false,
+          );
+    }
 
     await _registerToken();
 
@@ -202,7 +221,18 @@ class NotificationService {
         _logger.i('APNS token obtained');
       }
 
-      final token = await FirebaseMessaging.instance.getToken();
+      if (kIsWeb && _webVapidKey.startsWith('REPLACE_WITH')) {
+        _logger.w(
+          'No web VAPID key configured — skipping FCM token fetch on web. '
+          'Set _webVapidKey in notification_service.dart (Firebase Console '
+          '→ Cloud Messaging → Web Push certificates).',
+        );
+        return;
+      }
+
+      final token = await FirebaseMessaging.instance.getToken(
+        vapidKey: kIsWeb ? _webVapidKey : null,
+      );
       if (token != null) {
         _logger.i('FCM token: ${token.substring(0, 20)}...');
         await _sendTokenToBackend(token);

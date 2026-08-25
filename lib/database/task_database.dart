@@ -98,9 +98,14 @@ class TaskDatabase extends ChangeNotifier {
   // ── Constructor ───────────────────────────────────────────────────────────
 
   TaskDatabase() {
+    // Always create the notification service — it also owns the plain REST
+    // in-app notification calls (getNotifications/markAsRead), which have
+    // nothing to do with FCM and should work on every platform, web
+    // included. Gating this behind !kIsWeb previously meant the web app's
+    // notification bell/list silently never loaded anything.
+    _notificationService = NotificationService();
     if (!kIsWeb) {
       _initializeTimerService();
-      _notificationService = NotificationService();
     }
   }
 
@@ -135,9 +140,10 @@ class TaskDatabase extends ChangeNotifier {
       _teamService = TeamService(jwtToken: jwt);
       _taskService = TaskService(jwtToken: jwt);
 
-      if (!kIsWeb) {
-        await _notificationService?.init(jwtToken: jwt);
-      }
+      // Requests FCM permission/token registration on every platform,
+      // including web (see NotificationService — it safely no-ops on web
+      // until a VAPID key is configured there).
+      await _notificationService?.init(jwtToken: jwt);
 
       // Replay anything queued from a previous offline session before we
       // fetch fresh data, so a successfully-synced task shows up as synced

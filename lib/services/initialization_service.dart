@@ -39,9 +39,14 @@ class InitializationService {
 
       _setupWidgetListener();
       await _handleInitialWidgetLaunch();
-    } else {
-      await _notificationService.init(jwtToken: null);
     }
+    // Web: FCM setup is intentionally NOT started here, even when a stored
+    // session exists. Requesting browser notification permission before any
+    // user interaction risks Chrome's "abusive notification permission"
+    // quiet UI, which silently denies the prompt instead of showing it.
+    // TaskDatabase.initialize() requests it instead, once a real session
+    // exists (fresh login, or SplashPage validating a stored token) — see
+    // NotificationService.init() called from there.
   }
 
   /// Call this once the TaskDatabase has been initialised (e.g. from
