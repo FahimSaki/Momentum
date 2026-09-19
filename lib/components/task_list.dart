@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/task_state.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/components/task_edit_delete_dialogs.dart';
 import 'package:momentum/components/task_tile.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
-import 'package:provider/provider.dart';
 
 class TaskList extends StatefulWidget {
   const TaskList({super.key});
@@ -20,14 +21,12 @@ class _TaskListState extends State<TaskList> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TaskDatabase>(
-      builder: (context, db, _) {
-        final sorted = _sortTasks(_filterTasks(db.activeTasks));
-        final completed = db.completedTasks;
+    return BlocBuilder<TaskCubit, TaskState>(
+      builder: (context, state) {
+        final taskCubit = context.read<TaskCubit>();
+        final sorted = _sortTasks(_filterTasks(state.activeTasks));
+        final completed = state.completedTasks;
 
-        // ── Constrain the full column (filter row + list) to AppWidths.content.
-        //    ResponsiveBody uses Align(topCenter)+ConstrainedBox so that
-        //    Expanded inside the Column keeps working correctly.
         return ResponsiveBody(
           child: Column(
             children: [
@@ -39,7 +38,7 @@ class _TaskListState extends State<TaskList> {
               ),
               Expanded(
                 child: RefreshIndicator(
-                  onRefresh: db.refreshData,
+                  onRefresh: taskCubit.refreshData,
                   child: ListView(
                     children: [
                       if (sorted.isEmpty && completed.isEmpty)
@@ -76,11 +75,15 @@ class _TaskListState extends State<TaskList> {
                             (task) => TaskTile(
                               key: ValueKey(task.id),
                               task: task,
-                              onToggle: (v) => db.completeTask(task.id, v),
+                              onToggle: (v) =>
+                                  taskCubit.completeTask(task.id, v),
                               onEdit: () =>
-                                  showEditTaskDialog(context, task, db),
-                              onDelete: () =>
-                                  showDeleteTaskDialog(context, task, db),
+                                  showEditTaskDialog(context, task, taskCubit),
+                              onDelete: () => showDeleteTaskDialog(
+                                context,
+                                task,
+                                taskCubit,
+                              ),
                             ),
                           ),
                         ],
@@ -117,13 +120,16 @@ class _TaskListState extends State<TaskList> {
                                       key: ValueKey('completed_${task.id}'),
                                       task: task,
                                       onToggle: (v) =>
-                                          db.completeTask(task.id, v),
-                                      onEdit: () =>
-                                          showEditTaskDialog(context, task, db),
+                                          taskCubit.completeTask(task.id, v),
+                                      onEdit: () => showEditTaskDialog(
+                                        context,
+                                        task,
+                                        taskCubit,
+                                      ),
                                       onDelete: () => showDeleteTaskDialog(
                                         context,
                                         task,
-                                        db,
+                                        taskCubit,
                                       ),
                                     ),
                                   )

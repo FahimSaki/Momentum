@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/notification_cubit.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/notification_tile.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
+import 'package:momentum/models/app_notification.dart';
 import 'package:momentum/models/team_invitation.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class NotificationsPage extends StatefulWidget {
@@ -36,7 +39,10 @@ class _NotificationsPageState extends State<NotificationsPage>
     if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
-      await Provider.of<TaskDatabase>(context, listen: false).refreshData();
+      // TaskCubit.refreshData() already reloads notifications and pending
+      // invitations internally via the NotificationCubit/TeamCubit
+      // references it holds directly.
+      await context.read<TaskCubit>().refreshData();
     } catch (e, st) {
       _logger.e('Error refreshing notifications', error: e, stackTrace: st);
     } finally {
@@ -59,16 +65,24 @@ class _NotificationsPageState extends State<NotificationsPage>
           ],
         ),
         actions: [
-          Consumer<TaskDatabase>(
-            builder: (context, db, _) {
+          Builder(
+            builder: (context) {
+              final unreadCount = context
+                  .watch<NotificationCubit>()
+                  .state
+                  .unreadCount;
               final hasUnread =
-                  db.unreadNotificationCount > 0 ||
-                  db.pendingInvitations.isNotEmpty;
+                  unreadCount > 0 ||
+                  context
+                      .watch<TeamCubit>()
+                      .state
+                      .pendingInvitations
+                      .isNotEmpty;
               if (hasUnread) {
                 return PopupMenuButton<String>(
                   onSelected: (v) async {
                     if (v == 'mark_all_read') {
-                      await db.markAllNotificationsAsRead();
+                      context.read<NotificationCubit>().markAllAsRead();
                     } else {
                       await _refresh();
                     }
@@ -105,28 +119,27 @@ class _NotificationsPageState extends State<NotificationsPage>
           ),
         ],
       ),
-      body: Consumer<TaskDatabase>(
-        builder: (context, db, _) => TabBarView(
-          controller: _tabController,
-          children: [
-            _InvitationsTab(db: db, isLoading: _isLoading, onRefresh: _refresh),
-            _ActivityTab(
-              db: db,
-              isLoading: _isLoading,
-              onRefresh: _refresh,
-              onTap: (n) {
-                if (!n.isRead) db.markNotificationAsRead(n.id);
-                switch (n.type) {
-                  case 'team_invitation':
-                    _tabController.animateTo(0);
-                    break;
-                  default:
-                    Navigator.pop(context);
-                }
-              },
-            ),
-          ],
-        ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _InvitationsTab(isLoading: _isLoading, onRefresh: _refresh),
+          _ActivityTab(
+            isLoading: _isLoading,
+            onRefresh: _refresh,
+            onTap: (n) {
+              if (!n.isRead) {
+                context.read<NotificationCubit>().markAsRead(n.id);
+              }
+              switch (n.type) {
+                case 'team_invitation':
+                  _tabController.animateTo(0);
+                  break;
+                default:
+                  Navigator.pop(context);
+              }
+            },
+          ),
+        ],
       ),
     );
   }
@@ -135,21 +148,21 @@ class _NotificationsPageState extends State<NotificationsPage>
 // ── Invitations tab ───────────────────────────────────────────────────────────
 
 class _InvitationsTab extends StatelessWidget {
-  final TaskDatabase db;
   final bool isLoading;
   final Future<void> Function() onRefresh;
 
-  const _InvitationsTab({
-    required this.db,
-    required this.isLoading,
-    required this.onRefresh,
-  });
+  const _InvitationsTab({required this.isLoading, required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
-    if (db.pendingInvitations.isEmpty) {
+    final pendingInvitations = context
+        .watch<TeamCubit>()
+        .state
+        .pendingInvitations;
+
+    if (pendingInvitations.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -170,15 +183,14 @@ class _InvitationsTab extends StatelessWidget {
       );
     }
 
-    // ── Centre + cap width of the list ────────────────────────────────────
     return ResponsiveBody(
       child: RefreshIndicator(
         onRefresh: onRefresh,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: db.pendingInvitations.length,
+          itemCount: pendingInvitations.length,
           itemBuilder: (context, i) {
-            final inv = db.pendingInvitations[i];
+            final inv = pendingInvitations[i];
             return _InvitationCard(
               invitation: inv,
               onAccept: () => _respond(context, inv, true),
@@ -196,7 +208,7 @@ class _InvitationsTab extends StatelessWidget {
     bool accept,
   ) async {
     try {
-      await db.respondToInvitation(inv.id, accept);
+      await context.read<TeamCubit>().respondToInvitation(inv.id, accept);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -228,13 +240,11 @@ class _InvitationsTab extends StatelessWidget {
 // ── Activity tab ──────────────────────────────────────────────────────────────
 
 class _ActivityTab extends StatelessWidget {
-  final TaskDatabase db;
   final bool isLoading;
   final Future<void> Function() onRefresh;
-  final void Function(dynamic) onTap;
+  final void Function(AppNotification) onTap;
 
   const _ActivityTab({
-    required this.db,
     required this.isLoading,
     required this.onRefresh,
     required this.onTap,
@@ -244,7 +254,12 @@ class _ActivityTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isLoading) return const Center(child: CircularProgressIndicator());
 
-    if (db.notifications.isEmpty) {
+    final notifications = context
+        .watch<NotificationCubit>()
+        .state
+        .notifications;
+
+    if (notifications.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -265,15 +280,14 @@ class _ActivityTab extends StatelessWidget {
       );
     }
 
-    // ── Centre + cap width of the list ────────────────────────────────────
     return ResponsiveBody(
       child: RefreshIndicator(
         onRefresh: onRefresh,
         child: ListView.builder(
-          itemCount: db.notifications.length,
+          itemCount: notifications.length,
           itemBuilder: (_, i) => NotificationTile(
-            notification: db.notifications[i],
-            onTap: () => onTap(db.notifications[i]),
+            notification: notifications[i],
+            onTap: () => onTap(notifications[i]),
           ),
         ),
       ),

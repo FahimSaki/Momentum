@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/services/user_service.dart';
 import 'package:momentum/services/team_service.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/models/team.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class TeamInvitationDialog extends StatefulWidget {
@@ -43,10 +43,10 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.jwtToken != null) {
-      _userService = UserService(jwtToken: db.jwtToken!);
-      _teamService = TeamService(jwtToken: db.jwtToken!);
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
+    if (jwtToken != null) {
+      _userService = UserService(jwtToken: jwtToken);
+      _teamService = TeamService(jwtToken: jwtToken);
     }
   }
 
@@ -80,7 +80,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
 
       final results = await _userService!.searchUsers(query.trim());
 
-      // Filter out users already in the team
       final filteredResults = results.where((user) {
         return !widget.team.members.any((member) => member.user.id == user.id);
       }).toList();
@@ -123,7 +122,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
 
       final user = await _userService!.getUserByInviteId(inviteId.trim());
 
-      // Check if user is already a team member
       final isAlreadyMember = widget.team.members.any(
         (member) => member.user.id == user.id,
       );
@@ -164,7 +162,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
     String? targetInviteId;
 
     if (_tabController.index == 0) {
-      // Email/search tab
       if (_selectedUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select a user to invite')),
@@ -174,7 +171,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
       targetUser = _selectedUser;
       targetEmail = _selectedUser!.email;
     } else {
-      // Invite ID tab
       if (_inviteIdUser == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter a valid invite ID')),
@@ -247,7 +243,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Header
             Row(
               children: [
                 Icon(Icons.group_add, color: Colors.blue),
@@ -267,8 +262,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
               ],
             ),
             const SizedBox(height: 16),
-
-            // Tab bar
             TabBar(
               controller: _tabController,
               tabs: const [
@@ -277,23 +270,15 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
               ],
             ),
             const SizedBox(height: 16),
-
-            // Tab content
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [_buildSearchTab(), _buildInviteIdTab()],
               ),
             ),
-
             const Divider(),
-
-            // Role selection and message
             _buildInvitationOptions(),
-
             const SizedBox(height: 16),
-
-            // Action buttons
             Row(
               children: [
                 Expanded(
@@ -328,7 +313,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
   Widget _buildSearchTab() {
     return Column(
       children: [
-        // Search field
         TextField(
           controller: _searchController,
           decoration: InputDecoration(
@@ -338,7 +322,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
             errorText: _searchError,
           ),
           onChanged: (value) {
-            // Debounce search
             Future.delayed(const Duration(milliseconds: 500), () {
               if (_searchController.text == value) {
                 _searchUsers(value);
@@ -347,8 +330,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
           },
         ),
         const SizedBox(height: 16),
-
-        // Search results
         Expanded(
           child: _isSearching
               ? const Center(child: CircularProgressIndicator())
@@ -426,7 +407,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
   Widget _buildInviteIdTab() {
     return Column(
       children: [
-        // Invite ID field
         TextField(
           controller: _inviteIdController,
           decoration: InputDecoration(
@@ -447,7 +427,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
             ),
           ),
           onChanged: (value) {
-            // Debounce lookup
             Future.delayed(const Duration(milliseconds: 500), () {
               if (_inviteIdController.text == value) {
                 _lookupUserByInviteId(value);
@@ -456,8 +435,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
           },
         ),
         const SizedBox(height: 16),
-
-        // User preview
         Expanded(
           child: _isLoadingInviteId
               ? const Center(child: CircularProgressIndicator())
@@ -528,7 +505,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Role selection
         Row(
           children: [
             Expanded(
@@ -554,8 +530,6 @@ class _TeamInvitationDialogState extends State<TeamInvitationDialog>
           ],
         ),
         const SizedBox(height: 16),
-
-        // Message field
         TextField(
           controller: _messageController,
           decoration: const InputDecoration(

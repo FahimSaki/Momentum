@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/notification_cubit.dart';
+import 'package:momentum/blocs/notification_state.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/components/notification_tile.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/app_notification.dart';
-import 'package:provider/provider.dart';
 
 class TeamInvitationsPage extends StatelessWidget {
   const TeamInvitationsPage({super.key});
@@ -16,11 +18,12 @@ class TeamInvitationsPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          Consumer<TaskDatabase>(
-            builder: (context, db, _) {
-              if (db.unreadNotificationCount > 0) {
+          BlocBuilder<NotificationCubit, NotificationState>(
+            builder: (context, state) {
+              if (state.unreadCount > 0) {
                 return TextButton(
-                  onPressed: db.markAllNotificationsAsRead,
+                  onPressed: () =>
+                      context.read<NotificationCubit>().markAllAsRead(),
                   child: const Text('Mark all read'),
                 );
               }
@@ -29,9 +32,9 @@ class TeamInvitationsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<TaskDatabase>(
-        builder: (context, db, _) {
-          if (db.notifications.isEmpty) {
+      body: BlocBuilder<NotificationCubit, NotificationState>(
+        builder: (context, state) {
+          if (state.notifications.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -46,14 +49,14 @@ class TeamInvitationsPage extends StatelessWidget {
 
           return ResponsiveBody(
             child: RefreshIndicator(
-              onRefresh: db.refreshData,
+              onRefresh: context.read<TaskCubit>().refreshData,
               child: ListView.builder(
-                itemCount: db.notifications.length,
+                itemCount: state.notifications.length,
                 itemBuilder: (context, i) {
-                  final notification = db.notifications[i];
+                  final notification = state.notifications[i];
                   return NotificationTile(
                     notification: notification,
-                    onTap: () => _handleTap(context, notification, db),
+                    onTap: () => _handleTap(context, notification),
                   );
                 },
               ),
@@ -64,12 +67,10 @@ class TeamInvitationsPage extends StatelessWidget {
     );
   }
 
-  void _handleTap(
-    BuildContext context,
-    AppNotification notification,
-    TaskDatabase db,
-  ) {
-    if (!notification.isRead) db.markNotificationAsRead(notification.id);
+  void _handleTap(BuildContext context, AppNotification notification) {
+    if (!notification.isRead) {
+      context.read<NotificationCubit>().markAsRead(notification.id);
+    }
     switch (notification.type) {
       case 'team_invitation':
         Navigator.pushReplacement(

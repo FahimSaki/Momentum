@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/services/auth_service.dart';
-import 'package:provider/provider.dart';
 
 class TwoFactorPage extends StatefulWidget {
   final String email;
@@ -36,8 +36,8 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
     try {
       final result = await AuthService.instance.verify2FA(widget.email, code);
       if (!mounted) return;
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.initialize(
+      final taskCubit = context.read<TaskCubit>();
+      await taskCubit.initializeSession(
         jwt: result['token'] as String,
         userId: result['userId'] as String,
       );

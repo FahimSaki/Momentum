@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/services/user_service.dart';
-import 'package:provider/provider.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -23,9 +23,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   @override
   void initState() {
     super.initState();
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.jwtToken != null) {
-      _userService = UserService(jwtToken: db.jwtToken!);
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
+    if (jwtToken != null) {
+      _userService = UserService(jwtToken: jwtToken);
     }
   }
 

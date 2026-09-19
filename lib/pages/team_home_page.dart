@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/task_state.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/error_handler.dart';
 import 'package:momentum/components/responsive_layout.dart';
@@ -7,7 +12,6 @@ import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/components/task_edit_delete_dialogs.dart';
 import 'package:momentum/components/task_tile.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/helpers/permission_helper.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_permissions.dart';
@@ -15,7 +19,6 @@ import 'package:momentum/pages/team_details_page.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/pages/team_settings_page.dart';
 import 'package:momentum/pages/user_search_page.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class TeamHomePage extends StatefulWidget {
@@ -39,26 +42,27 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 
   Future<void> _loadTeamData() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final teamCubit = context.read<TeamCubit>();
     try {
-      if (db.userId == null) throw Exception('User not authenticated');
+      final userId = context.read<SessionCubit>().state.userId;
+      if (userId == null) throw Exception('User not authenticated');
 
       // Start from the team we already have (passed in from the cached
       // team list on TeamSelectionPage) so there's still something to work
       // with if the refresh below can't reach the server.
       Team teamForContext = widget.team;
       try {
-        teamForContext = await db.getTeamDetails(widget.team.id);
+        teamForContext = await teamCubit.getTeamDetails(widget.team.id);
       } catch (e) {
         if (!isNetworkError(e)) rethrow;
         _logger.w('Offline — using cached team details for ${widget.team.id}');
       }
 
-      _userRole = PermissionHelper.getUserRole(teamForContext, db.userId!);
+      _userRole = PermissionHelper.getUserRole(teamForContext, userId);
       _permissions = TeamPermissions.forRole(_userRole);
       // Always select the team — even with stale/cached data — so
-      // TaskDatabase loads, or falls back to cached, tasks for it.
-      db.selectTeam(teamForContext);
+      // TaskCubit loads, or falls back to cached, tasks for it.
+      teamCubit.selectTeam(teamForContext);
       if (mounted) setState(() => _isLoading = false);
     } catch (e, st) {
       _logger.e('Error loading team', error: e, stackTrace: st);
@@ -70,8 +74,8 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 
   Future<void> _confirmDeleteTeam() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (!widget.team.isOwner(db.userId ?? '')) return;
+    final userId = context.read<SessionCubit>().state.userId;
+    if (!widget.team.isOwner(userId ?? '')) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -109,8 +113,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
     if (confirmed != true || !mounted) return;
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.deleteTeam(widget.team.id);
+      await context.read<TeamCubit>().deleteTeam(widget.team.id);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
       }
@@ -120,8 +123,6 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 
   Future<void> _confirmLeaveTeam() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -159,7 +160,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
 
     if (confirmed != true || !mounted) return;
     try {
-      await db.leaveTeam(widget.team.id);
+      await context.read<TeamCubit>().leaveTeam(widget.team.id);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -185,8 +186,8 @@ class _TeamHomePageState extends State<TeamHomePage> {
       );
     }
 
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    final isOwner = widget.team.isOwner(db.userId ?? '');
+    final userId = context.read<SessionCubit>().state.userId;
+    final isOwner = widget.team.isOwner(userId ?? '');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -386,11 +387,11 @@ class _TeamHomePageState extends State<TeamHomePage> {
               ),
             )
           : null,
-      body: Consumer<TaskDatabase>(
-        builder: (context, db, _) {
+      body: BlocBuilder<TaskCubit, TaskState>(
+        builder: (context, state) {
           if (!_permissions.canViewTasks) return _NoAccessView();
 
-          if (db.currentTasks.isEmpty) {
+          if (state.currentTasks.isEmpty) {
             return _EmptyStateView(
               canCreate: _permissions.canCreateTasks,
               isMemberRole: _userRole.toLowerCase() == 'member',
@@ -401,14 +402,13 @@ class _TeamHomePageState extends State<TeamHomePage> {
             );
           }
 
-          // ── Centre + cap width of the scrollable content ────────────────
           return ResponsiveBody(
             child: RefreshIndicator(
-              onRefresh: db.refreshData,
+              onRefresh: context.read<TaskCubit>().refreshData,
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
-                  if (db.isOffline) ...[
+                  if (state.isOffline) ...[
                     _OfflineTeamBanner(),
                     const SizedBox(height: 12),
                   ],
@@ -417,7 +417,8 @@ class _TeamHomePageState extends State<TeamHomePage> {
                   const DashboardStats(),
                   const SizedBox(height: 20),
                   _TasksSection(
-                    db: db,
+                    state: state,
+                    userId: userId,
                     isDark: isDark,
                     userRole: _userRole,
                     permissions: _permissions,
@@ -555,14 +556,16 @@ class _RoleCard extends StatelessWidget {
 }
 
 class _TasksSection extends StatelessWidget {
-  final TaskDatabase db;
+  final TaskState state;
+  final String? userId;
   final bool isDark;
   final String userRole;
   final TeamPermissions permissions;
   final void Function(String) onNoPermission;
 
   const _TasksSection({
-    required this.db,
+    required this.state,
+    required this.userId,
     required this.isDark,
     required this.userRole,
     required this.permissions,
@@ -571,8 +574,9 @@ class _TasksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final active = db.activeTasks;
-    final completed = db.completedTasks;
+    final taskCubit = context.read<TaskCubit>();
+    final active = state.activeTasks;
+    final completed = state.completedTasks;
     final isMember = userRole.toLowerCase() == 'member';
 
     return Column(
@@ -625,11 +629,11 @@ class _TasksSection extends StatelessWidget {
           ...active.map((task) {
             final canEdit = permissions.canEditTask(
               task.assignedBy?.id ?? '',
-              db.userId ?? '',
+              userId ?? '',
             );
             final canDelete = permissions.canDeleteTask(
               task.assignedBy?.id ?? '',
-              db.userId ?? '',
+              userId ?? '',
             );
             return TaskTile(
               key: ValueKey(task.id),
@@ -643,7 +647,7 @@ class _TasksSection extends StatelessWidget {
                   return;
                 }
                 try {
-                  await db.completeTask(task.id, v);
+                  await taskCubit.completeTask(task.id, v);
                 } catch (e) {
                   if (context.mounted) {
                     ErrorHandler.showSnackBarError(context, e);
@@ -652,10 +656,10 @@ class _TasksSection extends StatelessWidget {
                 }
               },
               onEdit: canEdit
-                  ? () => showEditTaskDialog(context, task, db)
+                  ? () => showEditTaskDialog(context, task, taskCubit)
                   : () => onNoPermission('edit'),
               onDelete: canDelete
-                  ? () => showDeleteTaskDialog(context, task, db)
+                  ? () => showDeleteTaskDialog(context, task, taskCubit)
                   : () => onNoPermission('delete'),
             );
           }),
@@ -721,7 +725,7 @@ class _TasksSection extends StatelessWidget {
                             return;
                           }
                           try {
-                            await db.completeTask(task.id, v);
+                            await taskCubit.completeTask(task.id, v);
                           } catch (e) {
                             if (context.mounted) {
                               ErrorHandler.showSnackBarError(context, e);

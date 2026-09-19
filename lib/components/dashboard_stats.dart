@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/task_state.dart';
 
 class DashboardStats extends StatelessWidget {
   const DashboardStats({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TaskDatabase>(
-      builder: (context, db, _) {
-        // Use backend-populated stats so numbers are canonical and team-scoped.
-        // dashboardStats is refreshed during initialize(), _refreshData(),
-        // selectTeam(), and after every task mutation.
-        final stats = db.dashboardStats;
+    return BlocBuilder<TaskCubit, TaskState>(
+      builder: (context, state) {
+        // Backend-populated stats so numbers are canonical and team-scoped.
+        // dashboardStats is refreshed during initializeSession(),
+        // refreshData(), team switches, and after every task mutation.
+        final stats = state.dashboardStats;
 
         return Row(
           children: [

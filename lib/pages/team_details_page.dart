@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/utils/role_helpers.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
 import 'package:momentum/pages/team_settings_page.dart';
 import 'package:momentum/pages/user_search_page.dart';
-import 'package:provider/provider.dart';
 
 class TeamDetailsPage extends StatefulWidget {
   final Team team;
@@ -29,8 +30,9 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
 
   Future<void> _loadLatest() async {
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      final fresh = await db.getTeamDetails(widget.team.id);
+      final fresh = await context.read<TeamCubit>().getTeamDetails(
+        widget.team.id,
+      );
       if (mounted) {
         setState(() {
           _team = fresh;
@@ -43,7 +45,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   Future<void> _confirmLeaveTeam() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
     final team = _team ?? widget.team;
 
     final confirmed = await showDialog<bool>(
@@ -84,7 +85,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await db.leaveTeam(widget.team.id);
+      await context.read<TeamCubit>().leaveTeam(widget.team.id);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -109,7 +110,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   }
 
   Future<void> _confirmRemoveMember(TeamMember member) async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
     final team = _team ?? widget.team;
 
     final confirmed = await showDialog<bool>(
@@ -150,7 +150,10 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await db.removeTeamMember(widget.team.id, member.user.id);
+      await context.read<TeamCubit>().removeTeamMember(
+        widget.team.id,
+        member.user.id,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -176,9 +179,9 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final userId = context.read<SessionCubit>().state.userId;
     final team = _team ?? widget.team;
-    final myUserId = db.userId ?? '';
+    final myUserId = userId ?? '';
     final isOwner = team.isOwner(myUserId);
     final isAdmin = team.getMember(myUserId)?.role == 'admin';
     final canManage = isOwner || isAdmin;
@@ -247,7 +250,6 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
                   _TeamInfoCard(team: team),
                   const SizedBox(height: 16),
 
-                  // Members header
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Row(

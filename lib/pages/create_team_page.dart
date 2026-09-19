@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class CreateTeamPage extends StatefulWidget {
@@ -138,13 +138,13 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
     });
 
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
+      final teamCubit = context.read<TeamCubit>();
       final teamName = _nameController.text.trim();
       final teamDescription = _descriptionController.text.trim();
 
       logger.i('Attempting to create team: $teamName');
 
-      final team = await db.createTeam(
+      final team = await teamCubit.createTeam(
         teamName,
         description: teamDescription.isEmpty ? null : teamDescription,
       );
@@ -166,12 +166,10 @@ class _CreateTeamPageState extends State<CreateTeamPage> {
       if (mounted) {
         String errorMessage = e.toString();
 
-        // Clean up error message
         if (errorMessage.startsWith('Exception: ')) {
           errorMessage = errorMessage.substring(11);
         }
 
-        // Handle specific error types
         if (errorMessage.toLowerCase().contains('network')) {
           errorMessage =
               'Network error - please check your internet connection';

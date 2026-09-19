@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/services/user_service.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class UserProfilePage extends StatefulWidget {
@@ -31,9 +31,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
 
   void _loadUserProfile() async {
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
+      final jwtToken = context.read<SessionCubit>().state.jwtToken;
 
-      if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+      if (jwtToken == null || jwtToken.isEmpty) {
         _logger.e('JWT token is null or empty');
         if (mounted) {
           setState(() {
@@ -44,9 +44,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
         return;
       }
 
-      _userService = UserService(jwtToken: db.jwtToken!);
+      _userService = UserService(jwtToken: jwtToken);
       _logger.i(
-        'Loading user profile with token: ${db.jwtToken!.substring(0, 20)}...',
+        'Loading user profile with token: ${jwtToken.substring(0, 20)}...',
       );
 
       final user = await _userService!.getCurrentUserProfile();
@@ -139,7 +139,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
             )
           : currentUser == null
           ? const Center(child: Text('Failed to load profile'))
-          // ── Responsive scrollable content ─────────────────────────────────
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Center(

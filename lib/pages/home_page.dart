@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/notification_cubit.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/task_state.dart';
 import 'package:momentum/components/drawer.dart';
 import 'package:momentum/components/dashboard_stats.dart';
 import 'package:momentum/components/quick_invite_widget.dart';
@@ -6,14 +11,30 @@ import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/components/task_creation_dialog.dart';
 import 'package:momentum/components/task_list.dart';
 import 'package:momentum/components/task_map.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/task.dart';
+import 'package:momentum/models/team.dart';
 import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/pages/team_selection_page.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/services/initialization_service.dart';
 import 'package:momentum/utils/date_helpers.dart';
-import 'package:provider/provider.dart';
+
+// Was TaskDatabase.currentUserRoleInSelectedTeam / .canCurrentUserCreateTasks.
+// Plain functions since selectedTeam (TaskCubit) and userId (SessionCubit)
+// live on two different cubits — same exact logic either way.
+String? _currentUserRole(Team? selectedTeam, String? userId) {
+  if (selectedTeam == null || userId == null) return null;
+  final member = selectedTeam.getMember(userId);
+  if (member != null) return member.role;
+  if (selectedTeam.isOwner(userId)) return 'owner';
+  return null;
+}
+
+bool _canCreateTasks(Team? selectedTeam, String? userId) {
+  if (selectedTeam == null) return true;
+  final role = _currentUserRole(selectedTeam, userId);
+  return role == 'owner' || role == 'admin';
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -35,8 +56,8 @@ class _HomePageState extends State<HomePage>
     _ensureInitialized();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      InitializationService.registerDatabase(db);
+      final taskCubit = context.read<TaskCubit>();
+      InitializationService.registerTaskCubit(taskCubit);
     });
   }
 
@@ -47,8 +68,8 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _ensureInitialized() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.isInitialized || _initializationFailed) return;
+    final taskCubit = context.read<TaskCubit>();
+    if (taskCubit.state.isInitialized || _initializationFailed) return;
 
     setState(() => _isInitializing = true);
     try {
@@ -56,7 +77,7 @@ class _HomePageState extends State<HomePage>
       if (authData != null && mounted) {
         final tokenStatus = await AuthService.instance.validateToken();
         if (tokenStatus == TokenStatus.valid && mounted) {
-          await db.initialize(
+          await taskCubit.initializeSession(
             jwt: authData['token'],
             userId: authData['userId'],
           );
@@ -93,8 +114,8 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TaskDatabase>(
-      builder: (context, db, _) {
+    return BlocBuilder<TaskCubit, TaskState>(
+      builder: (context, state) {
         if (_isInitializing) {
           return const Scaffold(
             body: Center(
@@ -125,7 +146,7 @@ class _HomePageState extends State<HomePage>
           );
         }
 
-        if (!db.isInitialized) {
+        if (!state.isInitialized) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               Navigator.of(
@@ -136,11 +157,12 @@ class _HomePageState extends State<HomePage>
           return const SizedBox.shrink();
         }
 
-        final showFab = db.canCurrentUserCreateTasks;
+        final userId = context.watch<SessionCubit>().state.userId;
+        final showFab = _canCreateTasks(state.selectedTeam, userId);
 
         return Scaffold(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          appBar: _buildAppBar(context, db),
+          appBar: _buildAppBar(context, state),
           drawer: const MyDrawer(),
           floatingActionButton: showFab
               ? FloatingActionButton(
@@ -156,18 +178,17 @@ class _HomePageState extends State<HomePage>
               : null,
           body: Column(
             children: [
-              if (db.isOffline) const _OfflineBanner(),
+              if (state.isOffline) const _OfflineBanner(),
               _TabBar(controller: _tabController),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
                     _DashboardTab(
-                      db: db,
                       onViewAllTasks: () => _tabController.animateTo(1),
                     ),
                     const TaskList(),
-                    _AnalyticsTab(db: db),
+                    const _AnalyticsTab(),
                   ],
                 ),
               ),
@@ -178,7 +199,8 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, TaskDatabase db) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, TaskState state) {
+    final unreadCount = context.watch<NotificationCubit>().state.unreadCount;
     return AppBar(
       elevation: 0,
       backgroundColor: Colors.transparent,
@@ -192,12 +214,12 @@ class _HomePageState extends State<HomePage>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              db.selectedTeam != null ? Icons.group : Icons.person,
+              state.selectedTeam != null ? Icons.group : Icons.person,
               size: 20,
             ),
             const SizedBox(width: 8),
             Text(
-              db.selectedTeam?.name ?? 'Personal',
+              state.selectedTeam?.name ?? 'Personal',
               style: const TextStyle(fontSize: 18),
             ),
             const Icon(Icons.arrow_drop_down, size: 20),
@@ -214,7 +236,7 @@ class _HomePageState extends State<HomePage>
                 MaterialPageRoute(builder: (_) => const NotificationsPage()),
               ),
             ),
-            if (db.unreadNotificationCount > 0)
+            if (unreadCount > 0)
               Positioned(
                 right: 6,
                 top: 6,
@@ -229,7 +251,7 @@ class _HomePageState extends State<HomePage>
                     minHeight: 14,
                   ),
                   child: Text(
-                    '${db.unreadNotificationCount}',
+                    '$unreadCount',
                     style: const TextStyle(color: Colors.white, fontSize: 8),
                     textAlign: TextAlign.center,
                   ),
@@ -320,21 +342,22 @@ class _TabBar extends StatelessWidget {
 // ── Dashboard tab ─────────────────────────────────────────────────────────────
 
 class _DashboardTab extends StatelessWidget {
-  final TaskDatabase db;
   final VoidCallback onViewAllTasks;
 
-  const _DashboardTab({required this.db, required this.onViewAllTasks});
+  const _DashboardTab({required this.onViewAllTasks});
 
   @override
   Widget build(BuildContext context) {
-    // ── Centre + cap width of the dashboard list ────────────────────────────
+    final state = context.watch<TaskCubit>().state;
+    final taskCubit = context.read<TaskCubit>();
+    final userId = context.watch<SessionCubit>().state.userId;
+
     return ResponsiveBody(
       child: RefreshIndicator(
-        onRefresh: db.refreshData,
+        onRefresh: taskCubit.refreshData,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Welcome card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -342,8 +365,8 @@ class _DashboardTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      db.selectedTeam != null
-                          ? 'Team: ${db.selectedTeam!.name}'
+                      state.selectedTeam != null
+                          ? 'Team: ${state.selectedTeam!.name}'
                           : 'Personal Workspace',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
@@ -362,11 +385,13 @@ class _DashboardTab extends StatelessWidget {
                       children: [
                         Chip(
                           avatar: const Icon(Icons.track_changes, size: 16),
-                          label: Text('${db.activeTasks.length} active'),
+                          label: Text('${state.activeTasks.length} active'),
                         ),
                         Chip(
                           avatar: const Icon(Icons.done_all, size: 16),
-                          label: Text('${db.completedTasks.length} completed'),
+                          label: Text(
+                            '${state.completedTasks.length} completed',
+                          ),
                         ),
                       ],
                     ),
@@ -375,9 +400,11 @@ class _DashboardTab extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+            if (state.selectedTeam == null ||
+                _canCreateTasks(state.selectedTeam, userId))
               const QuickInviteWidget(),
-            if (db.selectedTeam == null || db.canCurrentUserCreateTasks)
+            if (state.selectedTeam == null ||
+                _canCreateTasks(state.selectedTeam, userId))
               const SizedBox(height: 16),
             const DashboardStats(),
             const SizedBox(height: 16),
@@ -401,10 +428,10 @@ class _DashboardTab extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ...db.activeTasks
+                    ...state.activeTasks
                         .take(3)
-                        .map((task) => _TaskRow(task: task, db: db)),
-                    if (db.activeTasks.isEmpty)
+                        .map((task) => _TaskRow(task: task)),
+                    if (state.activeTasks.isEmpty)
                       const Center(
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
@@ -431,29 +458,23 @@ class _DashboardTab extends StatelessWidget {
 
 class _TaskRow extends StatefulWidget {
   final Task task;
-  final TaskDatabase db;
 
-  const _TaskRow({required this.task, required this.db});
+  const _TaskRow({required this.task});
 
   @override
   State<_TaskRow> createState() => _TaskRowState();
 }
 
 class _TaskRowState extends State<_TaskRow> {
-  // Guards against a single tap firing completeTask() more than once. The
-  // old version had a separate GestureDetector on the leading dot *and*
-  // ListTile.onTap, both wired to _toggle(), with no guard at all — two
-  // independent triggers on one tap, and nothing to stop a third eager tap
-  // going out before the first one finished. Each of those extra calls
-  // showed up as its own duplicate "task completed" notification.
   bool _isToggling = false;
 
   Future<void> _toggle(bool complete) async {
     if (_isToggling) return;
     setState(() => _isToggling = true);
     try {
-      await widget.db.completeTask(widget.task.id, complete);
-      await widget.db.refreshData();
+      final taskCubit = context.read<TaskCubit>();
+      await taskCubit.completeTask(widget.task.id, complete);
+      await taskCubit.refreshData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -498,8 +519,6 @@ class _TaskRowState extends State<_TaskRow> {
             horizontal: 8,
             vertical: 4,
           ),
-          // Purely visual — no tap handler of its own. ListTile.onTap below
-          // is the single source of truth for toggling this row.
           leading: _isToggling
               ? const Padding(
                   padding: EdgeInsets.all(2.0),
@@ -559,12 +578,11 @@ class _TaskRowState extends State<_TaskRow> {
 // ── Analytics tab ─────────────────────────────────────────────────────────────
 
 class _AnalyticsTab extends StatelessWidget {
-  final TaskDatabase db;
-  const _AnalyticsTab({required this.db});
+  const _AnalyticsTab();
 
   @override
   Widget build(BuildContext context) {
-    // ── Centre + cap width of the analytics list ────────────────────────────
+    final state = context.watch<TaskCubit>().state;
     return ResponsiveBody(
       child: ListView(
         padding: const EdgeInsets.all(16),
@@ -585,22 +603,22 @@ class _AnalyticsTab extends StatelessWidget {
                   _InsightRow(
                     label: 'Streak',
                     value:
-                        '${_streak(db.historicalCompletions, db.currentTasks)} days',
+                        '${_streak(state.historicalCompletions, state.currentTasks)} days',
                     icon: Icons.local_fire_department,
                     color: Colors.orange,
                   ),
                   _InsightRow(
                     label: 'This Week',
                     value:
-                        '${_thisWeek(db.historicalCompletions, db.currentTasks)} tasks',
+                        '${_thisWeek(state.historicalCompletions, state.currentTasks)} tasks',
                     icon: Icons.calendar_today,
                     color: Colors.blue,
                   ),
                   _InsightRow(
                     label: 'Average per Day',
                     value: _avgPerDay(
-                      db.historicalCompletions,
-                      db.currentTasks,
+                      state.historicalCompletions,
+                      state.currentTasks,
                     ).toStringAsFixed(1),
                     icon: Icons.trending_up,
                     color: Colors.green,

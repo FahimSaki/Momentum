@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/pages/two_factor_page.dart';
 import 'package:momentum/services/auth_service.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
@@ -26,18 +26,11 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _checkAuthStatus() async {
     try {
-      // If we've just been redirected back from Google (web only), finish
-      // that sign-in first — it takes priority over any stored session,
-      // and the URL fragment needs to be read and cleared exactly once,
-      // here, before the normal stored-token check below runs.
       if (kIsWeb && AuthService.instance.hasWebGoogleRedirectResult()) {
         try {
           final result = await AuthService.instance.completeWebGoogleRedirect();
           if (!mounted) return;
 
-          // The account may have 2FA turned on — same gate password login
-          // uses. No token yet in that case; hand off to TwoFactorPage to
-          // collect the emailed code before initializing TaskDatabase.
           if (result['requiresTwoFactor'] == true) {
             Navigator.pushReplacement(
               context,
@@ -48,11 +41,8 @@ class _SplashPageState extends State<SplashPage> {
             return;
           }
 
-          final taskDatabase = Provider.of<TaskDatabase>(
-            context,
-            listen: false,
-          );
-          await taskDatabase.initialize(
+          final taskCubit = context.read<TaskCubit>();
+          await taskCubit.initializeSession(
             jwt: result['token'] as String,
             userId: result['userId'] as String,
           );
@@ -76,34 +66,26 @@ class _SplashPageState extends State<SplashPage> {
         }
       }
 
-      // Add a small delay for better UX
       await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Check if user has stored auth data
       final authData = await AuthService.instance.getStoredAuthData();
       _logger.i('Stored auth data: $authData');
 
       if (!mounted) return;
 
       if (authData != null) {
-        // Validate token with server — TokenStatus.valid also covers "no
-        // network to check with", so the session survives being offline.
         final tokenStatus = await AuthService.instance.validateToken();
         _logger.i('Token validation result: $tokenStatus');
 
         if (!mounted) return;
 
         if (tokenStatus == TokenStatus.valid) {
-          // Initialize TaskDatabase with stored credentials
-          final taskDatabase = Provider.of<TaskDatabase>(
-            context,
-            listen: false,
-          );
-          await taskDatabase.initialize(
+          final taskCubit = context.read<TaskCubit>();
+          await taskCubit.initializeSession(
             jwt: authData['token'],
             userId: authData['userId'],
           );
-          _logger.i('TaskDatabase initialized successfully');
+          _logger.i('TaskCubit initialized successfully');
 
           if (!mounted) return;
           Navigator.pushReplacementNamed(context, '/home');

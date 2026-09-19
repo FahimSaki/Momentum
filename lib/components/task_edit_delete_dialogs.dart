@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:momentum/database/task_database.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/models/task.dart';
 
 /// Edit-task dialog shared by TaskList and TeamHomePage.
-void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
+void showEditTaskDialog(BuildContext context, Task task, TaskCubit taskCubit) {
   final nameCtrl = TextEditingController(text: task.name);
   final descCtrl = TextEditingController(text: task.description ?? '');
 
@@ -40,7 +40,7 @@ void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
             final name = nameCtrl.text.trim();
             if (name.isEmpty) return;
             try {
-              await db.updateTask(task.id, {
+              await taskCubit.updateTask(task.id, {
                 'name': name,
                 'description': descCtrl.text.trim(),
               });
@@ -66,7 +66,11 @@ void showEditTaskDialog(BuildContext context, Task task, TaskDatabase db) {
 }
 
 /// Delete-task confirmation dialog shared by TaskList and TeamHomePage.
-void showDeleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
+void showDeleteTaskDialog(
+  BuildContext context,
+  Task task,
+  TaskCubit taskCubit,
+) {
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -111,7 +115,7 @@ void showDeleteTaskDialog(BuildContext context, Task task, TaskDatabase db) {
         ElevatedButton(
           onPressed: () async {
             try {
-              await db.deleteTask(task.id);
+              await taskCubit.deleteTask(task.id);
               if (ctx.mounted) {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(

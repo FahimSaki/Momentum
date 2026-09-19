@@ -1,11 +1,12 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/utils/role_helpers.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class TeamSettingsPage extends StatefulWidget {
@@ -48,8 +49,9 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
 
   Future<void> _loadLatest() async {
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      final fresh = await db.getTeamDetails(widget.team.id);
+      final fresh = await context.read<TeamCubit>().getTeamDetails(
+        widget.team.id,
+      );
       if (mounted) {
         setState(() {
           _team = fresh;
@@ -67,8 +69,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   Future<void> _saveSettings() async {
     setState(() => _isSaving = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.updateTeamSettings(widget.team.id, {
+      await context.read<TeamCubit>().updateTeamSettings(widget.team.id, {
         'allowMemberInvite': _allowMemberInvite,
         'taskAutoDelete': _taskAutoDelete,
         'notificationSettings': {
@@ -114,8 +115,8 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   }
 
   Future<void> _deleteTeam() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (!widget.team.isOwner(db.userId ?? '')) return;
+    final userId = context.read<SessionCubit>().state.userId;
+    if (!widget.team.isOwner(userId ?? '')) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -205,7 +206,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     if (confirmed != true || !mounted) return;
     setState(() => _isDeleting = true);
     try {
-      await db.deleteTeam(widget.team.id);
+      await context.read<TeamCubit>().deleteTeam(widget.team.id);
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil('/home', (r) => false);
       }
@@ -227,10 +228,10 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final userId = context.read<SessionCubit>().state.userId;
     final team = _team ?? widget.team;
-    final isOwner = team.isOwner(db.userId ?? '');
-    final isAdmin = team.getMember(db.userId ?? '')?.role == 'admin';
+    final isOwner = team.isOwner(userId ?? '');
+    final isAdmin = team.getMember(userId ?? '')?.role == 'admin';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -392,9 +393,9 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     if (_isUpdatingRoles) return;
     setState(() => _isUpdatingRoles = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.updateTeamMemberRole(widget.team.id, memberId, role);
-      final fresh = await db.getTeamDetails(widget.team.id);
+      final teamCubit = context.read<TeamCubit>();
+      await teamCubit.updateTeamMemberRole(widget.team.id, memberId, role);
+      final fresh = await teamCubit.getTeamDetails(widget.team.id);
       if (mounted) setState(() => _team = fresh);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

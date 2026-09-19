@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/blocs/task_state.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/models/team.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class TaskCreationDialog extends StatefulWidget {
@@ -22,9 +23,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   final List<String> _selectedAssignees = [];
   bool _isLoading = false;
 
-  // Caps the dialog's width on tablets/desktop/web so it doesn't stretch
-  // edge-to-edge on large screens. Phones (isMobile) keep the original
-  // full-bleed sizing driven by insetPadding.
   static const double _maxDialogWidth = 480;
 
   @override
@@ -36,9 +34,9 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<TaskDatabase>(
-      builder: (context, db, _) {
-        final selectedTeam = db.selectedTeam;
+    return BlocBuilder<TaskCubit, TaskState>(
+      builder: (context, state) {
+        final selectedTeam = state.selectedTeam;
         final isDark = Theme.of(context).brightness == Brightness.dark;
         final dialogWidth = isMobile(context)
             ? double.infinity
@@ -57,7 +55,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                   decoration: BoxDecoration(
@@ -125,14 +122,12 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                   ),
                 ),
 
-                // Content
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Task name
                         TextField(
                           controller: _nameController,
                           decoration: const InputDecoration(
@@ -146,7 +141,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Description
                         TextField(
                           controller: _descriptionController,
                           decoration: const InputDecoration(
@@ -159,7 +153,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Priority
                         DropdownButtonFormField<String>(
                           initialValue: _priority,
                           decoration: const InputDecoration(
@@ -195,7 +188,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Due date
                         GestureDetector(
                           onTap: _isLoading
                               ? null
@@ -275,7 +267,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                           ),
                         ),
 
-                        // Team-specific options
                         if (selectedTeam != null) ...[
                           const SizedBox(height: 14),
                           DropdownButtonFormField<String>(
@@ -314,7 +305,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                   ),
                 ),
 
-                // Actions
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                   child: Row(
@@ -401,7 +391,6 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
   }
 
   Widget _buildMemberSelection(Team team, bool isDark) {
-    // FIX: All members are selectable including the current user (owner/admin)
     final members = team.members;
 
     if (members.isEmpty) {
@@ -513,15 +502,14 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
     setState(() => _isLoading = true);
 
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      final teamId = db.selectedTeam?.id;
+      final taskCubit = context.read<TaskCubit>();
+      final teamId = taskCubit.state.selectedTeam?.id;
 
-      await db.createTask(
+      await taskCubit.createTask(
         name: name,
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        // If individual mode with no selections, backend assigns to creator
         assignedTo: _assignmentType == 'team' || _selectedAssignees.isEmpty
             ? null
             : _selectedAssignees,

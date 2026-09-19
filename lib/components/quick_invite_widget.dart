@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/services/user_service.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class QuickInviteWidget extends StatefulWidget {
@@ -24,9 +24,9 @@ class _QuickInviteWidgetState extends State<QuickInviteWidget> {
   }
 
   void _loadUserInviteId() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
 
-    if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+    if (jwtToken == null || jwtToken.isEmpty) {
       _logger.e('JWT token is null or empty');
       if (mounted) {
         setState(() {
@@ -36,7 +36,7 @@ class _QuickInviteWidgetState extends State<QuickInviteWidget> {
       return;
     }
 
-    final userService = UserService(jwtToken: db.jwtToken!);
+    final userService = UserService(jwtToken: jwtToken);
 
     try {
       final user = await userService.getCurrentUserProfile();

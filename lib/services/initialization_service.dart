@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:momentum/services/notification_service.dart';
-import 'package:momentum/database/task_database.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class InitializationService {
@@ -10,22 +10,14 @@ class InitializationService {
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const String _appGroupId = 'group.com.example.momentum';
 
-  // ── Public navigator key ─────────────────────────────────────────────────
-  // Wire this into MaterialApp.navigatorKey in app.dart so widget-triggered
-  // navigation works even when the app is in the foreground.
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
-  // ── Private state ─────────────────────────────────────────────────────────
-  static TaskDatabase? _taskDatabase;
+  static TaskCubit? _taskCubit;
 
-  // If a widget action arrives before the DB is ready we queue it here.
   static String? _pendingAction;
   static String? _pendingTaskId;
 
-  // ── Public API ────────────────────────────────────────────────────────────
-
-  /// Run at app startup (before runApp).
   static Future<void> initialize() async {
     WidgetsFlutterBinding.ensureInitialized();
 
@@ -40,20 +32,13 @@ class InitializationService {
       _setupWidgetListener();
       await _handleInitialWidgetLaunch();
     }
-    // Web: FCM setup is intentionally NOT started here, even when a stored
-    // session exists. Requesting browser notification permission before any
-    // user interaction risks Chrome's "abusive notification permission"
-    // quiet UI, which silently denies the prompt instead of showing it.
-    // TaskDatabase.initialize() requests it instead, once a real session
-    // exists (fresh login, or SplashPage validating a stored token) — see
-    // NotificationService.init() called from there.
   }
 
-  /// Call this once the TaskDatabase has been initialised (e.g. from
-  /// HomePage.initState via a post-frame callback). Any queued widget action
-  /// that arrived before the DB was ready will be replayed immediately.
-  static void registerDatabase(TaskDatabase db) {
-    _taskDatabase = db;
+  /// Registers whatever currently owns task state (originally
+  /// TaskDatabase, then TaskBloc, now TaskCubit) so widget-tap actions
+  /// have something to act on.
+  static void registerTaskCubit(TaskCubit cubit) {
+    _taskCubit = cubit;
     if (_pendingAction != null) {
       final action = _pendingAction!;
       final taskId = _pendingTaskId;
@@ -63,7 +48,6 @@ class InitializationService {
     }
   }
 
-  /// Clear JWT on logout.
   static Future<void> clearJwt() async {
     if (!kIsWeb) {
       await _secureStorage.delete(key: 'auth_jwt');
@@ -71,9 +55,6 @@ class InitializationService {
     await _notificationService.dispose();
   }
 
-  // ── Private helpers ───────────────────────────────────────────────────────
-
-  /// Listen for widget taps while the app is already running.
   static void _setupWidgetListener() {
     HomeWidget.widgetClicked.listen((uri) async {
       if (uri == null) return;
@@ -84,7 +65,6 @@ class InitializationService {
     });
   }
 
-  /// Handle the URI if the app was cold-started by a widget tap.
   static Future<void> _handleInitialWidgetLaunch() async {
     try {
       final uri = await HomeWidget.initiallyLaunchedFromHomeWidget();
@@ -98,69 +78,58 @@ class InitializationService {
     }
   }
 
-  /// Central dispatcher for all widget actions.
   static Future<void> _handleWidgetAction(String action, String? taskId) async {
     debugPrint('[Widget] action=$action taskId=$taskId');
 
     switch (action) {
-      // ── Task completion toggle ──────────────────────────────────────────
       case 'complete_task':
       case 'toggle_task':
         if (taskId == null) break;
 
-        if (_taskDatabase == null) {
-          // DB not ready yet — queue and replay after registerDatabase().
+        if (_taskCubit == null) {
           _pendingAction = action;
           _pendingTaskId = taskId;
           break;
         }
 
         try {
-          final matching = _taskDatabase!.currentTasks
+          final matching = _taskCubit!.state.currentTasks
               .where((t) => t.id == taskId)
               .toList();
           if (matching.isNotEmpty) {
             final task = matching.first;
             final shouldComplete = !task.isCompletedToday();
-            await _taskDatabase!.completeTask(taskId, shouldComplete);
-            // Refresh the widget immediately so the checkbox flips.
-            await _taskDatabase!.updateWidget();
+            await _taskCubit!.completeTask(taskId, shouldComplete);
+            await _taskCubit!.updateWidget();
           }
         } catch (e) {
           debugPrint('[Widget] completeTask error: $e');
         }
         break;
 
-      // ── Open a specific task ────────────────────────────────────────────
       case 'open_task':
-        // Navigate to the Tasks tab (index 1) on the home page.
         _navigateTo('/home');
         break;
 
-      // ── Edit a task ─────────────────────────────────────────────────────
       case 'edit_task':
         _navigateTo('/home');
         break;
 
-      // ── Show task-creation dialog ───────────────────────────────────────
       case 'add_task':
-        // Navigate home; the FAB is always visible for task creation.
         _navigateTo('/home');
         break;
 
-      // ── Open team selector ──────────────────────────────────────────────
       case 'select_team':
         _navigateTo('/home');
         break;
 
-      // ── Refresh widget data ─────────────────────────────────────────────
       case 'refresh':
-        if (_taskDatabase == null) {
+        if (_taskCubit == null) {
           _pendingAction = 'refresh';
           break;
         }
         try {
-          await _taskDatabase!.refreshData();
+          await _taskCubit!.refreshData();
         } catch (e) {
           debugPrint('[Widget] refresh error: $e');
         }
@@ -173,8 +142,6 @@ class InitializationService {
     }
   }
 
-  /// Navigate using the global key, removing all previous routes so the
-  /// user lands cleanly on the target page.
   static void _navigateTo(String route, {Object? arguments}) {
     final nav = navigatorKey.currentState;
     if (nav != null) {

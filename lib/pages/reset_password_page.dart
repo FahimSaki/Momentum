@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/services/auth_service.dart';
-import 'package:provider/provider.dart';
 
 class ResetPasswordPage extends StatefulWidget {
   final String email;
@@ -60,8 +60,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         newPassword: newPassword,
       );
       if (!mounted) return;
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.initialize(
+      final taskCubit = context.read<TaskCubit>();
+      await taskCubit.initializeSession(
         jwt: result['token'] as String,
         userId: result['userId'] as String,
       );

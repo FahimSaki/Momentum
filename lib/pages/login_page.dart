@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/pages/email_verification_page.dart';
 import 'package:momentum/pages/forgot_password_page.dart';
 import 'package:momentum/pages/two_factor_page.dart';
 import 'package:momentum/services/auth_service.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,11 +31,18 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _initAndNavigate(String jwt, String userId) async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.isInitialized || db.jwtToken != null || db.userId != null) {
-      await db.clearData();
+    final taskCubit = context.read<TaskCubit>();
+    final sessionCubit = context.read<SessionCubit>();
+    // Same three-way OR the original checked on db.isInitialized /
+    // db.jwtToken / db.userId — preserved exactly rather than
+    // simplified to sessionCubit.state.isAuthenticated, which is an AND
+    // of the last two, not an OR.
+    if (taskCubit.state.isInitialized ||
+        sessionCubit.state.jwtToken != null ||
+        sessionCubit.state.userId != null) {
+      await taskCubit.clearData();
     }
-    await db.initialize(jwt: jwt, userId: userId);
+    await taskCubit.initializeSession(jwt: jwt, userId: userId);
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/home');
   }
@@ -96,9 +104,6 @@ class _LoginPageState extends State<LoginPage> {
       final result = await AuthService.instance.googleSignIn();
       if (!mounted) return;
 
-      // Account may have 2FA turned on — same gate password login uses.
-      // No token yet in that case; hand off to TwoFactorPage to collect
-      // the emailed code before initializing the session.
       if (result['requiresTwoFactor'] == true) {
         Navigator.push(
           context,
@@ -240,8 +245,6 @@ class _LoginPageState extends State<LoginPage> {
                   : const Text('Login', style: TextStyle(fontSize: 16)),
             ),
             const SizedBox(height: 16),
-
-            // Divider
             Row(
               children: [
                 const Expanded(child: Divider()),
@@ -261,10 +264,6 @@ class _LoginPageState extends State<LoginPage> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Google Sign-In — same button on every platform now. Only the
-            // tap handler differs: web does a full-page redirect (no popup,
-            // no COOP exposure), mobile drives the native account picker.
             OutlinedButton(
               onPressed: (isLoading || isGoogleLoading)
                   ? null

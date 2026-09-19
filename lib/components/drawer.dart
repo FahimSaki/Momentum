@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/components/drawer_tile.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/pages/settings_page.dart';
 import 'package:momentum/theme/theme_provider.dart';
@@ -14,7 +14,6 @@ class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
 
   void _handleLogout(BuildContext context) async {
-    // Show confirmation dialog
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -37,19 +36,12 @@ class MyDrawer extends StatelessWidget {
 
     if (shouldLogout == true && context.mounted) {
       try {
-        final db = Provider.of<TaskDatabase>(context, listen: false);
+        final taskCubit = context.read<TaskCubit>();
 
-        // Close the drawer first.
         Navigator.of(context).pop();
 
-        // Finish clearing the local session before showing the login page.
-        // Previously this navigated immediately and let logout continue in
-        // the background. If the user signed back in quickly, that delayed
-        // logout could delete the freshly-persisted token or clear the newly
-        // initialized TaskDatabase, causing authenticated calls like GET
-        // /tasks to be sent without a usable access token after relogin.
         await AuthService.instance.logout();
-        await db.clearData();
+        await taskCubit.clearData();
 
         if (!context.mounted) return;
         Navigator.of(
@@ -71,7 +63,6 @@ class MyDrawer extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // Header
             Theme(
               data: Theme.of(context).copyWith(
                 dividerTheme: const DividerThemeData(color: Colors.transparent),
@@ -93,7 +84,6 @@ class MyDrawer extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    // Use available height to scale image and text
                     final double availableHeight = constraints.maxHeight;
                     final double imageHeight = availableHeight * 0.6;
                     final double textHeight = availableHeight * 0.2;
@@ -102,18 +92,16 @@ class MyDrawer extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Responsive Image
                           SizedBox(
                             height: imageHeight,
                             child: Image.asset(
                               isLightMode
                                   ? 'assets/images/momentum_app_logo_main.png'
                                   : 'assets/images/momentum_app_logo_main.png',
-                              fit: BoxFit.contain, // maintain aspect ratio
+                              fit: BoxFit.contain,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Responsive Text
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
@@ -136,14 +124,12 @@ class MyDrawer extends StatelessWidget {
             ),
 
             const SizedBox(height: 25.0),
-            // Home Tile
             DrawerTile(
               title: 'Home',
               leading: const Icon(Icons.home),
               onTap: () => Navigator.pop(context),
             ),
 
-            // Settings Tile
             DrawerTile(
               title: 'Settings',
               leading: const Icon(Icons.settings),
@@ -156,7 +142,6 @@ class MyDrawer extends StatelessWidget {
               },
             ),
 
-            // User Profile Tile
             DrawerTile(
               title: 'My Profile',
               leading: const Icon(Icons.account_circle),
@@ -173,7 +158,6 @@ class MyDrawer extends StatelessWidget {
 
             const Spacer(),
 
-            // Logout Tile
             Padding(
               padding: const EdgeInsets.only(bottom: 20.0),
               child: DrawerTile(

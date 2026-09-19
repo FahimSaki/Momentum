@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:momentum/blocs/session_cubit.dart';
+import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/services/user_service.dart';
-import 'package:momentum/database/task_database.dart';
-import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
 
 class UserSearchPage extends StatefulWidget {
@@ -40,12 +41,12 @@ class _UserSearchPageState extends State<UserSearchPage> {
   @override
   void initState() {
     super.initState();
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.jwtToken == null || db.jwtToken!.isEmpty) {
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
+    if (jwtToken == null || jwtToken.isEmpty) {
       _logger.e('JWT token is null or empty');
       return;
     }
-    _userService = UserService(jwtToken: db.jwtToken!);
+    _userService = UserService(jwtToken: jwtToken);
     _logger.i('UserSearchPage initialized for team: ${widget.teamName}');
   }
 
@@ -66,11 +67,9 @@ class _UserSearchPageState extends State<UserSearchPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      // ── Constrain the entire page body to AppWidths.content ──────────────
       body: ResponsiveBody(
         child: Column(
           children: [
-            // Tab selector
             Container(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -362,8 +361,10 @@ class _UserSearchPageState extends State<UserSearchPage> {
   void _inviteUser(User user) async {
     setState(() => _isInviting = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.inviteToTeam(teamId: widget.teamId, inviteId: user.inviteId);
+      await context.read<TeamCubit>().inviteToTeam(
+        teamId: widget.teamId,
+        inviteId: user.inviteId,
+      );
       _invitedUserIds.add(user.id);
       if (mounted) {
         Navigator.pop(context);
@@ -430,8 +431,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
     }
     setState(() => _isInviting = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.inviteToTeam(
+      await context.read<TeamCubit>().inviteToTeam(
         teamId: widget.teamId,
         inviteId: inviteId,
         message: _messageController.text.trim().isEmpty
@@ -489,8 +489,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
     }
     setState(() => _isInviting = true);
     try {
-      final db = Provider.of<TaskDatabase>(context, listen: false);
-      await db.inviteToTeam(
+      await context.read<TeamCubit>().inviteToTeam(
         teamId: widget.teamId,
         email: email,
         message: _messageController.text.trim().isEmpty
@@ -527,8 +526,6 @@ class _UserSearchPageState extends State<UserSearchPage> {
     }
   }
 }
-
-// ── User search tile ──────────────────────────────────────────────────────────
 
 class _UserSearchTile extends StatelessWidget {
   final User user;

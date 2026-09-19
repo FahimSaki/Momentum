@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
-import 'package:momentum/database/task_database.dart';
 import 'package:momentum/pages/change_password_page.dart';
 import 'package:momentum/services/user_service.dart';
 import 'package:momentum/theme/theme_provider.dart';
@@ -104,7 +104,6 @@ class SettingsPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // ── Security section (2FA + password) ──────────────────────────
             _buildSectionHeader(
               'Security',
               Icons.shield_rounded,
@@ -403,12 +402,12 @@ class _TwoFactorTileState extends State<_TwoFactorTile> {
   }
 
   Future<void> _load() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.jwtToken == null) {
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
+    if (jwtToken == null) {
       setState(() => _loading = false);
       return;
     }
-    _userService = UserService(jwtToken: db.jwtToken!);
+    _userService = UserService(jwtToken: jwtToken);
     try {
       final user = await _userService!.getCurrentUserProfile();
       if (mounted) {
@@ -426,7 +425,6 @@ class _TwoFactorTileState extends State<_TwoFactorTile> {
     if (_userService == null || _toggling) return;
 
     if (!value) {
-      // Confirm before disabling
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -589,12 +587,12 @@ class _ChangePasswordTileState extends State<_ChangePasswordTile> {
   }
 
   Future<void> _load() async {
-    final db = Provider.of<TaskDatabase>(context, listen: false);
-    if (db.jwtToken == null) {
+    final jwtToken = context.read<SessionCubit>().state.jwtToken;
+    if (jwtToken == null) {
       setState(() => _loading = false);
       return;
     }
-    final userService = UserService(jwtToken: db.jwtToken!);
+    final userService = UserService(jwtToken: jwtToken);
     try {
       final user = await userService.getCurrentUserProfile();
       if (mounted) {

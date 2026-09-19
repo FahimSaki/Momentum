@@ -13,11 +13,6 @@ import 'package:momentum/firebase_options.dart';
 import 'package:momentum/models/app_notification.dart';
 
 // ── Web Push (VAPID) key ───────────────────────────────────────────────────
-// Firebase Console → Project Settings → Cloud Messaging → "Web configuration"
-// → "Web Push certificates" → Generate key pair (if none exists) → paste the
-// key here. Required for FirebaseMessaging.instance.getToken() on web; no
-// mobile equivalent. Until this is a real key, _registerToken() logs a
-// warning and skips the web token fetch instead of throwing.
 const String _webVapidKey =
     'BGUgFaghX7Er_jdcK59JEYoP2hU0OURgms1ct2PJgV23KpJj71CxiCnrRJxwrBs5eRk8DZ4IlZxNwFKrXwFJs5I';
 
@@ -33,9 +28,6 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 );
 
 // ── Background message handler (MUST be top-level, not a class method) ────
-// Mobile only. On web, background messages are handled entirely by
-// web/firebase-messaging-sw.js — a separate worker context this Dart
-// handler never runs in.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -63,10 +55,16 @@ class NotificationService {
     'Content-Type': 'application/json',
   };
 
+  /// Sets the auth token used by the plain REST notification-list
+  /// endpoints (getNotifications/markAsRead/markAllAsRead) without
+  /// touching FCM or local-notification setup. Used by NotificationBloc,
+  /// which needs its own token but must never re-trigger this class's
+  /// FCM registration a second time in the same app session.
+  void updateToken(String jwtToken) {
+    _jwtToken = jwtToken;
+  }
+
   // ── Public init ───────────────────────────────────────────────────────────
-  // Runs on every platform now, including web — the old `if (kIsWeb) return;`
-  // guard here was what disabled FCM (and, via TaskDatabase never even
-  // constructing this class on web, the in-app notification list too).
 
   Future<void> init({String? jwtToken}) async {
     _jwtToken = jwtToken;
@@ -121,11 +119,6 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationTap,
     );
 
-    // Android notification channels have no web (or iOS) equivalent.
-    // Resolve the platform implementation into a variable first, then await
-    // channel creation as its own statement — a generic type argument
-    // followed directly by a null-aware cascade on the same expression is
-    // what broke the analyzer before.
     if (!kIsWeb) {
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
@@ -164,9 +157,6 @@ class NotificationService {
       return;
     }
 
-    // iOS-only concept (controls whether a banner shows while the app is
-    // already foregrounded) — web has no equivalent and some plugin
-    // versions throw UnimplementedError there.
     if (!kIsWeb) {
       await FirebaseMessaging.instance
           .setForegroundNotificationPresentationOptions(
@@ -364,9 +354,6 @@ class NotificationService {
     }
   }
 
-  /// Marks a single notification as read and returns the backend-persisted
-  /// [AppNotification] so callers can replace the local copy with the
-  /// server-accurate readAt timestamp. Returns null if parsing fails.
   Future<AppNotification?> markAsRead(String notificationId) async {
     try {
       final response = await http.patch(

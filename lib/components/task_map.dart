@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_heatmap_calendar/flutter_heatmap_calendar.dart';
-import 'package:momentum/database/task_database.dart';
+import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/utils/task_util.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
@@ -11,9 +11,9 @@ class HeatMapComponent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final taskDatabase = context.watch<TaskDatabase>();
-    final currentTasks = taskDatabase.currentTasks;
-    final historicalCompletions = taskDatabase.historicalCompletions;
+    final taskState = context.watch<TaskCubit>().state;
+    final currentTasks = taskState.currentTasks;
+    final historicalCompletions = taskState.historicalCompletions;
 
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isLightMode = !themeProvider.isDarkMode;
@@ -94,7 +94,6 @@ class HeatMapComponent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header outside the container
           Row(
             children: [
               Icon(
@@ -114,7 +113,6 @@ class HeatMapComponent extends StatelessWidget {
           ),
           const SizedBox(height: 8),
 
-          // Heatmap container
           Container(
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surface,
