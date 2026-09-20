@@ -6,14 +6,9 @@ import 'package:momentum/models/team.dart';
 import 'package:momentum/services/team_service.dart';
 import 'package:momentum/utils/network_utils.dart';
 
-/// Owns userTeams, pendingInvitations, and selectedTeam.
-///
-/// Same behavior as the TeamBloc this replaces — every event handler's
-/// body moved directly into a public method, Completer wrappers dropped
-/// since a plain async method is already awaitable on its own. Team
-/// switching itself still works exactly the same way: TaskCubit listens
-/// to this cubit's stream directly, which Cubit exposes identically to
-/// Bloc.
+/// Owns userTeams, pendingInvitations, and selectedTeam. TaskCubit
+/// listens to this cubit's stream directly to react to team-selection
+/// changes.
 class TeamCubit extends Cubit<TeamState> {
   final Logger _logger = Logger();
   final LocalCacheService _cache = LocalCacheService();
@@ -26,18 +21,15 @@ class TeamCubit extends Cubit<TeamState> {
   }
 
   /// Reloads both userTeams and pendingInvitations together — used for
-  /// full init. Renamed from refreshAllAndWait(): the "AndWait" suffix
-  /// only ever signaled "this one bridges to a real Future," which every
-  /// Cubit method already does, so it's dropped.
+  /// full init.
   Future<void> loadTeamsAndInvitations() async {
     await _loadUserTeams();
     await _loadPendingInvitations();
   }
 
   /// Reloads only pendingInvitations — used for the lighter per-poll
-  /// refresh, preserving the original asymmetry (a plain refresh never
-  /// reloaded the team list, only invitations). Renamed from
-  /// refreshPendingInvitationsAndWait() for the same reason as above.
+  /// refresh; a plain refresh never reloads the full team list, only
+  /// invitations.
   Future<void> loadPendingInvitations() async {
     await _loadPendingInvitations();
   }
@@ -71,7 +63,6 @@ class TeamCubit extends Cubit<TeamState> {
     }
   }
 
-  /// Replaces `context.read<TeamBloc>().add(TeamSelected(team))`.
   void selectTeam(Team? team) {
     emit(
       TeamState(
@@ -249,9 +240,7 @@ class TeamCubit extends Cubit<TeamState> {
     }
   }
 
-  /// Replaces `context.read<TeamBloc>().add(const TeamsCleared())`. Only
-  /// ever called internally by TaskCubit.clearData() — not a
-  /// consumer-facing change.
+  /// Only ever called internally by TaskCubit.clearData().
   void clear() {
     emit(const TeamState());
   }

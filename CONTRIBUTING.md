@@ -35,7 +35,7 @@ Thank you for your interest in contributing! This document covers how to set up 
 ### Prerequisites
 
 | Tool | Minimum version |
-|------|----------------|
+| ------ | ---------------- |
 | Flutter SDK | 3.41.0 |
 | Dart SDK | 3.11.1 |
 | Node.js | 20 LTS |
@@ -91,7 +91,7 @@ flutter pub get
 The API base URL is resolved automatically by `lib/constants/api_base_url.dart`:
 
 | Context | URL used |
-|---------|---------|
+| --------- | --------- |
 | Android emulator (debug) | `http://10.0.2.2:10000` |
 | iOS simulator (debug) | `http://127.0.0.1:10000` |
 | Release / web | `https://momentum-g7ah.onrender.com` |
@@ -121,7 +121,7 @@ Push notifications and FCM token registration require a Firebase project. For lo
 - Run `flutter analyze` and resolve all issues before committing.
 - Format with `dart format .` (enforced by CI).
 - Use `Logger` from the `logger` package instead of `print`.
-- All HTTP calls belong in `lib/services/`; widgets call `TaskDatabase` methods only.
+- All HTTP calls belong in `lib/services/`; widgets call the relevant Cubit's methods only (e.g. `context.read<TaskCubit>().deleteTask(id)`), never the service layer directly.
 - Dispose controllers, animation controllers, and timers in `dispose()`.
 - Avoid `dynamic` types where a typed alternative exists.
 
@@ -130,8 +130,8 @@ Push notifications and FCM token registration require a Firebase project. For lo
 Future<void> deleteTask(String taskId) async {
   try {
     await _taskService!.deleteTask(taskId);
-    currentTasks.removeWhere((t) => t.id == taskId);
-    notifyListeners();
+    final updatedTasks = state.currentTasks.where((t) => t.id != taskId).toList();
+    emit(state.copyWith(currentTasks: updatedTasks));
   } catch (e, st) {
     logger.e('Error deleting task', error: e, stackTrace: st);
     rethrow;
@@ -140,7 +140,8 @@ Future<void> deleteTask(String taskId) async {
 
 // Swallows errors, no logging, dynamic return
 deleteTask(id) async {
-  await _taskService.deleteTask(id);
+  final updatedTasks = state.currentTasks.where((t) => t.id != id).toList();
+  emit(state.copyWith(currentTasks: updatedTasks));
 }
 ```
 
@@ -182,7 +183,7 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 | Type | Use for |
-|------|---------|
+| ------ | --------- |
 | `feat` | New feature |
 | `fix` | Bug fix |
 | `docs` | Documentation only |
@@ -198,7 +199,7 @@ Examples:
 git commit -m "feat(team): add Invite ID lookup when sending invitations"
 git commit -m "fix(widget): correct SharedPreferences file name for home_widget 0.9"
 git commit -m "docs: add INSTALLATION.md with Firebase setup steps"
-git commit -m "refactor(task_database): split activeTasks and completedTasks getters"
+git commit -m "refactor(task_cubit): split activeTasks and completedTasks getters"
 ```
 
 ---

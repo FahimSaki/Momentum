@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
-import 'package:momentum/services/notification_service.dart';
+import 'package:momentum/services/push_notification_service.dart';
 import 'package:momentum/blocs/task_cubit.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class InitializationService {
-  static final NotificationService _notificationService = NotificationService();
+  static final PushNotificationService _pushNotificationService =
+      PushNotificationService();
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
   static const String _appGroupId = 'group.com.example.momentum';
 
@@ -26,7 +27,7 @@ class InitializationService {
 
       final savedToken = await _secureStorage.read(key: 'auth_jwt');
       if (savedToken != null) {
-        await _notificationService.init(jwtToken: savedToken);
+        await _pushNotificationService.init(jwtToken: savedToken);
       }
 
       _setupWidgetListener();
@@ -34,9 +35,8 @@ class InitializationService {
     }
   }
 
-  /// Registers whatever currently owns task state (originally
-  /// TaskDatabase, then TaskBloc, now TaskCubit) so widget-tap actions
-  /// have something to act on.
+  /// Registers the current TaskCubit so widget-tap actions have
+  /// something to act on.
   static void registerTaskCubit(TaskCubit cubit) {
     _taskCubit = cubit;
     if (_pendingAction != null) {
@@ -52,7 +52,7 @@ class InitializationService {
     if (!kIsWeb) {
       await _secureStorage.delete(key: 'auth_jwt');
     }
-    await _notificationService.dispose();
+    await _pushNotificationService.dispose();
   }
 
   static void _setupWidgetListener() {

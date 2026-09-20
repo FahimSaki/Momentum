@@ -15,7 +15,7 @@ import 'package:momentum/database/widget_service.dart';
 import 'package:momentum/models/pending_task_create.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
-import 'package:momentum/services/notification_service.dart';
+import 'package:momentum/services/push_notification_service.dart';
 import 'package:momentum/services/task_service.dart';
 import 'package:momentum/utils/network_utils.dart';
 
@@ -42,7 +42,8 @@ class TaskCubit extends Cubit<TaskState> {
   // FCM/local-notification setup only — entirely separate from
   // NotificationCubit's REST-only instance. Never call NotificationCubit's
   // methods from here and never call this instance's REST methods.
-  final NotificationService _fcmNotificationService = NotificationService();
+  final PushNotificationService _fcmNotificationService =
+      PushNotificationService();
 
   TaskService? _taskService;
   TimerService? _timerService;

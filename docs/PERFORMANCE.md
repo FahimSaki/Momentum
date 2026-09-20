@@ -8,9 +8,9 @@ Notes on how Momentum handles performance on both the frontend and backend, and 
 
 ### State Updates
 
-`TaskDatabase` extends `ChangeNotifier` and calls `notifyListeners()` after every mutation. Widgets that subscribe with `Consumer<TaskDatabase>` or `context.watch<TaskDatabase>()` rebuild in full. For screens with a large number of tasks, use `context.select()` or `Consumer` on the smallest subtree that actually needs to update.
+`TaskCubit`, `TeamCubit`, `NotificationCubit`, and `SessionCubit` each `emit()` a new immutable state after every mutation. Widgets that subscribe with `BlocBuilder<TaskCubit, TaskState>` or `context.watch<TaskCubit>()` rebuild in full on every emission from that Cubit. For screens that only need part of the state, use `BlocSelector<TaskCubit, TaskState, T>` or a narrower `BlocBuilder` scoped to the smallest subtree that actually needs to update.
 
-The `activeTasks` and `completedTasks` getters iterate `currentTasks` on every access, calling `isCompletedToday()` on each task. If `currentTasks` grows large (hundreds of tasks), consider caching these lists and invalidating the cache on mutation rather than recomputing on every access.
+The `activeTasks` and `completedTasks` getters on `TaskState` iterate `currentTasks` on every access, calling `isCompletedToday()` on each task. If `currentTasks` grows large (hundreds of tasks), consider caching these lists and invalidating the cache on mutation rather than recomputing on every access.
 
 ### Polling Frequency
 
@@ -47,7 +47,7 @@ The splash and drawer logo (`momentum_app_logo_main.png`) is loaded from `assets
 The following indexes are defined in Mongoose schemas:
 
 | Collection | Index |
-|-----------|-------|
+| ----------- | ------- |
 | `Task` | `assignedTo`, `assignedBy`, `team`, `dueDate`, `isArchived + team` |
 | `TaskHistory` | `userId`, `teamId`, `userId + taskName` |
 | `Notification` | `recipient + isRead`, `recipient + createdAt` |

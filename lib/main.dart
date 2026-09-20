@@ -10,7 +10,7 @@ import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:momentum/services/initialization_service.dart';
-import 'package:momentum/services/notification_service.dart';
+import 'package:momentum/services/push_notification_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -29,9 +29,8 @@ void main() async {
 
   await InitializationService.initialize();
 
-  // TaskCubit takes the other three as constructor references, same
-  // wiring as the TaskBloc version — Cubit exposes .stream identically,
-  // so TaskCubit still listens to teamCubit.stream for selection changes.
+  // TaskCubit takes the other three as constructor references and
+  // listens to teamCubit.stream for selection changes.
   final notificationCubit = NotificationCubit();
   final teamCubit = TeamCubit();
   final sessionCubit = SessionCubit();

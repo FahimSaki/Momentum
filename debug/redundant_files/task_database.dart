@@ -7,6 +7,7 @@ import 'package:momentum/models/pending_task_create.dart';
 import 'package:momentum/services/team_service.dart';
 import 'package:momentum/services/task_service.dart';
 import 'package:momentum/services/notification_service.dart';
+import 'package:momentum/services/push_notification_service.dart';
 import 'package:momentum/database/widget_service.dart';
 import 'package:momentum/database/timer_service.dart';
 import 'package:momentum/database/local_cache_service.dart';
@@ -52,6 +53,7 @@ class TaskDatabase extends ChangeNotifier {
   TeamService? _teamService;
   TaskService? _taskService;
   NotificationService? _notificationService;
+  PushNotificationService? _pushNotificationService;
   final WidgetService _widgetService = WidgetService();
   TimerService? _timerService;
 
@@ -104,6 +106,7 @@ class TaskDatabase extends ChangeNotifier {
     // included. Gating this behind !kIsWeb previously meant the web app's
     // notification bell/list silently never loaded anything.
     _notificationService = NotificationService();
+    _pushNotificationService = PushNotificationService();
     if (!kIsWeb) {
       _initializeTimerService();
     }
@@ -143,7 +146,7 @@ class TaskDatabase extends ChangeNotifier {
       // Requests FCM permission/token registration on every platform,
       // including web (see NotificationService — it safely no-ops on web
       // until a VAPID key is configured there).
-      await _notificationService?.init(jwtToken: jwt);
+      await _pushNotificationService?.init(jwtToken: jwt);
 
       // Replay anything queued from a previous offline session before we
       // fetch fresh data, so a successfully-synced task shows up as synced

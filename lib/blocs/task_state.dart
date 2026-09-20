@@ -34,6 +34,10 @@ class TaskState {
   List<Task> get completedTasks =>
       currentTasks.where((task) => task.isCompletedToday()).toList();
 
+  /// Never changes selectedTeam via copyWith — always carries the
+  /// current value forward. TaskCubit._onTeamChanged constructs a
+  /// TaskState directly instead, to avoid the usual
+  /// copyWith-can't-null-a-field problem.
   TaskState copyWith({
     List<Task>? currentTasks,
     List<DateTime>? historicalCompletions,

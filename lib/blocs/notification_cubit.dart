@@ -6,18 +6,9 @@ import 'package:momentum/services/notification_service.dart';
 
 /// Owns the in-app notification list and unread count.
 ///
-/// Same behavior as the NotificationBloc this replaces — every event
-/// handler's body moved directly into a public method, with the
-/// Completer/stream.first bridging removed entirely, since Cubit's
-/// emit() can already be called from anywhere. loadNotifications() now
-/// just does the work and returns when it's actually done.
-///
-/// Owns its own NotificationService instance rather than sharing
-/// TaskCubit's FCM-only instance, on purpose — TaskCubit's instance also
-/// drives FCM/local-notification setup via .init(), guarded by an
-/// instance-level flag. A second instance calling .init() would redo FCM
-/// permission requests and re-register message listeners. This class
-/// only ever calls the purely additive updateToken(), never init().
+/// Uses its own `NotificationService` (REST-only: notification list,
+/// mark-read) — a different class from the `PushNotificationService`
+/// that `TaskCubit` owns for FCM/local-notification setup.
 class NotificationCubit extends Cubit<NotificationState> {
   final Logger _logger = Logger();
   final NotificationService _service = NotificationService();
@@ -53,7 +44,6 @@ class NotificationCubit extends Cubit<NotificationState> {
     }
   }
 
-  /// Replaces `context.read<NotificationBloc>().add(NotificationMarkedAsRead(id))`.
   Future<void> markAsRead(String notificationId) async {
     try {
       final updated = await _service.markAsRead(notificationId);
@@ -80,7 +70,6 @@ class NotificationCubit extends Cubit<NotificationState> {
     }
   }
 
-  /// Replaces `context.read<NotificationBloc>().add(const AllNotificationsMarkedAsRead())`.
   Future<void> markAllAsRead() async {
     try {
       await _service.markAllAsRead();
@@ -97,9 +86,7 @@ class NotificationCubit extends Cubit<NotificationState> {
     }
   }
 
-  /// Replaces `context.read<NotificationBloc>().add(const NotificationsCleared())`.
-  /// Only ever called internally by TaskCubit.clearData() — not a
-  /// consumer-facing change.
+  /// Only ever called internally by TaskCubit.clearData().
   void clear() {
     emit(const NotificationState());
   }

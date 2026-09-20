@@ -72,8 +72,8 @@ Momentum is a cross-platform productivity app that helps individuals and teams t
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | Flutter 3.41+, Dart, Provider |
+| ------- | ----------- |
+| Frontend | Flutter 3.41+, Dart, flutter_bloc (Cubit) + Provider (theme only) |
 | Backend | Node.js 24 LTS, Express 4 |
 | Database | MongoDB 8, Mongoose 8 |
 | Auth | JWT (7-day expiry), bcryptjs, FlutterSecureStorage |
@@ -106,7 +106,7 @@ flutter run
 ## Documentation
 
 | File | Contents |
-|------|---------|
+| ------ | --------- |
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Dev and production setup, environment variables, Firebase config |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, data flow, state management |
 | [docs/API.md](docs/API.md) | All REST endpoints with request/response examples |
