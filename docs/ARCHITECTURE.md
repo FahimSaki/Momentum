@@ -8,62 +8,67 @@ This document describes Momentum's system design, data flow, state management st
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                     Flutter App                          │
-│                                                          │
-│  Pages → Components → TaskDatabase (ChangeNotifier)      │
-│                         │                                │
-│              ┌──────────┴──────────┐                     │
-│          TaskService          NotificationService        │
-│          TeamService          WidgetService              │
-│          UserService          TimerService               │
-└──────────────┬──────────────────────────────────────────┘
+│                     Flutter App                           │
+│                                                             │
+│  Pages → Components → Cubits (TaskCubit, TeamCubit,        │
+│                        NotificationCubit, SessionCubit)     │
+│                         │                                   │
+│              ┌──────────┴──────────┐                        │
+│          TaskService          NotificationService           │
+│          TeamService          WidgetService                 │
+│          UserService          TimerService                  │
+└──────────────┬────────────────────────────────────────────┘
                │ HTTPS / REST
-┌──────────────▼──────────────────────────────────────────┐
-│                   Express Backend                        │
-│                                                          │
-│  Routes → Middleware (JWT) → Controllers → Services      │
-│                                   │                      │
-│                          ┌────────┴────────┐             │
-│                       MongoDB          Firebase FCM      │
-│                       (Mongoose)                         │
-│                          │                               │
-│              ┌───────────┼───────────┐                   │
-│           Task        TaskHistory  User                  │
-│           Team        TeamInvit.   Notification          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────▼────────────────────────────────────────────┐
+│                   Express Backend                          │
+│                                                              │
+│  Routes → Middleware (JWT) → Controllers → Services         │
+│                                   │                          │
+│                          ┌────────┴────────┐                 │
+│                       MongoDB          Firebase FCM           │
+│                       (Mongoose)                              │
+│                          │                                    │
+│              ┌───────────┼───────────┐                        │
+│           Task        TaskHistory  User                       │
+│           Team        TeamInvit.   Notification                │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Frontend Architecture
 
-### State Management – Provider + TaskDatabase
+### State Management – Cubit (flutter_bloc)
 
-All application state is held in a single `ChangeNotifier` called `TaskDatabase` (`lib/database/task_database.dart`). It is registered at the root of the widget tree via `MultiProvider` in `main.dart`.
+Application state is split across four `Cubit`s in `lib/blocs/`, each paired with an immutable state class. All four are constructed once in `main.dart` and registered at the root of the widget tree via `MultiProvider`, alongside `ThemeProvider`, which intentionally remains a plain `ChangeNotifier`.
 
 ```
 main.dart
   └── MultiProvider
-        ├── TaskDatabase   ← task state, team state, notifications
-        └── ThemeProvider  ← dark/light theme persistence
+        ├── BlocProvider<NotificationCubit>
+        ├── BlocProvider<TeamCubit>
+        ├── BlocProvider<SessionCubit>
+        ├── BlocProvider<TaskCubit>
+        └── ChangeNotifierProvider<ThemeProvider>
 ```
 
-Widgets subscribe with `Consumer<TaskDatabase>` or `context.watch<TaskDatabase>()` and rebuild automatically when `notifyListeners()` is called.
+Widgets subscribe with `BlocBuilder<XCubit, XState>`, `context.watch<XCubit>()`, or call methods directly via `context.read<XCubit>()`.
 
-`TaskDatabase` responsibilities:
+| Cubit | State | Responsibility |
+| ------- | ------- | ----------------- |
+| `TaskCubit` | `TaskState` | `currentTasks`, `historicalCompletions`, `dashboardStats`; computed getters `activeTasks`, `completedTasks`, `personalTasks`, `teamTasks`; the offline sync queue (`SyncQueueService`); polling and midnight cleanup (`TimerService`); calls `WidgetService` after every mutation |
+| `TeamCubit` | `TeamState` | `userTeams`, `pendingInvitations`, `selectedTeam` |
+| `NotificationCubit` | `NotificationState` | in-app notification list and unread count |
+| `SessionCubit` | `SessionState` | `jwtToken`, `userId` |
 
-- Holds `currentTasks`, `userTeams`, `pendingInvitations`, `notifications`
-- Exposes computed getters: `activeTasks` (tasks not completed today), `completedTasks` (tasks completed today), `historicalCompletions`
-- Delegates HTTP calls to the service layer (`TaskService`, `TeamService`, etc.)
-- Calls `WidgetService.updateWidgetWithHistoricalData()` after every mutation
-- Starts/stops `TimerService` (polling + midnight cleanup)
+`TaskCubit` takes `NotificationCubit`, `TeamCubit`, and `SessionCubit` as constructor dependencies and subscribes directly to `teamCubit.stream` to react to team-selection changes — switching teams reloads `TaskCubit`'s tasks, history, and dashboard stats for the new scope. This is the one place state flows between Cubits; `TeamCubit`, `NotificationCubit`, and `SessionCubit` don't depend on each other or on `TaskCubit`.
 
 ### Service Layer
 
-Each domain has a dedicated service class that owns HTTP communication. Services are instantiated by `TaskDatabase` after authentication and hold `jwtToken` and `userId` for the lifetime of the session.
+Each domain has a dedicated service class that owns HTTP communication. Services are instantiated by their owning Cubit after authentication — `TaskCubit` builds `TaskService`, `TeamCubit.setToken()` builds `TeamService`, and so on — and hold `jwtToken` for the lifetime of the session. `userId` is owned separately by `SessionCubit`.
 
 | Service | Responsibility |
-|---------|---------------|
+| --------- | --------------- |
 | `TaskService` | CRUD for tasks, completion toggling via `PATCH /tasks/:id/complete`, history fetch |
 | `TeamService` | Team lifecycle, invitations, member management |
 | `UserService` | Profile fetch, search, privacy settings |
@@ -73,6 +78,8 @@ Each domain has a dedicated service class that owns HTTP communication. Services
 | `TimerService` | 10-second polling timer, midnight cleanup timer |
 | `InitializationService` | App startup: Firebase, home_widget, JWT restoration |
 
+`NotificationService` is instantiated twice, once per consumer: `TaskCubit` holds an instance purely for FCM/local-notification setup, and `NotificationCubit` holds a separate instance purely for the REST notification-list calls (`getNotifications`, `markAsRead`, `markAllAsRead`). The two never call each other's methods.
+
 ### Navigation
 
 `app.dart` configures a named-route `MaterialApp`. The `navigatorKey` from `InitializationService` is wired in so widget-tap actions from the home screen can trigger navigation even when the app is in the foreground.
@@ -80,7 +87,7 @@ Each domain has a dedicated service class that owns HTTP communication. Services
 Route map:
 
 | Route | Page |
-|-------|------|
+| ------- | ------ |
 | `/` or `/splash` | `SplashPage` – JWT validation gate |
 | `/login` | `LoginPage` |
 | `/register` | `RegisterPage` |
@@ -209,13 +216,13 @@ User {
 
 ## Key Design Decisions
 
-### Why Provider Instead of Riverpod/Bloc?
+### Why Cubit Instead of Bloc or Riverpod?
 
-Provider is sufficient for a single-domain state tree (`TaskDatabase`). The app does not require code generation, and Provider's `ChangeNotifier` pattern is straightforward to test and extend.
+State management moved twice: Provider/`ChangeNotifier` → BLoC → Cubit. BLoC's event model required threading a `Completer` through any event whose result a caller needed to await — a workaround that had spread across most event handlers and was a sign of fighting the framework rather than using its strengths. None of the app's flows need BLoC's actual benefits (event replay, `droppable`/`sequential` concurrency transformers, testing against a recorded event log), so Cubit's direct method calls — which return a value or throw like any other `async` function — removed the workaround entirely without losing anything the app was using.
 
-### Why a Single `TaskDatabase` ChangeNotifier?
+### Why Four Cubits Instead of One?
 
-All task and team state is interdependent (e.g. completing a task affects dashboard stats, the heatmap, and the widget simultaneously). A single notifier avoids cross-provider synchronisation complexity.
+Task, team, notification, and session state used to live together in a single object. Splitting them by domain (`TaskCubit`, `TeamCubit`, `NotificationCubit`, `SessionCubit`) means each state class is sized to what it actually holds, and a widget that only cares about, say, unread notifications doesn't rebuild on every task mutation. The one genuine cross-domain dependency — task data needing to reload when the selected team changes — is handled by `TaskCubit` subscribing directly to `TeamCubit.stream`, rather than folding team state back into `TaskCubit` or routing the change through a shared parent object.
 
 ### Why Archive Instead of Delete on Completion?
 
@@ -232,7 +239,7 @@ The app supports multiple platforms (Android, iOS, web, desktop) and a stateless
 ### Home Widget Data Flow
 
 ```
-TaskDatabase.updateWidget()
+TaskCubit.updateWidget()
   → WidgetService.updateWidgetWithHistoricalData(tasks, selectedTeam)
     → HomeWidget.saveWidgetData('widget_tasks', jsonEncoded(taskList))
     → HomeWidget.saveWidgetData('widget_team_name', teamName)

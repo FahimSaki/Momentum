@@ -19,9 +19,8 @@ import 'package:momentum/services/auth_service.dart';
 import 'package:momentum/services/initialization_service.dart';
 import 'package:momentum/utils/date_helpers.dart';
 
-// Was TaskDatabase.currentUserRoleInSelectedTeam / .canCurrentUserCreateTasks.
-// Plain functions since selectedTeam (TaskCubit) and userId (SessionCubit)
-// live on two different cubits — same exact logic either way.
+// Plain functions since selectedTeam (TaskCubit) and userId
+// (SessionCubit) live on two different cubits.
 String? _currentUserRole(Team? selectedTeam, String? userId) {
   if (selectedTeam == null || userId == null) return null;
   final member = selectedTeam.getMember(userId);

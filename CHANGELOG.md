@@ -15,6 +15,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 - GraphQL endpoint (API v2)
 - Enterprise SSO and audit logs
 
+### Changed
+
+- **State management migrated Provider → BLoC → Cubit.** `TaskDatabase` (the single `ChangeNotifier`) is replaced by four `Cubit`s in `lib/blocs/`: `TaskCubit`, `TeamCubit`, `NotificationCubit`, `SessionCubit`, each paired with an immutable state class; `ThemeProvider` remains a plain `ChangeNotifier`
+- `TaskCubit` subscribes directly to `TeamCubit.stream` to reload tasks, history, and dashboard stats when the selected team changes
+- `InitializationService.registerTaskBloc()` renamed to `registerTaskCubit()`
+
 ---
 
 ## [0.9.1] – Current
@@ -108,7 +114,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 ## Version Policy
 
 | Release type | When used | Example |
-|---|---|---|
+| --- | --- | --- |
 | PATCH | Bug fixes, security patches | 0.9.0 → 0.9.1 |
 | MINOR | New backward-compatible features | 0.9.0 → 0.10.0 |
 | MAJOR | Breaking API or schema changes | 0.9.0 → 1.0.0 |

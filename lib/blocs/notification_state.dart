@@ -1,8 +1,6 @@
 import 'package:momentum/models/app_notification.dart';
 
-/// Immutable snapshot of in-app notification state — replaces the
-/// `notifications` / `unreadNotificationCount` fields that used to live
-/// directly on TaskDatabase.
+/// Immutable snapshot of in-app notification state.
 class NotificationState {
   final List<AppNotification> notifications;
   final int unreadCount;

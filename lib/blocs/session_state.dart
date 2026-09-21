@@ -1,5 +1,4 @@
-/// Immutable snapshot of the current auth session — replaces the
-/// jwtToken/userId fields that used to live directly on TaskDatabase.
+/// Immutable snapshot of the current auth session.
 class SessionState {
   final String? jwtToken;
   final String? userId;

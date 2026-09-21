@@ -22,27 +22,19 @@ import 'package:momentum/utils/network_utils.dart';
 /// Owns tasks, historical completions, dashboard stats, the offline sync
 /// queue, and the overall session init/refresh/clear orchestration.
 ///
-/// Same behavior as the TaskBloc this replaces — every event handler's
-/// body moved directly into a public or private method, Completer
-/// wrappers dropped since a plain async method is already awaitable, and
-// ignore: unintended_html_in_doc_comment
-/// the Emitter<TaskState> parameter every private loader used to thread
-/// through is gone too — Cubit's emit() is just a protected method you
-/// can call from anywhere, not something only available inside a
-/// registered handler. Still takes NotificationCubit/TeamCubit/
-/// SessionCubit as direct constructor references and still listens to
-/// TeamCubit.stream for selection changes, exactly as before — Cubit
-/// exposes .stream identically to Bloc.
+/// Takes NotificationCubit, TeamCubit, and SessionCubit as direct
+/// constructor references and listens to TeamCubit.stream for
+/// selection changes.
 class TaskCubit extends Cubit<TaskState> {
   final Logger _logger = Logger();
   final WidgetService _widgetService = WidgetService();
   final LocalCacheService _cacheService = LocalCacheService();
   final SyncQueueService _syncQueueService = SyncQueueService();
 
-  // FCM/local-notification setup only — entirely separate from
-  // NotificationCubit's REST-only instance. Never call NotificationCubit's
-  // methods from here and never call this instance's REST methods.
-  final PushNotificationService _fcmNotificationService =
+  // Handles FCM/local-notification setup for this session.
+  // NotificationCubit owns a separate NotificationService instance for
+  // the REST notification list.
+  final PushNotificationService _pushNotificationService =
       PushNotificationService();
 
   TaskService? _taskService;
@@ -94,7 +86,7 @@ class TaskCubit extends Cubit<TaskState> {
       _teamCubit.setToken(jwt);
       _sessionCubit.setSession(jwtToken: jwt, userId: userId);
 
-      await _fcmNotificationService.init(jwtToken: jwt);
+      await _pushNotificationService.init(jwtToken: jwt);
 
       await _flushPendingOperations();
 

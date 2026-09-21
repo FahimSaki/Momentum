@@ -33,10 +33,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _initAndNavigate(String jwt, String userId) async {
     final taskCubit = context.read<TaskCubit>();
     final sessionCubit = context.read<SessionCubit>();
-    // Same three-way OR the original checked on db.isInitialized /
-    // db.jwtToken / db.userId — preserved exactly rather than
-    // simplified to sessionCubit.state.isAuthenticated, which is an AND
-    // of the last two, not an OR.
+    // Deliberately an OR across all three fields, not
+    // sessionCubit.state.isAuthenticated (which ANDs the last two) — any
+    // one of them being non-empty means there's session state to clear
+    // before starting a new one.
     if (taskCubit.state.isInitialized ||
         sessionCubit.state.jwtToken != null ||
         sessionCubit.state.userId != null) {
