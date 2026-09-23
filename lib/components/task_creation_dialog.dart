@@ -4,6 +4,7 @@ import 'package:momentum/blocs/task_cubit.dart';
 import 'package:momentum/blocs/task_state.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/team.dart';
+import 'package:momentum/theme/theme.dart';
 import 'package:logger/logger.dart';
 
 class TaskCreationDialog extends StatefulWidget {
@@ -58,11 +59,7 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                 Container(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    gradient: kBrandGradient,
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(24),
                     ),

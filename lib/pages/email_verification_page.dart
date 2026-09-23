@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:momentum/components/auth_icon_badge.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/services/auth_service.dart';
 
@@ -91,19 +92,7 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: const Icon(
-                Icons.mark_email_read_rounded,
-                size: 40,
-                color: Color(0xFF6366F1),
-              ),
-            ),
+            const AuthIconBadge(icon: Icons.mark_email_read_rounded),
             const SizedBox(height: 24),
             const Text(
               'Check your inbox',

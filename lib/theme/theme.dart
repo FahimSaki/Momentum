@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 
-const Color _kIndigo = Color(0xFF6366F1);
-const Color _kIndigoDark = Color(0xFF818CF8);
+// Exported (no leading underscore) so pages can reuse the brand colors
+// instead of re-hardcoding the same hex values — see AuthIconBadge and
+// kBrandGradient below, which replace duplicated Container/gradient blocks
+// that previously repeated these values verbatim.
+const Color kIndigo = Color(0xFF6366F1);
+const Color kIndigoDark = Color(0xFF818CF8);
+
+/// The header gradient reused across team/task header cards
+/// (TeamDetailsPage, TeamSettingsPage, TaskCreationDialog).
+const LinearGradient kBrandGradient = LinearGradient(
+  colors: [kIndigo, Color(0xFF8B5CF6)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
 
 // * light mode
 ThemeData lightMode = ThemeData(
@@ -13,7 +25,7 @@ ThemeData lightMode = ThemeData(
     secondary: Color(0xFFEDE9FE),
     tertiary: Color(0xFFFFFFFF),
     inversePrimary: Color(0xFF1C1B3A),
-    primaryContainer: Color(0xFF6366F1),
+    primaryContainer: kIndigo,
     secondaryContainer: Color(0xFFDDD6FE),
     onPrimary: Color(0xFF1C1B3A),
     onSecondary: Color(0xFF1C1B3A),
@@ -45,7 +57,7 @@ ThemeData lightMode = ThemeData(
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      backgroundColor: _kIndigo,
+      backgroundColor: kIndigo,
       foregroundColor: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -55,13 +67,13 @@ ThemeData lightMode = ThemeData(
   ),
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
-      foregroundColor: _kIndigo,
+      foregroundColor: kIndigo,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
   outlinedButtonTheme: OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
-      foregroundColor: _kIndigo,
+      foregroundColor: kIndigo,
       side: const BorderSide(color: Color(0xFFDDD6FE)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
@@ -79,7 +91,7 @@ ThemeData lightMode = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kIndigo, width: 2),
+      borderSide: const BorderSide(color: kIndigo, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -95,14 +107,14 @@ ThemeData lightMode = ThemeData(
       return const Color(0xFFBBB8D4);
     }),
     trackColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return _kIndigo;
+      if (states.contains(WidgetState.selected)) return kIndigo;
       return const Color(0xFFEDE9FE);
     }),
     trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
   ),
   checkboxTheme: CheckboxThemeData(
     fillColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return _kIndigo;
+      if (states.contains(WidgetState.selected)) return kIndigo;
       return Colors.transparent;
     }),
     checkColor: WidgetStateProperty.all(Colors.white),
@@ -110,7 +122,7 @@ ThemeData lightMode = ThemeData(
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
   ),
   floatingActionButtonTheme: const FloatingActionButtonThemeData(
-    backgroundColor: _kIndigo,
+    backgroundColor: kIndigo,
     foregroundColor: Colors.white,
     elevation: 4,
     shape: RoundedRectangleBorder(
@@ -157,16 +169,16 @@ ThemeData lightMode = ThemeData(
   expansionTileTheme: const ExpansionTileThemeData(
     backgroundColor: Colors.transparent,
     collapsedBackgroundColor: Colors.transparent,
-    iconColor: Color(0xFF6366F1),
+    iconColor: kIndigo,
     collapsedIconColor: Color(0xFF6B66A3),
   ),
   tabBarTheme: const TabBarThemeData(
-    labelColor: _kIndigo,
+    labelColor: kIndigo,
     unselectedLabelColor: Color(0xFF6B66A3),
-    indicatorColor: _kIndigo,
+    indicatorColor: kIndigo,
     dividerColor: Color(0xFFEDE9FE),
   ),
-  progressIndicatorTheme: const ProgressIndicatorThemeData(color: _kIndigo),
+  progressIndicatorTheme: const ProgressIndicatorThemeData(color: kIndigo),
   scaffoldBackgroundColor: const Color(0xFFF5F3FF),
 );
 
@@ -212,7 +224,7 @@ ThemeData darkMode = ThemeData(
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      backgroundColor: _kIndigoDark,
+      backgroundColor: kIndigoDark,
       foregroundColor: const Color(0xFF0E0D1C),
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -222,13 +234,13 @@ ThemeData darkMode = ThemeData(
   ),
   textButtonTheme: TextButtonThemeData(
     style: TextButton.styleFrom(
-      foregroundColor: _kIndigoDark,
+      foregroundColor: kIndigoDark,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
     ),
   ),
   outlinedButtonTheme: OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
-      foregroundColor: _kIndigoDark,
+      foregroundColor: kIndigoDark,
       side: const BorderSide(color: Color(0xFF3D3B5C)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
@@ -246,7 +258,7 @@ ThemeData darkMode = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: const BorderSide(color: _kIndigoDark, width: 2),
+      borderSide: const BorderSide(color: kIndigoDark, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -262,7 +274,7 @@ ThemeData darkMode = ThemeData(
       return const Color(0xFF5A587A);
     }),
     trackColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return _kIndigoDark;
+      if (states.contains(WidgetState.selected)) return kIndigoDark;
       return const Color(0xFF232236);
     }),
     trackOutlineColor: WidgetStateProperty.resolveWith((states) {
@@ -272,7 +284,7 @@ ThemeData darkMode = ThemeData(
   ),
   checkboxTheme: CheckboxThemeData(
     fillColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.selected)) return _kIndigoDark;
+      if (states.contains(WidgetState.selected)) return kIndigoDark;
       return Colors.transparent;
     }),
     checkColor: WidgetStateProperty.all(const Color(0xFF0E0D1C)),
@@ -330,15 +342,15 @@ ThemeData darkMode = ThemeData(
   expansionTileTheme: const ExpansionTileThemeData(
     backgroundColor: Colors.transparent,
     collapsedBackgroundColor: Colors.transparent,
-    iconColor: Color(0xFF818CF8),
+    iconColor: kIndigoDark,
     collapsedIconColor: Color(0xFF9B99C8),
   ),
   tabBarTheme: const TabBarThemeData(
-    labelColor: _kIndigoDark,
+    labelColor: kIndigoDark,
     unselectedLabelColor: Color(0xFF9B99C8),
-    indicatorColor: _kIndigoDark,
+    indicatorColor: kIndigoDark,
     dividerColor: Color(0xFF2D2C44),
   ),
-  progressIndicatorTheme: const ProgressIndicatorThemeData(color: _kIndigoDark),
+  progressIndicatorTheme: const ProgressIndicatorThemeData(color: kIndigoDark),
   scaffoldBackgroundColor: const Color(0xFF0E0D1C),
 );

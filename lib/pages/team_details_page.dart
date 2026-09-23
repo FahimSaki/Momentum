@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:momentum/blocs/session_cubit.dart';
 import 'package:momentum/blocs/team_cubit.dart';
 import 'package:momentum/components/responsive_layout.dart';
+import 'package:momentum/theme/theme.dart';
 import 'package:momentum/utils/role_helpers.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/team_member.dart';
@@ -353,11 +354,7 @@ class _TeamInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: kBrandGradient,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
