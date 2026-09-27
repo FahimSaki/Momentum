@@ -116,6 +116,9 @@ jobs:
           - os: ubuntu-latest
             platform: web
             output: web
+          - os: ubuntu-latest
+            platform: linux
+            output: tar.gz
           - os: windows-latest
             platform: windows
             output: exe
@@ -136,7 +139,7 @@ jobs:
       # Runs on every platform job but only writes the file when the secret
       # exists AND we are on a platform that needs it.  The `if` guards
       # prevent the step from hard-failing on platforms where the secret is
-      # irrelevant (windows / web).
+      # irrelevant (windows / web / linux).
       - name: Create google-services.json (Android)
         if: matrix.platform == 'android'
         run: |
@@ -193,6 +196,9 @@ jobs:
             web)
               flutter config --enable-web
               ;;
+            linux)
+              flutter config --enable-linux-desktop
+              ;;
             windows)
               flutter config --enable-windows-desktop
               ;;
@@ -203,6 +209,24 @@ jobs:
               flutter config --enable-macos-desktop
               ;;
           esac
+
+      # ── Linux desktop build dependencies ────────────────────────────────
+      # Standard Flutter linux-desktop toolchain, plus libsecret/jsoncpp
+      # which flutter_secure_storage_linux needs at build time.
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            liblzma-dev \
+            libstdc++-12-dev \
+            libsecret-1-dev \
+            libjsoncpp-dev
 
       - name: Setup iOS Simulator
         if: matrix.platform == 'ios'
@@ -245,6 +269,9 @@ jobs:
             web)
               flutter build web --release
               ;;
+            linux)
+              flutter build linux --release
+              ;;
             windows)
               flutter build windows --release
               ;;
@@ -281,6 +308,10 @@ jobs:
               ;;
             web)
               cd build/web && zip -r "../../releases/momentum-web-${{ github.sha }}.zip" .
+              ;;
+            linux)
+              cd build/linux/x64/release/bundle
+              tar -czf "../../../../../releases/momentum-linux-${{ github.sha }}.tar.gz" .
               ;;
             windows)
               pwsh -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'releases/momentum-windows-${{ github.sha }}.zip'"
@@ -336,6 +367,7 @@ jobs:
             ### 📱 Downloads
             - Android APK / AAB
             - Web
+            - Linux
             - Windows
             - iOS Simulator
             - macOS
