@@ -1,19 +1,16 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { randomInt } from 'crypto';
 import User from '../models/User';
 import { sendVerificationEmail, send2FACode, sendPasswordResetCode } from '../services/emailService';
+import { generateAndSendOtp } from '../services/otpService';
 
 // Email verification codes are valid for this long. resendVerification's
 // 60-second cooldown derives "time since last send" from this value — keep
 // them in sync.
 const EMAIL_VERIFICATION_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const PASSWORD_RESET_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-
-function generateOTP(): string {
-    return randomInt(100000, 999999).toString();
-}
+const TWO_FACTOR_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function buildUserResponse(user: any) {
     return {
@@ -56,21 +53,20 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             // was working — they have a DB record but never received the OTP.
             if (!existing.isEmailVerified) {
                 const hashedPassword = await bcrypt.hash(password, 12);
-                const otp = generateOTP();
 
-                await User.findByIdAndUpdate(existing._id, {
-                    password: hashedPassword,
-                    name: name.trim(),
-                    emailVerificationCode: otp,
-                    emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
+                await generateAndSendOtp({
+                    persist: async (code, expiresAt) => {
+                        await User.findByIdAndUpdate(existing._id, {
+                            password: hashedPassword,
+                            name: name.trim(),
+                            emailVerificationCode: code,
+                            emailVerificationExpires: expiresAt,
+                        });
+                    },
+                    send: (code) => sendVerificationEmail(trimmedEmail, name.trim(), code),
+                    expiryMs: EMAIL_VERIFICATION_EXPIRY_MS,
+                    logContext: `${trimmedEmail} (re-registration verification)`,
                 });
-
-                try {
-                    await sendVerificationEmail(trimmedEmail, name.trim(), otp);
-                    console.log(`✅ Re-sent verification email to ${trimmedEmail}`);
-                } catch (emailErr: any) {
-                    console.error(`❌ Failed to re-send verification email to ${trimmedEmail}:`, emailErr?.message ?? emailErr);
-                }
 
                 res.status(201).json({
                     message: 'Account created. Check your email for a 6-digit verification code.',
@@ -85,15 +81,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         }
 
         const hashedPassword = await bcrypt.hash(password, 12);
-        const otp = generateOTP();
 
         const user = new User({
             email: trimmedEmail,
             password: hashedPassword,
             name: name.trim(),
             isEmailVerified: false,
-            emailVerificationCode: otp,
-            emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
             twoFactorEnabled: false,
             isActive: true,
             lastLoginAt: new Date(),
@@ -104,14 +97,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
             },
         });
 
-        await user.save();
-
-        try {
-            await sendVerificationEmail(trimmedEmail, name.trim(), otp);
-            console.log(`✅ Verification email sent to ${trimmedEmail}`);
-        } catch (emailErr: any) {
-            console.error(`❌ Failed to send verification email to ${trimmedEmail}:`, emailErr?.message ?? emailErr);
-        }
+        // register() never fails the request over an email hiccup — the
+        // account is already usable and the user can request a new code —
+        // so the `sent` flag from generateAndSendOtp isn't checked here.
+        await generateAndSendOtp({
+            persist: async (code, expiresAt) => {
+                user.emailVerificationCode = code;
+                user.emailVerificationExpires = expiresAt;
+                await user.save();
+            },
+            send: (code) => sendVerificationEmail(trimmedEmail, name.trim(), code),
+            expiryMs: EMAIL_VERIFICATION_EXPIRY_MS,
+            logContext: `${trimmedEmail} (verification)`,
+        });
 
         res.status(201).json({
             message: 'Account created. Check your email for a 6-digit verification code.',
@@ -196,20 +194,23 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
             }
         }
 
-        const otp = generateOTP();
-        await User.findByIdAndUpdate(user._id, {
-            emailVerificationCode: otp,
-            emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
+        const { sent } = await generateAndSendOtp({
+            persist: async (code, expiresAt) => {
+                await User.findByIdAndUpdate(user._id, {
+                    emailVerificationCode: code,
+                    emailVerificationExpires: expiresAt,
+                });
+            },
+            send: (code) => sendVerificationEmail(user.email, user.name, code),
+            expiryMs: EMAIL_VERIFICATION_EXPIRY_MS,
+            logContext: `${user.email} (resend verification)`,
         });
 
-        try {
-            await sendVerificationEmail(user.email, user.name, otp);
-            console.log(`✅ Verification email resent to ${user.email}`);
-            res.json({ message: 'Verification code sent to your email.' });
-        } catch (emailErr: any) {
-            console.error(`❌ Failed to resend verification email to ${user.email}:`, emailErr?.message ?? emailErr);
+        if (!sent) {
             res.status(500).json({ message: 'Failed to send verification code. Check server logs for details.' });
+            return;
         }
+        res.json({ message: 'Verification code sent to your email.' });
     } catch (err) {
         console.error('Resend verification error:', err);
         res.status(500).json({ message: 'Server error' });
@@ -246,17 +247,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
                 // Fall through to the login logic below
             } else {
                 // Newly registered but unverified — resend OTP and block
-                const otp = generateOTP();
-                await User.findByIdAndUpdate(user._id, {
-                    emailVerificationCode: otp,
-                    emailVerificationExpires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY_MS),
+                await generateAndSendOtp({
+                    persist: async (code, expiresAt) => {
+                        await User.findByIdAndUpdate(user._id, {
+                            emailVerificationCode: code,
+                            emailVerificationExpires: expiresAt,
+                        });
+                    },
+                    send: (code) => sendVerificationEmail(user.email, user.name, code),
+                    expiryMs: EMAIL_VERIFICATION_EXPIRY_MS,
+                    logContext: `${user.email} (login re-send verification)`,
                 });
-                try {
-                    await sendVerificationEmail(user.email, user.name, otp);
-                    console.log(`✅ Verification email (re)sent to ${user.email} on login attempt`);
-                } catch (emailErr: any) {
-                    console.error(`❌ Failed to send verification email on login to ${user.email}:`, emailErr?.message ?? emailErr);
-                }
 
                 res.status(403).json({
                     message: 'Please verify your email first. A new code has been sent.',
@@ -269,17 +270,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
         // 2FA challenge
         if (user.twoFactorEnabled) {
-            const otp = generateOTP();
-            await User.findByIdAndUpdate(user._id, {
-                twoFactorCode: otp,
-                twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
+            const { sent } = await generateAndSendOtp({
+                persist: async (code, expiresAt) => {
+                    await User.findByIdAndUpdate(user._id, {
+                        twoFactorCode: code,
+                        twoFactorExpires: expiresAt,
+                    });
+                },
+                send: (code) => send2FACode(user.email, user.name, code),
+                expiryMs: TWO_FACTOR_EXPIRY_MS,
+                logContext: `${user.email} (2FA login)`,
             });
 
-            try {
-                await send2FACode(user.email, user.name, otp);
-                console.log(`✅ 2FA code sent to ${user.email}`);
-            } catch (emailErr: any) {
-                console.error(`❌ Failed to send 2FA code to ${user.email}:`, emailErr?.message ?? emailErr);
+            if (!sent) {
                 await User.findByIdAndUpdate(user._id, {
                     twoFactorCode: undefined,
                     twoFactorExpires: undefined,
@@ -435,17 +438,19 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
         // Google sign-in too, not just password sign-in — regardless of
         // which method was used when the toggle was originally flipped.
         if (user!.twoFactorEnabled) {
-            const otp = generateOTP();
-            await User.findByIdAndUpdate(user!._id, {
-                twoFactorCode: otp,
-                twoFactorExpires: new Date(Date.now() + 10 * 60 * 1000),
+            const { sent } = await generateAndSendOtp({
+                persist: async (code, expiresAt) => {
+                    await User.findByIdAndUpdate(user!._id, {
+                        twoFactorCode: code,
+                        twoFactorExpires: expiresAt,
+                    });
+                },
+                send: (code) => send2FACode(user!.email, user!.name, code),
+                expiryMs: TWO_FACTOR_EXPIRY_MS,
+                logContext: `${user!.email} (2FA Google sign-in)`,
             });
 
-            try {
-                await send2FACode(user!.email, user!.name, otp);
-                console.log(`✅ 2FA code sent to ${user!.email} (Google sign-in)`);
-            } catch (emailErr: any) {
-                console.error(`❌ Failed to send 2FA code to ${user!.email}:`, emailErr?.message ?? emailErr);
+            if (!sent) {
                 await User.findByIdAndUpdate(user!._id, {
                     twoFactorCode: undefined,
                     twoFactorExpires: undefined,
@@ -500,17 +505,19 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
             }
         }
 
-        const otp = generateOTP();
-        await User.findByIdAndUpdate(user._id, {
-            passwordResetCode: otp,
-            passwordResetExpires: new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS),
+        const { sent } = await generateAndSendOtp({
+            persist: async (code, expiresAt) => {
+                await User.findByIdAndUpdate(user._id, {
+                    passwordResetCode: code,
+                    passwordResetExpires: expiresAt,
+                });
+            },
+            send: (code) => sendPasswordResetCode(user.email, user.name, code),
+            expiryMs: PASSWORD_RESET_EXPIRY_MS,
+            logContext: `${user.email} (password reset)`,
         });
 
-        try {
-            await sendPasswordResetCode(user.email, user.name, otp);
-            console.log(`✅ Password reset code sent to ${user.email}`);
-        } catch (emailErr: any) {
-            console.error(`❌ Failed to send password reset code to ${user.email}:`, emailErr?.message ?? emailErr);
+        if (!sent) {
             res.status(500).json({ message: 'Failed to send reset code. Please try again.' });
             return;
         }

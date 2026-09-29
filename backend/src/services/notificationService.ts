@@ -1,8 +1,9 @@
 import admin from 'firebase-admin';
 import Notification from '../models/Notification';
 import Task from '../models/Task';
+import Team from '../models/Team';
 import User from '../models/User';
-import { ITaskDocument, IUserDocument, NotificationPayload } from '../types/interfaces';
+import { ITaskDocument, ITeamNotificationSettings, IUserDocument, NotificationPayload } from '../types/interfaces';
 import { Types } from 'mongoose';
 import fs from 'fs';
 import path from 'path';
@@ -50,6 +51,37 @@ export const initFirebase = (): void => {
     } catch (err) {
         console.error('❌ Firebase init failed:', err);
     }
+};
+
+// ── Notification-setting gates ─────────────────────────────────────────────
+// Both sendTaskAssignedNotification and sendTaskCompletedNotification used
+// to fire unconditionally — the taskAssigned/taskCompleted toggles on
+// TeamSettings and UserNotificationSettings were modeled and editable in
+// the app but never actually consulted here. These two helpers are the fix.
+
+/** For a team task, checks the team's own taskAssigned/taskCompleted
+ *  toggle. Personal tasks (no team) have no team-level setting to check. */
+const teamAllowsNotification = async (
+    teamId: Types.ObjectId | undefined,
+    setting: keyof ITeamNotificationSettings
+): Promise<boolean> => {
+    if (!teamId) return true;
+    const team = await Team.findById(teamId).select('settings.notificationSettings');
+    // Fail open on a lookup miss — notifications are best-effort throughout
+    // this service (see the try/catch around every FCM send below), and a
+    // transient DB issue shouldn't silently swallow a real notification.
+    if (!team) return true;
+    return team.settings.notificationSettings[setting];
+};
+
+/** Per-recipient taskAssigned/taskCompleted preference. */
+const userAllowsNotification = async (
+    userId: Types.ObjectId | string,
+    setting: 'taskAssigned' | 'taskCompleted'
+): Promise<boolean> => {
+    const user = await User.findById(userId).select('notificationSettings');
+    if (!user) return true; // same fail-open reasoning as teamAllowsNotification
+    return user.notificationSettings[setting];
 };
 
 // ── Send FCM to one user ──────────────────────────────────────────────────
@@ -187,8 +219,12 @@ export const updateFCMToken = async (userId: string, token: string, platform = '
 export const sendTaskAssignedNotification = async (
     task: ITaskDocument, assigner: IUserDocument, recipientIds: string[]
 ): Promise<void> => {
+    if (!(await teamAllowsNotification(task.team, 'taskAssigned'))) return;
+
     for (const recipientId of recipientIds) {
         try {
+            if (!(await userAllowsNotification(recipientId, 'taskAssigned'))) continue;
+
             const notif = await Notification.create({
                 recipient: new Types.ObjectId(recipientId),
                 sender: assigner._id,
@@ -217,6 +253,9 @@ export const sendTaskCompletedNotification = async (
     task: ITaskDocument, completer: IUserDocument, recipientId: Types.ObjectId | string
 ): Promise<void> => {
     try {
+        if (!(await teamAllowsNotification(task.team, 'taskCompleted'))) return;
+        if (!(await userAllowsNotification(recipientId, 'taskCompleted'))) return;
+
         const notif = await Notification.create({
             recipient: new Types.ObjectId(recipientId.toString()),
             sender: completer._id,

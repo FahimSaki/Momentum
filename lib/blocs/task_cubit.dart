@@ -229,16 +229,7 @@ class TaskCubit extends Cubit<TaskState> {
   // ── Team selection ──────────────────────────────────────────────────────
 
   Future<void> _onTeamChanged(Team? team) async {
-    emit(
-      TaskState(
-        currentTasks: const [],
-        historicalCompletions: state.historicalCompletions,
-        dashboardStats: state.dashboardStats,
-        selectedTeam: team,
-        isOffline: state.isOffline,
-        isInitialized: state.isInitialized,
-      ),
-    );
+    emit(state.copyWith(currentTasks: const [], selectedTeam: team));
     await _loadTasks();
     await _loadDashboardStats().catchError(
       (e) => _logger.w('Dashboard stats update failed after team switch: $e'),

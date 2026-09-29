@@ -16,6 +16,11 @@ class TaskState {
     'upcomingTasks': 0,
   };
 
+  // Sentinel used only to detect "selectedTeam was not passed" in copyWith,
+  // since `null` itself is a valid, meaningful value for that field (it
+  // means "no team selected").
+  static const _unset = Object();
+
   const TaskState({
     this.currentTasks = const [],
     this.historicalCompletions = const [],
@@ -34,14 +39,15 @@ class TaskState {
   List<Task> get completedTasks =>
       currentTasks.where((task) => task.isCompletedToday()).toList();
 
-  /// Never changes selectedTeam via copyWith — always carries the
-  /// current value forward. TaskCubit._onTeamChanged constructs a
-  /// TaskState directly instead, to avoid the usual
-  /// copyWith-can't-null-a-field problem.
+  /// Pass `selectedTeam: null` to explicitly clear the selection, or omit
+  /// it to leave the current value untouched — the sentinel default below
+  /// distinguishes "not passed" from "passed as null", so TaskCubit no
+  /// longer needs to construct TaskState directly just to change teams.
   TaskState copyWith({
     List<Task>? currentTasks,
     List<DateTime>? historicalCompletions,
     Map<String, int>? dashboardStats,
+    Object? selectedTeam = _unset,
     bool? isOffline,
     bool? isInitialized,
   }) {
@@ -50,7 +56,9 @@ class TaskState {
       historicalCompletions:
           historicalCompletions ?? this.historicalCompletions,
       dashboardStats: dashboardStats ?? this.dashboardStats,
-      selectedTeam: selectedTeam,
+      selectedTeam: identical(selectedTeam, _unset)
+          ? this.selectedTeam
+          : selectedTeam as Team?,
       isOffline: isOffline ?? this.isOffline,
       isInitialized: isInitialized ?? this.isInitialized,
     );

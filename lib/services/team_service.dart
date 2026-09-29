@@ -130,7 +130,7 @@ class TeamService {
   }
 
   // Invite user to team
-  Future inviteToTeam({
+  Future<void> inviteToTeam({
     required String teamId,
     String? email,
     String? inviteId,

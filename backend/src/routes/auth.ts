@@ -3,7 +3,7 @@ import {
     login, register, verifyEmail, resendVerification,
     googleAuth, verify2FA, forgotPassword, resetPassword,
 } from '../controllers/authController';
-import { authenticateToken } from '../middleware/middle_auth';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = Router();
 

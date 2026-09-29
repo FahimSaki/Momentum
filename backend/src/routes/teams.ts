@@ -12,7 +12,7 @@ import {
     leaveTeam,
     deleteTeam,
 } from '../controllers/teamController';
-import { authenticateToken } from '../middleware/middle_auth';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = Router();
 

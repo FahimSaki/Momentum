@@ -64,14 +64,7 @@ class TeamCubit extends Cubit<TeamState> {
   }
 
   void selectTeam(Team? team) {
-    emit(
-      TeamState(
-        userTeams: state.userTeams,
-        pendingInvitations: state.pendingInvitations,
-        selectedTeam: team,
-        isOffline: state.isOffline,
-      ),
-    );
+    emit(state.copyWith(selectedTeam: team));
   }
 
   Future<Team> createTeam(String name, {String? description}) async {
@@ -123,11 +116,9 @@ class TeamCubit extends Cubit<TeamState> {
           .toList();
       final wasSelected = state.selectedTeam?.id == teamId;
       emit(
-        TeamState(
+        state.copyWith(
           userTeams: updatedTeams,
-          pendingInvitations: state.pendingInvitations,
           selectedTeam: wasSelected ? null : state.selectedTeam,
-          isOffline: state.isOffline,
         ),
       );
     } catch (e, stackTrace) {
@@ -144,11 +135,9 @@ class TeamCubit extends Cubit<TeamState> {
           .toList();
       final wasSelected = state.selectedTeam?.id == teamId;
       emit(
-        TeamState(
+        state.copyWith(
           userTeams: updatedTeams,
-          pendingInvitations: state.pendingInvitations,
           selectedTeam: wasSelected ? null : state.selectedTeam,
-          isOffline: state.isOffline,
         ),
       );
     } catch (e, stackTrace) {
@@ -166,14 +155,7 @@ class TeamCubit extends Cubit<TeamState> {
             .where((t) => t.id == teamId)
             .firstOrNull;
         if (updated != null) {
-          emit(
-            TeamState(
-              userTeams: state.userTeams,
-              pendingInvitations: state.pendingInvitations,
-              selectedTeam: updated,
-              isOffline: state.isOffline,
-            ),
-          );
+          emit(state.copyWith(selectedTeam: updated));
         }
       }
     } catch (e, stackTrace) {

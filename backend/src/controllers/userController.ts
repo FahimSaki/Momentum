@@ -1,16 +1,12 @@
 import { Request, Response } from 'express';
 import User from '../models/User';
 import bcrypt from 'bcryptjs';
-import { randomInt } from 'crypto';
 import { sendAccountDeletionCode, sendPasswordChangeCode } from '../services/emailService';
+import { generateAndSendOtp } from '../services/otpService';
 
 // Verification codes for account deletion are valid for this long.
 const DELETE_ACCOUNT_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const PASSWORD_CHANGE_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-
-function generateOTP(): string {
-    return randomInt(100000, 999999).toString();
-}
 
 // ── Get current user profile ──────────────────────────────────────────────
 
@@ -214,16 +210,19 @@ export const requestPasswordChange = async (req: Request, res: Response): Promis
             }
         }
 
-        const otp = generateOTP();
-        await User.findByIdAndUpdate(req.userId, {
-            passwordChangeCode: otp,
-            passwordChangeExpires: new Date(Date.now() + PASSWORD_CHANGE_CODE_EXPIRY_MS),
+        const { sent } = await generateAndSendOtp({
+            persist: async (code, expiresAt) => {
+                await User.findByIdAndUpdate(req.userId, {
+                    passwordChangeCode: code,
+                    passwordChangeExpires: expiresAt,
+                });
+            },
+            send: (code) => sendPasswordChangeCode(user.email, user.name, code),
+            expiryMs: PASSWORD_CHANGE_CODE_EXPIRY_MS,
+            logContext: `${user.email} (password change)`,
         });
 
-        try {
-            await sendPasswordChangeCode(user.email, user.name, otp);
-        } catch (emailErr: any) {
-            console.error('Failed to send password change code:', emailErr?.message ?? emailErr);
+        if (!sent) {
             res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
             return;
         }
@@ -290,17 +289,19 @@ export const requestAccountDeletion = async (req: Request, res: Response): Promi
             }
         }
 
-        const otp = generateOTP();
-
-        await User.findByIdAndUpdate(req.userId, {
-            deleteAccountCode: otp,
-            deleteAccountExpires: new Date(Date.now() + DELETE_ACCOUNT_CODE_EXPIRY_MS),
+        const { sent } = await generateAndSendOtp({
+            persist: async (code, expiresAt) => {
+                await User.findByIdAndUpdate(req.userId, {
+                    deleteAccountCode: code,
+                    deleteAccountExpires: expiresAt,
+                });
+            },
+            send: (code) => sendAccountDeletionCode(user.email, user.name, code),
+            expiryMs: DELETE_ACCOUNT_CODE_EXPIRY_MS,
+            logContext: `${user.email} (account deletion)`,
         });
 
-        try {
-            await sendAccountDeletionCode(user.email, user.name, otp);
-        } catch (emailErr: any) {
-            console.error('Failed to send account deletion code:', emailErr?.message ?? emailErr);
+        if (!sent) {
             res.status(500).json({ message: 'Failed to send verification code. Please try again.' });
             return;
         }

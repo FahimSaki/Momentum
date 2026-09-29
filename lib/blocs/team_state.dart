@@ -7,6 +7,11 @@ class TeamState {
   final Team? selectedTeam;
   final bool isOffline;
 
+  // Sentinel used only to detect "selectedTeam was not passed" in copyWith,
+  // since `null` itself is a valid, meaningful value for that field (it
+  // means "no team selected", i.e. Personal Tasks).
+  static const _unset = Object();
+
   const TeamState({
     this.userTeams = const [],
     this.pendingInvitations = const [],
@@ -14,19 +19,23 @@ class TeamState {
     this.isOffline = false,
   });
 
-  /// Never changes selectedTeam — always carries the current value
-  /// forward. The handful of handlers that do need to change it (accept/
-  /// deliberately clear it) construct a TeamState directly instead, to
-  /// avoid the usual copyWith-can't-null-a-field problem.
+  /// Pass `selectedTeam: null` to explicitly clear the selection, or omit
+  /// it to leave the current value untouched — the sentinel default below
+  /// distinguishes "not passed" from "passed as null", so TeamCubit no
+  /// longer needs to construct TeamState directly just to change or clear
+  /// the selected team.
   TeamState copyWith({
     List<Team>? userTeams,
     List<TeamInvitation>? pendingInvitations,
+    Object? selectedTeam = _unset,
     bool? isOffline,
   }) {
     return TeamState(
       userTeams: userTeams ?? this.userTeams,
       pendingInvitations: pendingInvitations ?? this.pendingInvitations,
-      selectedTeam: selectedTeam,
+      selectedTeam: identical(selectedTeam, _unset)
+          ? this.selectedTeam
+          : selectedTeam as Team?,
       isOffline: isOffline ?? this.isOffline,
     );
   }

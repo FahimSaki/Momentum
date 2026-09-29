@@ -57,22 +57,24 @@ class DefaultFirebaseOptions {
     projectId: 'momentum-51138',
     storageBucket: 'momentum-51138.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBU_gZKG3b8SB8XIx4VX1heg5MecXRRw2k',
     appId: '1:213940967151:ios:1d017d59275e45199fad1a',
     messagingSenderId: '213940967151',
     projectId: 'momentum-51138',
     storageBucket: 'momentum-51138.firebasestorage.app',
+    androidClientId: '213940967151-ifbo1550tpi170i1usj55k32tqup354p.apps.googleusercontent.com',
+    iosClientId: '213940967151-p78csfuq7spjrqkkl2tjrl8pcahjftig.apps.googleusercontent.com',
     iosBundleId: 'com.example.momentum',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBU_gZKG3b8SB8XIx4VX1heg5MecXRRw2k',
     appId: '1:213940967151:ios:1d017d59275e45199fad1a',
     messagingSenderId: '213940967151',
     projectId: 'momentum-51138',
     storageBucket: 'momentum-51138.firebasestorage.app',
+    androidClientId: '213940967151-ifbo1550tpi170i1usj55k32tqup354p.apps.googleusercontent.com',
+    iosClientId: '213940967151-p78csfuq7spjrqkkl2tjrl8pcahjftig.apps.googleusercontent.com',
     iosBundleId: 'com.example.momentum',
   );
 

@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:momentum/utils/network_utils.dart';
 
 class ErrorHandler {
   static void showError(BuildContext context, dynamic error, {String? title}) {
@@ -58,6 +60,16 @@ class ErrorHandler {
   }
 
   static String _extractErrorMessage(dynamic error) {
+    // Network/timeout failures are classified by exception type — the same
+    // check TaskCubit/TeamCubit already use to decide whether to fall back
+    // to cached data — rather than re-derived here from message text, so
+    // there's one source of truth for "is this a connectivity problem".
+    if (isNetworkError(error)) {
+      return error is TimeoutException
+          ? 'Request timed out. Please try again.'
+          : 'Network connection error. Please check your internet.';
+    }
+
     String message = error.toString();
 
     // Remove "Exception: " prefix
@@ -65,15 +77,13 @@ class ErrorHandler {
       message = message.substring(11);
     }
 
-    // Handle specific error types
+    // Below this point `error` is an application-level Exception carrying a
+    // message (e.g. thrown by a service after a non-2xx response), so the
+    // message text is the only signal available — the type is uniformly
+    // `Exception` regardless of what actually went wrong server-side.
     final lowerMessage = message.toLowerCase();
 
-    if (lowerMessage.contains('network') || lowerMessage.contains('socket')) {
-      return 'Network connection error. Please check your internet.';
-    } else if (lowerMessage.contains('timeout')) {
-      return 'Request timed out. Please try again.';
-    } else if (lowerMessage.contains('401') ||
-        lowerMessage.contains('unauthorized')) {
+    if (lowerMessage.contains('401') || lowerMessage.contains('unauthorized')) {
       return 'Your session has expired. Please login again.';
     } else if (lowerMessage.contains('403') ||
         lowerMessage.contains('forbidden')) {

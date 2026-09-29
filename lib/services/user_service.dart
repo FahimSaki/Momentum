@@ -15,7 +15,7 @@ class UserService {
     'Content-Type': 'application/json',
   };
 
-  Future<List> searchUsers(String query) async {
+  Future<List<User>> searchUsers(String query) async {
     try {
       final response = await http.get(
         Uri.parse('$apiBaseUrl/users/search?q=$query&limit=20'),
@@ -32,7 +32,7 @@ class UserService {
     }
   }
 
-  Future getUserByInviteId(String inviteId) async {
+  Future<User> getUserByInviteId(String inviteId) async {
     try {
       final response = await http.get(
         Uri.parse('$apiBaseUrl/users/invite/$inviteId'),
@@ -64,7 +64,7 @@ class UserService {
     }
   }
 
-  Future updatePrivacySettings({
+  Future<User> updatePrivacySettings({
     required bool isPublic,
     required Map profileVisibility,
   }) async {
