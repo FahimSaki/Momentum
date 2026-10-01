@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:momentum/services/push_notification_service.dart';
 import 'package:momentum/blocs/task_cubit.dart';
+import 'package:momentum/utils/platform_support.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class InitializationService {
@@ -21,17 +22,36 @@ class InitializationService {
 
   static Future<void> initialize() async {
     WidgetsFlutterBinding.ensureInitialized();
+    if (kIsWeb) return;
 
-    if (!kIsWeb) {
+    // Both steps are optional infrastructure. A failure in either one (no
+    // home_widget plugin on desktop, no keyring service, ...) must never
+    // stop main() from reaching runApp(), so each contains its own errors.
+    await _initHomeWidget();
+    await _restorePushNotifications();
+  }
+
+  static Future<void> _initHomeWidget() async {
+    // home_widget only has Android and iOS implementations.
+    if (!supportsHomeWidget) return;
+
+    try {
       await HomeWidget.setAppGroupId(_appGroupId);
+      _setupWidgetListener();
+      await _handleInitialWidgetLaunch();
+    } catch (e) {
+      debugPrint('[Widget] init failed (non-fatal): $e');
+    }
+  }
 
+  static Future<void> _restorePushNotifications() async {
+    try {
       final savedToken = await _secureStorage.read(key: 'auth_jwt');
       if (savedToken != null) {
         await _pushNotificationService.init(jwtToken: savedToken);
       }
-
-      _setupWidgetListener();
-      await _handleInitialWidgetLaunch();
+    } catch (e) {
+      debugPrint('[Push] restore failed (non-fatal): $e');
     }
   }
 

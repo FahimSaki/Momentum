@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:home_widget/home_widget.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
+import 'package:momentum/utils/platform_support.dart';
 import 'package:logger/logger.dart';
 
 class WidgetService {
@@ -18,7 +19,10 @@ class WidgetService {
     List<Task> tasks, {
     Team? selectedTeam,
   }) async {
-    if (kIsWeb) return;
+    // home_widget only has Android and iOS implementations. Anywhere else
+    // (web, Linux, Windows, macOS) every call below would throw
+    // MissingPluginException on each task change.
+    if (!supportsHomeWidget) return;
 
     try {
       final teamName = selectedTeam?.name ?? 'Personal Tasks';
