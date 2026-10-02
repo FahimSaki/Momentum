@@ -39,7 +39,7 @@ Register a new user account. Registration does **not** return a token — the ac
 }
 ```
 
-A 6-digit OTP (5-minute expiry) is emailed via the Gmail REST API (see [DEPLOYMENT.md](DEPLOYMENT.md) for the required env vars). Re-registering with the same, still-unverified email resends a fresh code instead of erroring.
+A 6-digit OTP (5-minute expiry) is emailed via the Gmail REST API (see [DEPLOYMENT.md](DEPLOYMENT.md) for the required env vars). Re-registering with the same, still-unverified email resends a fresh code instead of erroring. If the email cannot be sent, the account is still created and the user can request a new code.
 
 **Errors**: `400` missing fields / password under 6 chars / email already registered and verified
 
@@ -73,7 +73,7 @@ Request a new verification OTP. Rate-limited to one request per 60 seconds.
 
 **Response 200** `{ "message": "Verification code sent to your email." }`
 
-**Errors**: `404` account not found, `429` requested again too soon
+**Errors**: `404` account not found, `429` requested again too soon, `500` the email could not be sent
 
 ---
 
@@ -101,13 +101,13 @@ Authenticate an existing user. The response shape depends on the account's email
     "email": "jane@example.com",
     "isEmailVerified": true,
     "twoFactorEnabled": false,
+    "hasPassword": true,
     "inviteId": "swift-tiger-1234",
     "isPublic": true,
     "profileVisibility": { "showEmail": false, "showName": true, "showBio": true },
     "notificationSettings": { "email": true, "push": true, "inApp": true, "taskAssigned": true, "taskCompleted": true, "teamInvitations": true, "dailyReminder": false },
     "teams": [],
-    "createdAt": "...",
-    "updatedAt": "..."
+    "lastLoginAt": "..."
   },
   "message": "Login successful"
 }
@@ -133,13 +133,15 @@ Authenticate an existing user. The response shape depends on the account's email
 }
 ```
 
-**Errors**: `401` invalid credentials, `401` Google-only account (no `password` set)
+Accounts created before email verification existed have no stored code; they are verified automatically the first time they log in with the correct password.
+
+**Errors**: `401` invalid credentials, `401` Google-only account (no `password` set), `500` the 2FA code could not be sent
 
 ---
 
 ### POST /auth/verify-2fa
 
-Complete login for an account with two-factor authentication enabled.
+Complete login for an account with two-factor authentication enabled. The code expires after 10 minutes.
 
 **Request body**
 
@@ -163,11 +165,45 @@ Sign in with a Google ID token, registering the account automatically on first u
 { "idToken": "<google_id_token>" }
 ```
 
-The backend verifies the token server-side against Google's `tokeninfo` endpoint (and checks the `aud` claim against `GOOGLE_CLIENT_ID` when that env var is set) — no separate client secret needs to reach the app beyond the OAuth client ID already configured for `google_sign_in` in Flutter.
+The backend verifies the token server-side against Google's `tokeninfo` endpoint. When the `GOOGLE_CLIENT_ID` env var is set (a single ID or a comma-separated list), the token's `aud` claim must match one of the listed client IDs.
 
 **Response 200** — identical shape to a normal login, with `"message": "Google sign-in successful"`
 
+**Response 200 — 2FA enabled** — an existing account with two-factor authentication turned on gets the same challenge as a password login (`requiresTwoFactor: true`, `email`) and finishes with `POST /auth/verify-2fa`. A first-time Google sign-in always creates the account with 2FA off.
+
 **Errors**: `401` invalid Google token or wrong audience, `400` Google didn't return an email
+
+---
+
+### POST /auth/forgot-password
+
+Start a password reset. Emails a 6-digit code that expires after 10 minutes. Rate-limited to one request per 60 seconds.
+
+**Request body**
+
+```json
+{ "email": "jane@example.com" }
+```
+
+**Response 200** `{ "message": "A password reset code has been sent to your email." }`
+
+**Errors**: `400` missing email, or the account uses Google Sign-In and has no password; `404` no account with that email; `429` requested again too soon; `500` the email could not be sent
+
+---
+
+### POST /auth/reset-password
+
+Finish a password reset with the emailed code. A successful reset also signs the user in.
+
+**Request body**
+
+```json
+{ "email": "jane@example.com", "code": "123456", "newPassword": "atleast6chars" }
+```
+
+**Response 200** — identical shape to a normal login (`token`, `user`), with `"message": "Password reset successful"`
+
+**Errors**: `400` missing fields / password under 6 chars / no code on file / expired / invalid code, `404` no account with that email
 
 ---
 
@@ -237,31 +273,38 @@ Create a new task.
   "priority": "high",
   "dueDate": "2024-12-31T23:59:59.000Z",
   "tags": ["testing"],
-  "assignmentType": "individual"
+  "assignmentType": "individual",
+  "clientId": "local_1767225600000000"
 }
 ```
 
-`teamId`, `description`, `assignedTo`, `dueDate`, and `tags` are optional. If `teamId` is absent the task is personal (assigned to the creating user). If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically.
+`teamId`, `description`, `assignedTo`, `dueDate`, `tags`, and `clientId` are optional. If `teamId` is absent the task is personal (assigned to the creating user). If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically. Assignees other than the creator are notified.
+
+`clientId` is an idempotency key. The app sets it only when it replays a task that was created offline. If a task with the same `clientId` already exists for the creating user, the server returns it instead of creating a second one.
 
 **Permissions**: team tasks require the creator to be owner or admin of the team.
 
 **Response 201** `{ "message": "Task created successfully", "task": { ... } }`
 
+**Response 200** (known `clientId`) `{ "message": "Task already created", "task": { ... } }`
+
 ---
 
 ### PUT /tasks/:id
 
-Update task fields (name, description, priority, dueDate, etc.).
+Update a task. Only these fields are accepted: `name`, `description`, `priority`, `dueDate`, `tags` (up to 20). Any other field in the body is ignored.
 
 **Permissions**: owner/admin of the team, or the original task creator.
 
 **Response 200** `{ "message": "Task updated successfully", "task": { ... } }`
 
+**Errors**: `400` empty name / invalid priority / invalid dueDate / no valid fields, `403` no permission, `404` task not found
+
 ---
 
 ### PATCH /tasks/:id/complete
 
-Toggle the completion state of a task for the current day.
+Toggle the completion state of a task for the current day. The server sets all completion timestamps; clients never send them.
 
 **Request body**
 
@@ -269,7 +312,9 @@ Toggle the completion state of a task for the current day.
 { "isCompleted": true }
 ```
 
-**Permissions**: only users in `assignedTo` can complete.
+**Permissions**: for a team task, any member of that team; for a personal task, only its assignee.
+
+Completing a task archives it for the day (`isArchived: true`) and records the user in `completedBy`. Un-completing removes today's completion and, if nobody else completed it today, un-archives it. Completing a team task notifies the original assignees and the assigner, except the person who completed it.
 
 **Response 200**
 
@@ -303,7 +348,7 @@ Retrieve historical completion data for the heatmap.
 | Param | Type | Description |
 |-------|------|-------------|
 | `userId` | string | Defaults to authenticated user |
-| `teamId` | string | Filter by team |
+| `teamId` | string | Filter by team (members only) |
 
 **Response 200** – array of `TaskHistory` objects:
 
@@ -342,7 +387,7 @@ Dashboard statistics for the authenticated user.
 
 ### GET /tasks/team/:teamId
 
-Get tasks for a specific team.
+Get tasks for a specific team. Every team member sees every task in the team, not only the ones assigned to them.
 
 **Query parameters**: `status` (`active` | `archived` | `all`, default: `active`)
 
@@ -377,6 +422,8 @@ Create a new team. The creator is automatically added as owner.
 
 **Response 201** `{ "message": "Team created successfully", "team": { ... } }`
 
+**Errors**: `400` missing or over-long name, or a validation failure (the response may include an `errors` array)
+
 ---
 
 ### GET /teams/:teamId
@@ -391,7 +438,7 @@ Get full team details.
 
 ### PUT /teams/:teamId/settings
 
-Update team settings.
+Update team settings. Only `allowMemberInvite`, `taskAutoDelete`, and the three `notificationSettings` flags are accepted; anything else is ignored. The `taskAssigned` and `taskCompleted` flags control whether those notifications are sent for this team's tasks.
 
 **Permissions**: owner or admin.
 
@@ -427,7 +474,7 @@ Soft-delete the team (sets `isActive: false`).
 
 ### POST /teams/:teamId/invite
 
-Send a team invitation. Provide either `email` or `inviteId`.
+Send a team invitation. Provide either `email` or `inviteId`. Invitations expire after 7 days.
 
 **Request body**
 
@@ -524,7 +571,7 @@ Leave a team.
 
 Get the authenticated user's full profile.
 
-**Response 200** – User object (password excluded)
+**Response 200** – User object (password and one-time codes excluded) with `teams` populated and a `hasPassword` boolean that is `false` for Google-only accounts
 
 ---
 
@@ -555,7 +602,7 @@ Update profile fields including privacy and visibility settings.
 
 ### PUT /users/notification-settings
 
-Update the user's in-app and push notification preferences.
+Update the user's notification preferences. The server honours `taskAssigned` and `taskCompleted` when sending those notifications.
 
 **Request body**
 
@@ -588,7 +635,7 @@ Search for users to invite to a team.
 | `q` | string | Minimum 2 characters; matches name, email, or inviteId |
 | `limit` | number | Default 20, max 50 |
 
-Results are filtered by `isPublic` and `profileVisibility`. Users with `isPublic: false` do not appear.
+Only active users with `isPublic: true` are returned, and the requesting user is excluded.
 
 **Response 200** – array of partial User objects:
 
@@ -597,6 +644,7 @@ Results are filtered by `isPublic` and `profileVisibility`. Users with `isPublic
   {
     "_id": "...",
     "name": "Jane Doe",
+    "email": "jane@example.com",
     "inviteId": "swift-tiger-1234",
     "avatar": null,
     "bio": "...",
@@ -605,13 +653,15 @@ Results are filtered by `isPublic` and `profileVisibility`. Users with `isPublic
 ]
 ```
 
+The response includes `email` and `bio` together with the user's `profileVisibility` flags. The Flutter client hides them unless the matching flag is `true`; the server does not redact them.
+
 ---
 
 ### GET /users/invite/:inviteId
 
-Look up a user by their Invite ID. Only returns users where `isPublic: true`.
+Look up a user by their Invite ID. Only returns active users where `isPublic: true`.
 
-**Response 200** – partial User object (same shape as search result)
+**Response 200** – partial User object (same shape as a search result)
 
 **Errors**: `404` not found
 
@@ -646,28 +696,41 @@ Remove an FCM token (e.g. on logout from a specific device).
 
 ---
 
-### PUT /users/change-password
+### POST /users/request-password-change
 
-Change the authenticated user's password.
+Step 1 of changing a password while signed in. Verifies the current password, then emails a 6-digit code that expires after 10 minutes. Rate-limited to one request per 60 seconds.
 
 **Request body**
 
 ```json
-{
-  "currentPassword": "old-password",
-  "newPassword": "new-password-min-6"
-}
+{ "currentPassword": "old-password" }
+```
+
+**Response 200** `{ "message": "A verification code has been sent to your email." }`
+
+**Errors**: `400` missing or incorrect current password / Google-only account, `429` requested again too soon, `500` the email could not be sent
+
+---
+
+### POST /users/confirm-password-change
+
+Step 2: verify the emailed code and apply the new password.
+
+**Request body**
+
+```json
+{ "code": "123456", "newPassword": "new-password-min-6" }
 ```
 
 **Response 200** `{ "message": "Password changed successfully" }`
 
-**Errors**: `400` current password incorrect, `400` Google accounts cannot use this endpoint
+**Errors**: `400` missing/invalid/expired code, `400` new password under 6 characters
 
 ---
 
 ### POST /users/2fa/enable
 
-Turn on two-factor authentication for the authenticated account. Future logins require an emailed OTP in addition to the password (see `POST /auth/login` / `POST /auth/verify-2fa`).
+Turn on two-factor authentication for the authenticated account. Future logins (password and Google) require an emailed OTP (see `POST /auth/login` / `POST /auth/verify-2fa`).
 
 **Response 200** `{ "message": "Two-factor authentication enabled", "twoFactorEnabled": true }`
 
@@ -683,11 +746,11 @@ Turn off two-factor authentication.
 
 ### POST /users/request-account-deletion
 
-Start account deletion. Emails a 6-digit OTP (10-minute expiry) to the user; does **not** deactivate the account by itself.
+Start account deletion. Emails a 6-digit OTP (10-minute expiry) to the user; does **not** deactivate the account by itself. Rate-limited to one request per 60 seconds.
 
 **Response 200** `{ "message": "A verification code has been sent to your email." }`
 
-**Errors**: `429` requested again too soon
+**Errors**: `429` requested again too soon, `500` the email could not be sent
 
 ---
 
@@ -730,13 +793,13 @@ Fetch notifications for the authenticated user.
       "_id": "...",
       "type": "task_assigned",
       "title": "New Task Assigned",
-      "message": "Jane assigned you \"Write tests\" in Frontend Squad",
+      "message": "Jane assigned you: \"Write tests\"",
       "isRead": false,
       "createdAt": "...",
       "sender": { "_id": "...", "name": "Jane Doe", "email": "...", "avatar": null },
       "team": { "_id": "...", "name": "Frontend Squad" },
       "task": { "_id": "...", "name": "Write tests" },
-      "data": { "type": "task_assigned", "taskId": "...", "taskName": "..." }
+      "data": { "taskId": "...", "taskName": "...", "assignerName": "Jane Doe" }
     }
   ],
   "pagination": {
@@ -773,7 +836,7 @@ Mark a single notification as read.
 
 Mark all of the user's notifications as read.
 
-**Response 200** `{ "message": "N notifications marked as read", "count": N }`
+**Response 200** `{ "message": "All notifications marked as read", "count": N }`
 
 ---
 
@@ -787,9 +850,11 @@ Delete a single notification.
 
 ## Utility Endpoints
 
+These routes do not require authentication.
+
 ### GET /health
 
-Liveness check, no authentication required.
+Liveness check.
 
 **Response 200** `{ "status": "ok", "timestamp": "...", "uptime": 123.45 }`
 
@@ -823,6 +888,8 @@ Trigger the daily cleanup job immediately.
 }
 ```
 
+This endpoint is currently unauthenticated; see the production recommendations in [SECURITY.md](SECURITY.md).
+
 ---
 
 ## Task Object Schema
@@ -845,6 +912,7 @@ Trigger the daily cleanup job immediately.
   "archivedAt": "ISO8601 | null",
   "isTeamTask": false,
   "assignmentType": "individual | multiple | team",
+  "clientId": "string | null",
   "createdAt": "ISO8601",
   "updatedAt": "ISO8601"
 }
@@ -862,10 +930,13 @@ All errors return:
 }
 ```
 
+Validation failures on some endpoints also include an `errors` array.
+
 | Status | Meaning |
 | -------- | --------- |
 | 400 | Bad request / validation error |
-| 401 | Missing or invalid token |
+| 401 | Missing or invalid token, or invalid credentials |
 | 403 | Valid token but insufficient permission |
 | 404 | Resource not found |
+| 429 | Code requested again within the 60-second cooldown |
 | 500 | Unexpected server error |

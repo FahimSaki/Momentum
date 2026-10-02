@@ -14,7 +14,7 @@ The `activeTasks` and `completedTasks` getters on `TaskState` iterate `currentTa
 
 ### Polling Frequency
 
-`TimerService` polls the backend every **10 seconds** while the app is in the foreground. This is intentional for near-real-time team updates. On the web target, polling is disabled (`if (kIsWeb) return`) to avoid excessive background requests in the browser.
+`TimerService` polls the backend every **10 seconds** while the app is in the foreground. This is intentional for near-real-time team updates. Each tick flushes the offline queue and reloads tasks, notifications, pending invitations, and dashboard stats. A tick is skipped if the previous one is still running, so a slow backend (for example one waking from sleep) never stacks up overlapping refreshes. On the web target, polling is disabled (`if (kIsWeb) return`) to avoid excessive background requests in the browser.
 
 If battery life or data usage is a concern, the interval can be increased in `TimerService`:
 
@@ -26,7 +26,11 @@ _pollingTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
 
 ### Widget Refresh Throttling
 
-`WidgetService` is called after every task mutation. Each call writes multiple keys to `HomeWidgetPreferences` and then triggers an Android widget redraw. On devices with slow storage this can add latency to task completion. Consider debouncing the widget update if multiple mutations happen in quick succession.
+`WidgetService` runs after every task mutation and at the end of every poll. Each call writes three keys to `HomeWidgetPreferences`, waits a fixed 300 ms for the writes to flush, and then triggers an Android widget redraw. That means a widget write and redraw roughly every 10 seconds while the app is open, even when nothing changed. On devices with slow storage this can add latency to task completion. Consider skipping the update when the serialised widget payload is identical to the last one, and debouncing it when several mutations happen in quick succession.
+
+### Offline Cache Writes
+
+Every successful task load writes the task list to `SharedPreferences` through `LocalCacheService`, and loads run on each poll tick. For large task lists, consider skipping the write when the payload hasn't changed.
 
 ### Heatmap Rendering
 
@@ -48,26 +52,27 @@ The following indexes are defined in Mongoose schemas:
 
 | Collection | Index |
 | ----------- | ------- |
-| `Task` | `assignedTo`, `assignedBy`, `team`, `dueDate`, `isArchived + team` |
+| `Task` | `assignedTo`, `assignedBy`, `team`, `dueDate`, `isArchived + team`, `assignedBy + clientId` (unique, partial) |
 | `TaskHistory` | `userId`, `teamId`, `userId + taskName` |
 | `Notification` | `recipient + isRead`, `recipient + createdAt` |
 | `Team` | `members.user`, `owner` |
-| `User` | `teams`, `inviteId` (unique sparse) |
+| `User` | `teams`, `email` (unique), `inviteId` (unique, sparse) |
 | `TeamInvitation` | `team + invitee + status` (unique) |
 
-The most common query patterns (fetch tasks for a user, fetch notifications for a user, search by inviteId) are covered. If you add new query patterns, add corresponding indexes.
+The `assignedBy + clientId` index only covers documents that have a `clientId` (`partialFilterExpression`), so it stays small. The most common query patterns (fetch tasks for a user, fetch notifications for a user, search by inviteId) are covered. If you add new query patterns, add corresponding indexes.
 
 ### Cleanup Job Performance
 
-The daily cleanup job (`cleanupScheduler.ts`) runs three sequential passes over the `Task` collection. Each pass uses `Task.find()` without a limit, which is fine at small scale but will become slow with tens of thousands of tasks. For high-volume deployments:
+The daily cleanup job (`cleanupScheduler.ts`) runs three sequential passes over the `Task` collection. The archive pass is a single `updateMany`. The delete pass loads every archived task from before today and removes them one by one, and the completion-day pass calls `Task.find({})` with no filter, loading every task into memory. That is fine at small scale but will become slow with tens of thousands of tasks. For high-volume deployments:
 
 - Add a `lastCompletedDate` index to speed up the archive step.
+- Filter the completion-day pass to tasks that actually have old entries instead of loading every task.
 - Process deletions in batches instead of one-by-one in a for loop.
 - Move the history-saving step to a background job queue.
 
 ### FCM Token Cleanup
 
-Each user stores up to 5 FCM tokens. Stale tokens (older than 60 days) are filtered out before sending but not removed from the database. Add a periodic job to prune them:
+The app re-registers its FCM token on each start (`POST /users/fcm-token`), which refreshes `lastUsed`. Tokens that Firebase reports as invalid or unregistered are removed when a send fails. The registration endpoint does not cap the number of tokens per user, and tokens that never fail but are no longer used stay in the database. Add a periodic job to prune them:
 
 ```js
 await User.updateMany({}, {
@@ -81,11 +86,11 @@ await User.updateMany({}, {
 
 ### Notification Volume
 
-`sendNotification` uses `Promise.allSettled` to send notifications to multiple tokens in parallel. For teams with many members, this can spike outbound Firebase requests. Firebase's free tier allows 500k messages/month and has no documented rate limit for server-side sends, but if you see FCM throttling errors, add a delay between batches.
+`sendNotification` uses `Promise.allSettled` to send notifications to multiple tokens in parallel. For teams with many members, this can spike outbound Firebase requests. Firebase's free tier allows 500k messages/month and has no documented rate limit for server-side sends, but if you see FCM throttling errors, add a delay between batches. Task-assigned and task-completed notifications each cost two extra lookups (the team's settings and the recipient's settings) before sending.
 
 ### MongoDB Connection Pooling
 
-Mongoose uses a default connection pool size of 5. For a production server handling many concurrent requests, increase this in the `mongoose.connect` options:
+The server connects with `serverSelectionTimeoutMS: 10000`. Mongoose 8 uses the MongoDB driver's default `maxPoolSize` of 100, which is ample for a single small instance. If you run several instances against one Atlas cluster, set a smaller pool explicitly so the total stays within the cluster's connection limit:
 
 ```js
 await mongoose.connect(process.env.MONGODB_URI, {
@@ -104,15 +109,15 @@ await mongoose.connect(process.env.MONGODB_URI, {
 
 ### Backend Health Endpoints
 
-- `GET /health` – basic liveness check; returns `{ "status": "ok" }`
-- `GET /wake-up` – returns uptime alongside the timestamp; useful for monitoring dashboards
+- `GET /health` – basic liveness check; returns `{ "status": "ok", "timestamp": "...", "uptime": ... }`
+- `GET /wake-up` – returns uptime alongside the timestamp; useful for monitoring dashboards and keep-alive pings
 
 ### Logging
 
 The backend logs every incoming request (method, URL) to stdout. On Render this is visible in the Logs tab. For production, consider replacing `console.log` with a structured logger (e.g. `pino`) and shipping logs to a log aggregation service.
 
-On the Flutter side, all service calls use the `logger` package. In release builds, the `Logger` defaults to `Level.warning` – verbose debug logs are suppressed automatically.
+On the Flutter side, all service calls use the `logger` package. With the package's default filter, log output is emitted in debug builds only, so release builds are silent.
 
 ### Node.js Memory
 
-The cleanup job calls `global.gc()` if garbage collection is available (requires the `--expose-gc` Node.js flag). On Render and most hosts this flag is not set, so the call is a no-op. Monitor memory usage in the Render dashboard; if memory grows steadily over days, a daily server restart (via Render's native restart option) is a practical workaround until the leak is diagnosed.
+Monitor memory usage in the Render dashboard. The daily cleanup loads tasks into memory (see Cleanup Job Performance above), so watch for growth as data grows. If memory grows steadily over days, a daily server restart (via Render's native restart option) is a practical workaround until the cause is diagnosed.

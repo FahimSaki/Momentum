@@ -34,12 +34,13 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 | `GMAIL_CLIENT_SECRET` | OAuth2 client secret for that same client |
 | `GMAIL_REFRESH_TOKEN` | Refresh token scoped to `gmail.send` for that client |
 | `EMAIL_FROM` | The Gmail address the refresh token belongs to (or a verified "Send mail as" alias on it) |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID(s) accepted by `POST /auth/google`; comma-separated if mobile and web use different IDs |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Paste the full contents of your Firebase service account JSON as a single-line string |
 | `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (e.g. `https://yourapp.vercel.app,https://yourcustomdomain.com`) |
 
 > **Never use `FIREBASE_SERVICE_ACCOUNT_PATH` on Render** – the filesystem is ephemeral. Use `FIREBASE_SERVICE_ACCOUNT_JSON` instead. The notification service parses this variable at startup and uses it automatically.
 
-> **Why Gmail's REST API and not SMTP?** Render blocks outbound SMTP on ports 465 and 587, so a `nodemailer`/SMTP setup silently times out there. Momentum sends mail over HTTPS (port 443) via the Gmail API instead (`backend/src/services/emailService.ts`). Without all four `GMAIL_*` / `EMAIL_FROM` variables the server still boots, but registration, 2FA, and account-deletion codes are never delivered – see [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
+> **Why Gmail's REST API and not SMTP?** Render blocks outbound SMTP on ports 465 and 587, so a `nodemailer`/SMTP setup silently times out there. Momentum sends mail over HTTPS (port 443) via the Gmail API instead (`backend/src/services/emailService.ts`). Without all four `GMAIL_*` / `EMAIL_FROM` variables the server still boots, but verification, 2FA, password-reset, password-change, and account-deletion codes are never delivered – see [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
 
 > If `ALLOWED_ORIGINS` is not set, the server defaults to allowing all origins (`*`). Set it explicitly in production.
 
@@ -47,11 +48,13 @@ The production backend is hosted at `https://momentum-g7ah.onrender.com`.
 
 ### Keep-Alive
 
-Render free-tier instances spin down after 15 minutes of inactivity. The GitHub Actions workflow in `.github/workflows/build.yml` pings `/wake-up` before every build to wake the server. For production use, upgrade to a paid Render plan (always-on).
+Render free-tier instances spin down after 15 minutes of inactivity, and the first request after that can take up to about a minute. Production keeps the service warm with an external scheduler (cron-job.org) that pings the backend every 10 minutes; `GET /health` and `GET /wake-up` are both cheap, unauthenticated endpoints suited to this. The GitHub Actions workflow in `.github/workflows/build.yml` also pings `/wake-up` before every build. For an always-on service, upgrade to a paid Render plan.
 
 ### Redeployment
 
 Every push to `main` triggers a new Render build automatically if auto-deploy is enabled in the Render dashboard. Render re-runs the full build command (`npm install && npm run build`) on each deploy so compiled output is always up to date.
+
+**Deploy order.** When a release adds or changes a MongoDB index (for example the partial unique index on `assignedBy` + `clientId`), deploy the backend first so Mongoose builds the index before any client that depends on it goes live.
 
 ### MongoDB Atlas Setup
 
@@ -60,7 +63,17 @@ Every push to `main` triggers a new Render build automatically if auto-deploy is
 3. Whitelist `0.0.0.0/0` (all IPs) under Network Access – Render's outbound IPs change.
 4. Copy the connection string (`mongodb+srv://...`) and set it as `MONGODB_URI`.
 
-The app creates all collections automatically on first use. No migration scripts are required for a fresh deployment.
+The app creates all collections and indexes automatically on first use. No migration scripts are required for a fresh deployment.
+
+### Maintenance Scripts
+
+Scripts live in `backend/src/scripts/`. Run them from `backend/` with `MONGODB_URI` set, for example `npx ts-node src/scripts/fixTaskClientIdIndex.ts`.
+
+| Script | Purpose |
+| -------- | --------- |
+| `addInviteIds.ts` | One-time backfill: gives existing users an invite ID and default visibility settings |
+| `cleanupOldNotification.ts [days]` | Deletes read notifications older than the given number of days (default 30) after a 5-second confirmation delay |
+| `fixTaskClientIdIndex.ts` | Drops the stale `assignedBy_1_clientId_1` index and rebuilds the Task indexes from the current schema |
 
 ---
 
@@ -68,35 +81,27 @@ The app creates all collections automatically on first use. No migration scripts
 
 The web build is served at `https://momentum-beryl-nine.vercel.app`.
 
-### Build
+Vercel does not build the Flutter app. It serves a pre-built static snapshot committed under `buildx/web/`, so there is no build command and no Flutter SDK on Vercel.
+
+### Publish a New Web Build
+
+1. Build locally:
 
 ```bash
 flutter build web --release
 ```
 
-Output goes to `build/web/`.
+1. Replace the contents of `buildx/web/` with the contents of `build/web/`.
+2. Confirm the files that must reach production are present in `buildx/web/`: `index.html`, `vercel.json`, `firebase-messaging-sw.js`, and `manifest.json`. They originate in `web/` and are copied into `build/web/` by the build.
+3. Commit and push. Vercel serves the new snapshot.
 
-### Deploy to Vercel
+`vercel.json` sets `Cross-Origin-Opener-Policy: same-origin-allow-popups` and `Cross-Origin-Embedder-Policy: unsafe-none` on every response.
 
-1. Install the Vercel CLI: `npm i -g vercel`
-2. From the project root:
-
-```bash
-cd build/web
-vercel --prod
-```
-
-Or connect the GitHub repo in the Vercel dashboard and set:
-
-| Setting | Value |
-| --------- | ------- |
-| Framework preset | Other |
-| Build command | `flutter build web --release` |
-| Output directory | `build/web` |
-
-### CORS
+### CORS and Google Sign-In
 
 The backend reads allowed origins from the `ALLOWED_ORIGINS` environment variable (comma-separated). Add your Vercel deployment URL and any custom domain to that variable on Render. If `ALLOWED_ORIGINS` is unset, all origins are allowed.
+
+Google Sign-In on web redirects back to the site origin. Whenever the web domain changes, register the new origin with a trailing slash (for example `https://your-app.vercel.app/`) as an authorised redirect URI for the OAuth client in Google Cloud Console.
 
 ---
 
@@ -128,7 +133,7 @@ keyAlias=upload
 storeFile=<path-to>/upload-keystore.jks
 ```
 
-1. Reference `key.properties` in `android/app/build.gradle.kts` (standard Flutter signing config).
+1. Reference `key.properties` in `android/app/build.gradle.kts` (standard Flutter signing config). The release build type currently signs with the debug key.
 
 2. Build:
 
@@ -179,13 +184,13 @@ Then open `ios/Runner.xcworkspace` in Xcode, select the Runner target, set your 
 
 ## CI/CD – GitHub Actions
 
-The workflow at `.github/workflows/build.yml` runs on every push and pull request:
+The workflow at `.github/workflows/build.yml` runs on every push, on pull requests to `main` and `develop`, on `v*` tags, and on manual dispatch. It pins Flutter to the version in its `FLUTTER_VERSION` variable (currently `3.47.5`).
 
-1. **code-quality** – `flutter analyze`, `flutter test`, `dart format` check
+1. **code-quality** – `flutter analyze --fatal-infos`, `flutter test` (non-blocking), and a `dart format` check
 2. **check-backend** – pings `/wake-up` and `/health` on the production server
-3. **build** – matrix build for Android, Web, Windows, iOS simulator, and macOS
+3. **build** – matrix build for Android, Web, Linux, Windows, iOS simulator, and macOS
 4. **release** – creates a GitHub Release with all build artifacts when a `v*` tag is pushed
-5. **deploy-web** – placeholder step for web deployment on `main` branch pushes
+5. **deploy-web** – placeholder step for web deployment on `main` branch pushes (production web is published through `buildx/web/`, see above)
 6. **notify** – reports final build status
 
 ### Required Repository Secrets
@@ -208,6 +213,7 @@ The CI workflow only checks the already-deployed production server (`/wake-up`, 
 | `PORT` | No | Server port (default 10000) |
 | `NODE_ENV` | No | `development` or `production` |
 | `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins; defaults to `*` if unset |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID(s) accepted by `POST /auth/google`, comma-separated; the token audience is not checked if unset |
 | `GMAIL_CLIENT_ID` | Yes† | OAuth2 client ID for outgoing email |
 | `GMAIL_CLIENT_SECRET` | Yes† | OAuth2 client secret for outgoing email |
 | `GMAIL_REFRESH_TOKEN` | Yes† | OAuth2 refresh token (`gmail.send` scope) |
@@ -217,4 +223,4 @@ The CI workflow only checks the already-deployed production server (`/wake-up`, 
 
 \* One of these is required for push notifications. If neither is set the server starts normally but FCM calls are skipped.
 
-† The server still boots without these, but registration, 2FA, and account-deletion emails are never delivered — treat them as required for a usable deployment. See [INSTALLATION.md](INSTALLATION.md) for how to obtain them.
+† The server still boots without these, but registration, 2FA, password-reset, password-change, and account-deletion emails are never delivered — treat them as required for a usable deployment. See [INSTALLATION.md](INSTALLATION.md) for how to obtain them.

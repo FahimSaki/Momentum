@@ -15,10 +15,10 @@ Two different things both get casually called "the JWT" — worth being precise 
 
 End-to-end:
 
-1. `POST /auth/login`, `POST /auth/verify-2fa`, or `POST /auth/google` calls `jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' })` on success, producing a fresh token for that session.
+1. `POST /auth/login`, `POST /auth/verify-2fa`, `POST /auth/google`, or `POST /auth/reset-password` calls `jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' })` on success, producing a fresh token for that session.
 2. The Flutter client stores it (see Token Storage below) and attaches it as `Authorization: Bearer <token>` on every subsequent request.
 3. `authenticateToken` (see Backend Middleware below) verifies the signature and expiry against that same `JWT_SECRET`, loads the user, and checks `isActive` on every protected route.
-4. On expiry or an `isActive: false` account, verification fails, the client gets a `401`/`403`, and is logged out.
+4. On expiry or an `isActive: false` account, verification fails, the server answers `401`/`403`, and the client signs the user out. If the server cannot be reached at all, the client keeps the stored session and works from cached data until it can validate again.
 
 The secret is meant to be constant; the tokens are what's generated and rotated, once per login.
 
@@ -33,7 +33,13 @@ Once the email is verified, login behaves as follows:
 - If the account has **two-factor authentication** enabled (`twoFactorEnabled: true`), the server emails a second 6-digit OTP (10-minute expiry) and responds with `requiresTwoFactor: true` instead of a token. The JWT is only issued after `POST /auth/verify-2fa` succeeds.
 - Otherwise the server immediately returns a signed **JSON Web Token** (JWT) with a 7-day expiry (`expiresIn: '7d'`). The JWT payload contains only `{ userId }` – no sensitive user data.
 
-**Google Sign-In is fully implemented** (`POST /auth/google`) — there's no Passport dependency involved. The Flutter app obtains a Google ID token via the `google_sign_in` package; the backend verifies it server-side against Google's `tokeninfo` endpoint (and checks the `aud` claim against `GOOGLE_CLIENT_ID` when that env var is set) before issuing a Momentum JWT. Accounts created via email/password have a `password` field; the login controller checks for its absence and returns an appropriate error if a user tries to log in with a password on a Google-only account.
+**Google Sign-In** (`POST /auth/google`) has no Passport dependency. On Android and iOS the app obtains a Google ID token through the `google_sign_in` package. On web it uses a full-page redirect that returns the ID token in the URL fragment, which the app removes from the address bar immediately and exchanges at the backend. The backend verifies the token server-side against Google's `tokeninfo` endpoint and, when `GOOGLE_CLIENT_ID` is set (one ID or a comma-separated list), checks the `aud` claim against it before issuing a Momentum JWT. An existing account with 2FA enabled gets the same emailed-code challenge as a password login. Accounts created via email/password have a `password` field; the login controller checks for its absence and returns an appropriate error if a user tries to log in with a password on a Google-only account.
+
+**Password reset.** `POST /auth/forgot-password` emails a 6-digit code (10-minute expiry, one request per 60 seconds). `POST /auth/reset-password` verifies the code, stores the new bcrypt hash, and returns a fresh JWT, so a successful reset signs the user in. Google-only accounts are told to use Google Sign-In.
+
+**Password change.** While signed in, `POST /users/request-password-change` checks the current password and emails a code; `POST /users/confirm-password-change` verifies it and applies the new password.
+
+**Account deletion.** `POST /users/request-account-deletion` emails a code (10-minute expiry); `POST /users/confirm-account-deletion` deactivates the account (`isActive: false`). It is a soft delete: the authentication middleware rejects deactivated accounts, so any token that is still valid stops working immediately.
 
 ### Token Storage
 
@@ -41,16 +47,16 @@ Once the email is verified, login behaves as follows:
 | ---------- | ------------------ |
 | Android | Android Keystore via `flutter_secure_storage` |
 | iOS | iOS Keychain via `flutter_secure_storage` |
-| Web | In-memory only (`SharedPreferences` on web is not used for tokens) |
+| Web | The `flutter_secure_storage` web implementation (WebCrypto-backed browser storage). Weaker than the native Keychain/Keystore, so serve the site over HTTPS only |
 | Desktop | OS credential store via `flutter_secure_storage` |
 
-Tokens are never stored in plain `SharedPreferences` or `localStorage`.
+Tokens are never written to `SharedPreferences`. The offline cache (tasks, teams, history, and dashboard stats) lives in `SharedPreferences` but holds no credentials, and it is cleared on logout.
 
 ### Token Validation
 
-Every protected route passes through `authenticateToken` (`backend/src/middleware/middle_auth.ts`), which verifies the JWT signature and expiry, loads the full `User` document, and rejects the request if the account has since been deactivated (`isActive: false`) — this closes the gap where a soft-deleted account's still-valid token could otherwise keep authenticating for the remainder of its 7-day lifetime.
+Every protected route passes through `authenticateToken` (`backend/src/middleware/authMiddleware.ts`), which verifies the JWT signature and expiry, loads the full `User` document, and rejects the request if the account has since been deactivated (`isActive: false`) — this closes the gap where a soft-deleted account's still-valid token could otherwise keep authenticating for the remainder of its 7-day lifetime.
 
-On every app launch, `SplashPage` additionally calls `GET /auth/validate`, which runs through the same middleware. An invalid, expired, or deactivated-account token triggers a full logout and clears all stored credentials.
+On every app launch, `SplashPage` additionally calls `GET /auth/validate`, which runs through the same middleware. Only an explicit `401` or `403` (invalid, expired, or deactivated-account token) triggers a full logout and clears all stored credentials. If the server is unreachable or answers with a 5xx status, the session is kept and the app opens on cached data, because those responses don't prove the token is bad.
 
 ### Token Rotation
 
@@ -62,7 +68,7 @@ There is no refresh token mechanism. When a token expires after 7 days, the user
 
 ### Backend Middleware
 
-Every protected route passes through `authenticateToken` (`backend/src/middleware/middle_auth.ts`). This middleware:
+Every protected route passes through `authenticateToken` (`backend/src/middleware/authMiddleware.ts`). This middleware:
 
 1. Extracts the `Authorization: Bearer <token>` header.
 2. Verifies the JWT signature with `JWT_SECRET`.
@@ -71,16 +77,17 @@ Every protected route passes through `authenticateToken` (`backend/src/middlewar
 
 If any step fails, the request is rejected with `401` or `403` before reaching the controller.
 
-### Task Permissions
+The middleware only authenticates. Role-based checks are plain functions in `backend/src/helpers/taskHelpers.ts` (task create, edit, delete) and inline checks in `backend/src/controllers/teamController.ts` (invite, settings, role changes, removal), called from the controllers on every request.
 
-Task creation, editing, and deletion are gated by helper functions in `backend/src/controllers/taskController.ts`:
+### Task Permissions
 
 | Action | Who can perform it |
 | -------- | -------------------- |
 | Create task | Any authenticated user (personal); team owner or admin (team task) |
 | Edit task | Team owner / admin, or the user who created the task (`assignedBy`) |
 | Delete task | Team owner / admin, or the user who created the task |
-| Complete task | Only users in the task's `assignedTo` array |
+| Complete task | Personal task: its assignee. Team task: any member of the team |
+| View team tasks | Any member of the team sees every task in it |
 
 These checks run server-side on every request. The frontend enforces the same rules via `TeamPermissions` and `PermissionHelper` for a consistent UI, but server-side enforcement is the authoritative gate.
 
@@ -92,11 +99,11 @@ These checks run server-side on every request. The frontend enforces the same ru
 | admin | ✓ | ✓ (all) | ✓ | ✓ | ✗ |
 | member | ✗ | ✗ | ✗ (unless `allowMemberInvite`) | ✗ | ✗ |
 
-Members can only complete tasks assigned to them.
+Members can view every task in their team and complete any of them.
 
 ### Invite ID Privacy
 
-User search (`GET /users/search` and `GET /users/invite/:inviteId`) only returns users where `isPublic: true`. Each result is further filtered by the user's `profileVisibility` settings before being sent to the client – email and bio are withheld unless the user has enabled them. The `inviteId` and `name` are always included in search results (they are the minimum required to send an invitation).
+User search (`GET /users/search` and `GET /users/invite/:inviteId`) only returns active users where `isPublic: true`. The `inviteId` and `name` are always included in results (they are the minimum required to send an invitation). The response also carries each user's `email`, `bio`, and `profileVisibility` flags; the Flutter client hides email and bio unless the matching flag is enabled, but the server does not redact those fields yet. Treat `showEmail` and `showBio` as display preferences until server-side redaction is added.
 
 ---
 
@@ -106,9 +113,9 @@ All controller inputs are validated before touching the database:
 
 - `name` fields are trimmed and checked for empty strings.
 - `email` is lowercased and trimmed; format validation is applied at registration.
-- `password` minimum length is enforced at registration (6 characters).
+- `password` minimum length is enforced at registration, password reset, and password change (6 characters).
 - Enum values (`priority`, `role`, `assignmentType`, `status`) are validated by Mongoose schema enums.
-- `profileVisibility` keys are checked against a whitelist before being saved.
+- Update endpoints build their changes from explicit field whitelists (task updates, team settings, profile fields, and `profileVisibility` keys), so clients cannot overwrite system fields such as `assignedBy`, `completedDays`, `isArchived`, or `team`.
 - MongoDB ObjectId parameters (`:teamId`, `:taskId`, etc.) are implicitly validated by Mongoose's `findById` – invalid IDs cause a `CastError`.
 - User-supplied search text (`GET /users/search`) has regex metacharacters escaped before being used in a MongoDB query, preventing ReDoS via crafted search terms.
 
@@ -120,6 +127,10 @@ All controller inputs are validated before touching the database:
 
 Stored as bcrypt hashes with 12 rounds. All profile endpoints explicitly exclude the `password` field from responses.
 
+### One-Time Codes
+
+Verification, 2FA, password reset, password change, and account deletion codes are stored on the user document in fields that Mongoose excludes from queries by default (`select: false`), and they are cleared after successful use. Codes expire after 5 minutes (email verification) or 10 minutes (everything else).
+
 ### JWT Secret
 
 The `JWT_SECRET` environment variable must be a long, random string. Generate one with:
@@ -130,9 +141,13 @@ openssl rand -hex 32
 
 Never commit this value to source control. On Render, set it as an environment variable in the dashboard.
 
+### Email Credentials
+
+`GMAIL_CLIENT_SECRET` and `GMAIL_REFRESH_TOKEN` grant send access to the mailbox the codes are sent from. Keep them in environment variables only, and rotate them if they are ever exposed.
+
 ### FCM Tokens
 
-Up to 5 FCM tokens are stored per user (one per device, sorted by `lastUsed`). Tokens that return `messaging/registration-token-not-registered` from Firebase are automatically removed. Tokens older than 60 days are excluded from notification sends.
+A user can have several registered device tokens. The app re-registers its token on each start, which refreshes `lastUsed`. Tokens that Firebase reports as invalid or unregistered are removed automatically after a failed send. There is currently no cap on tokens per user and no age-based pruning; see [PERFORMANCE.md](PERFORMANCE.md) for a suggested cleanup job.
 
 ### MongoDB
 
@@ -155,13 +170,15 @@ Credentials (`credentials: true`) are enabled so the browser can send the `Autho
 ## Recommendations for Production Self-Hosting
 
 1. **Use HTTPS everywhere.** Render provides TLS automatically. For self-hosted servers, use Let's Encrypt via Caddy or Nginx.
-2. **Set `NODE_ENV=production`.** This disables stack traces in API error responses.
+2. **Set `NODE_ENV=production`** so Express and its dependencies run in production mode. The global error handler never returns stack traces to clients.
 3. **Set `ALLOWED_ORIGINS`** to a comma-separated list of your frontend domains instead of relying on the `*` default.
-4. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
-5. **Restrict MongoDB network access** to the server's IP only.
-6. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
-7. **Add rate limiting** to the auth endpoints (`/auth/login`, `/auth/register`) using `express-rate-limit` to prevent brute-force attacks. This is not currently implemented.
-8. **Store Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
+4. **Set `GOOGLE_CLIENT_ID`** to the OAuth client ID(s) your apps use, so only Google tokens issued for your application are accepted.
+5. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
+6. **Restrict MongoDB network access** to the server's IP only.
+7. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
+8. **Add rate limiting** to `/auth/login`, `/auth/register`, and every code-verification endpoint (`/auth/verify-email`, `/auth/verify-2fa`, `/auth/reset-password`, `/users/confirm-password-change`, `/users/confirm-account-deletion`) using `express-rate-limit`. This is not currently implemented, and six-digit codes have no attempt cap today.
+9. **Protect or remove `/manual-cleanup`.** It is currently unauthenticated, so anyone who can reach the server can trigger the cleanup job. Require a secret header or an authenticated admin, or disable it in production.
+10. **Store the Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
 
 ---
 

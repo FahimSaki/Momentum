@@ -7,31 +7,39 @@ This document describes Momentum's system design, data flow, state management st
 ## System Overview
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                     Flutter App                           │
-│                                                             │
-│  Pages → Components → Cubits (TaskCubit, TeamCubit,        │
-│                        NotificationCubit, SessionCubit)     │
-│                         │                                   │
-│              ┌──────────┴──────────┐                        │
-│          TaskService          NotificationService           │
-│          TeamService          WidgetService                 │
-│          UserService          TimerService                  │
-└──────────────┬────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                                                                │
+│                          Flutter App                           │
+│                                                                │
+│  Pages → Components → Cubits (TaskCubit, TeamCubit,            │
+│                               NotificationCubit, SessionCubit) │
+│                                                                │
+│  REST services             Device and local services           │
+│  ─────────────             ─────────────────────────           │
+│  AuthService               PushNotificationService             │
+│  TaskService               WidgetService                       │
+│  TeamService               TimerService                        │
+│  UserService               SyncQueueService                    │
+│  NotificationService       LocalCacheService                   │
+│                            InitializationService               │
+│                                                                │
+└──────────────┬─────────────────────────────────────────────────┘
                │ HTTPS / REST
-┌──────────────▼────────────────────────────────────────────┐
-│                   Express Backend                          │
-│                                                              │
-│  Routes → Middleware (JWT) → Controllers → Services         │
-│                                   │                          │
-│                          ┌────────┴────────┐                 │
-│                       MongoDB          Firebase FCM           │
-│                       (Mongoose)                              │
-│                          │                                    │
-│              ┌───────────┼───────────┐                        │
-│           Task        TaskHistory  User                       │
-│           Team        TeamInvit.   Notification                │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────▼─────────────────────────────────────────────────┐
+│                                                                │
+│                        Express Backend                         │
+│                                                                │
+│  Routes → Middleware (JWT) → Controllers → Services            │
+│                                                │               │
+│              ┌───────────────────┬─────────────┴─────┐         │
+│           MongoDB          Firebase FCM          Gmail API     │
+│         (Mongoose)            (push)          (email, HTTPS)   │
+│              │                                                 │
+│   ┌──────────┴──┬─────────────┐                                │
+│  Task    TaskHistory       User                                │
+│  Team    TeamInvitation    Notification                        │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -56,29 +64,49 @@ Widgets subscribe with `BlocBuilder<XCubit, XState>`, `context.watch<XCubit>()`,
 
 | Cubit | State | Responsibility |
 | ------- | ------- | ----------------- |
-| `TaskCubit` | `TaskState` | `currentTasks`, `historicalCompletions`, `dashboardStats`; computed getters `activeTasks`, `completedTasks`, `personalTasks`, `teamTasks`; the offline sync queue (`SyncQueueService`); polling and midnight cleanup (`TimerService`); calls `WidgetService` after every mutation |
-| `TeamCubit` | `TeamState` | `userTeams`, `pendingInvitations`, `selectedTeam` |
+| `TaskCubit` | `TaskState` | `currentTasks`, `historicalCompletions`, `dashboardStats`, `isOffline`; computed getters `activeTasks`, `completedTasks`, `personalTasks`, `teamTasks`; the offline cache (`LocalCacheService`) and sync queue (`SyncQueueService`); polling and midnight cleanup (`TimerService`); FCM setup (`PushNotificationService`); calls `WidgetService` after every mutation and every poll |
+| `TeamCubit` | `TeamState` | `userTeams` (cached for offline use), `pendingInvitations`, `selectedTeam` |
 | `NotificationCubit` | `NotificationState` | in-app notification list and unread count |
 | `SessionCubit` | `SessionState` | `jwtToken`, `userId` |
 
-`TaskCubit` takes `NotificationCubit`, `TeamCubit`, and `SessionCubit` as constructor dependencies and subscribes directly to `teamCubit.stream` to react to team-selection changes — switching teams reloads `TaskCubit`'s tasks, history, and dashboard stats for the new scope. This is the one place state flows between Cubits; `TeamCubit`, `NotificationCubit`, and `SessionCubit` don't depend on each other or on `TaskCubit`.
+`TaskCubit` takes `NotificationCubit`, `TeamCubit`, and `SessionCubit` as constructor dependencies and subscribes directly to `teamCubit.stream` to react to team-selection changes — switching teams reloads `TaskCubit`'s tasks and dashboard stats for the new scope. This is the one place state flows between Cubits; `TeamCubit`, `NotificationCubit`, and `SessionCubit` don't depend on each other or on `TaskCubit`.
 
 ### Service Layer
 
-Each domain has a dedicated service class that owns HTTP communication. Services are instantiated by their owning Cubit after authentication — `TaskCubit` builds `TaskService`, `TeamCubit.setToken()` builds `TeamService`, and so on — and hold `jwtToken` for the lifetime of the session. `userId` is owned separately by `SessionCubit`.
+Each domain has a dedicated service class that owns HTTP communication or device-level I/O. `TaskCubit` builds `TaskService` after login, `TeamCubit.setToken()` builds `TeamService`, `NotificationCubit.setToken()` configures `NotificationService`, and pages that need the user endpoints construct `UserService` from the token held by `SessionCubit`. `AuthService` is a singleton. `userId` is owned by `SessionCubit`.
 
 | Service | Responsibility |
 | --------- | --------------- |
-| `TaskService` | CRUD for tasks, completion toggling via `PATCH /tasks/:id/complete`, history fetch |
+| `AuthService` | Register, login, Google Sign-In (native on mobile, redirect on web), email-code flows (verification, 2FA, password reset), token validation, logout |
+| `TaskService` | CRUD for tasks, completion toggling via `PATCH /tasks/:id/complete`, history and dashboard stats |
 | `TeamService` | Team lifecycle, invitations, member management |
-| `UserService` | Profile fetch, search, privacy settings |
-| `NotificationService` | Firebase FCM init, in-app notification fetch/mark-read |
-| `AuthService` | Login, register, token validation, logout |
+| `UserService` | Profile fetch, user search, privacy settings, 2FA toggle, password change, account deletion |
+| `NotificationService` | REST notification list: fetch, mark read, mark all read |
+| `PushNotificationService` | FCM permission and token registration, foreground display through `flutter_local_notifications` |
 | `WidgetService` | Write data to `HomeWidgetPreferences`, trigger widget redraw |
 | `TimerService` | 10-second polling timer, midnight cleanup timer |
-| `InitializationService` | App startup: Firebase, home_widget, JWT restoration |
+| `LocalCacheService` | Persist last-known tasks, teams, history, and stats for offline use |
+| `SyncQueueService` | Persist personal-task creations made while offline |
+| `InitializationService` | App startup: home_widget setup, widget-tap routing, push initialisation from a stored JWT |
 
-`NotificationService` is instantiated twice, once per consumer: `TaskCubit` holds an instance purely for FCM/local-notification setup, and `NotificationCubit` holds a separate instance purely for the REST notification-list calls (`getNotifications`, `markAsRead`, `markAllAsRead`). The two never call each other's methods.
+Notifications are split across two classes that never call each other: `NotificationCubit` holds `NotificationService` (REST list calls) and `TaskCubit` holds `PushNotificationService` (FCM and local notifications). `InitializationService` also initialises a `PushNotificationService` at startup when a stored JWT exists.
+
+### Offline Support
+
+Reads fall back to a device cache, and one kind of write (creating a personal task) is queued for later.
+
+- **Cache.** `LocalCacheService` stores the last successful tasks (per personal or team scope), team list, historical completions, and dashboard stats in `SharedPreferences`. Every successful load overwrites the cache, so the backend remains the source of truth. The cache holds no credentials and is cleared on logout.
+- **Detection.** `isNetworkError()` (`lib/utils/network_utils.dart`) classifies connectivity failures (socket errors, timeouts, client exceptions). Cubits use it to choose between a cached fallback, which sets `isOffline` and shows an offline banner, and surfacing a real error.
+- **Queue.** A personal task created while offline gets a `local_` id and `TaskSyncStatus.pendingCreate`, and `SyncQueueService` persists the request. The queue is flushed at session start and on every poll or pull-to-refresh, one flush at a time. A successful replay swaps the placeholder for the server's task; a rejection by the server marks the placeholder `syncFailed` and removes it from the queue. Team tasks are never queued because they need server-side permission checks.
+- **Guards.** A task that has not synced yet cannot be completed or edited; deleting it removes it from the queue.
+- **Idempotency.** Replays send the local id as `clientId`. The server returns the existing task for a known key instead of creating a duplicate (see Key Design Decisions).
+- **Session.** `AuthService.validateToken()` keeps the stored session when the server is unreachable or answers 5xx; only an explicit 401 or 403 signs the user out.
+
+### Google Sign-In
+
+- **Mobile:** `google_sign_in`'s `authenticate()` returns an ID token, which `AuthService` posts to `POST /auth/google`.
+- **Web:** the login button navigates the whole page to Google's OAuth endpoint (`response_type=id_token`). Google redirects back to the site root with `#id_token=...` in the URL fragment. `SplashPage` detects the fragment before the normal stored-session check, and `AuthService.completeWebGoogleRedirect()` removes it from the address bar and posts the token to `POST /auth/google`.
+- If the account has 2FA enabled, the response is a challenge instead of a token and the app opens `TwoFactorPage`.
 
 ### Navigation
 
@@ -88,12 +116,12 @@ Route map:
 
 | Route | Page |
 | ------- | ------ |
-| `/` or `/splash` | `SplashPage` – JWT validation gate |
+| `/` or `/splash` | `SplashPage` – session check and Google redirect gate |
 | `/login` | `LoginPage` |
 | `/register` | `RegisterPage` |
 | `/home` | `HomePage` – personal workspace |
 
-Team views (`TeamHomePage`, `TeamSelectionPage`, etc.) are pushed with `Navigator.push` rather than named routes because they carry a `Team` argument.
+Team views (`TeamHomePage`, `TeamSelectionPage`, etc.) are pushed with `Navigator.push` rather than named routes because they carry a `Team` argument. The auth sub-flows (`EmailVerificationPage`, `TwoFactorPage`, `ForgotPasswordPage`, `ResetPasswordPage`) are pushed the same way because they carry an email address.
 
 ### Theme
 
@@ -105,31 +133,40 @@ Team views (`TeamHomePage`, `TeamSelectionPage`, etc.) are pushed with `Navigato
 
 ### Express Application (`backend/src/index.ts`)
 
-The entry point connects to MongoDB, registers middleware (CORS, JSON body parser, request logger), mounts authenticated route groups, and starts the cron scheduler.
+The entry point connects to MongoDB, initialises Firebase, starts the cron scheduler, registers middleware (helmet, CORS, body parsers, request logger), and mounts the route groups. Gmail credentials are verified in the background so a mail problem never blocks startup.
 
 ```
 Request
+  → helmet (security headers)
   → CORS middleware (origin controlled by ALLOWED_ORIGINS env var)
-  → JSON body parser
+  → JSON and URL-encoded body parsers
   → Request logger
-  → Public routes: /health, /wake-up, /manual-cleanup, /auth/*
-  → authenticateToken middleware (JWT verify + User.findById)
-  → Protected routes: /tasks, /teams, /notifications, /users
-  → Error handler (500)
+  → Public routes: /health, /wake-up, /manual-cleanup, /auth/* (except /auth/validate)
+  → authenticateToken middleware (JWT verify, User.findById, isActive check)
+  → Protected routes: /tasks, /teams, /notifications, /users, /auth/validate
   → 404 handler
+  → Error handler (500)
 ```
 
-### Authentication Middleware (`backend/src/middleware/middle_auth.ts`)
+### Authentication Middleware (`backend/src/middleware/authMiddleware.ts`)
 
-Verifies the `Authorization: Bearer <token>` header, resolves the full `User` document, and attaches `req.user` and `req.userId` for use in controllers.
+Verifies the `Authorization: Bearer <token>` header, resolves the full `User` document, rejects deactivated accounts (`isActive: false`), and attaches `req.user` and `req.userId` for use in controllers. It authenticates only; role checks are separate.
 
-### Controllers
+### Controllers and Permission Checks
 
-Controllers are thin: they validate input, check permissions, call Mongoose models or services, and return a clean JSON response. Business logic (history saving, cleanup steps, notification dispatch) lives in service files.
+Controllers are thin: they validate input, check permissions, call Mongoose models or services, and return a clean JSON response. Role checks are plain functions in `backend/src/helpers/taskHelpers.ts` (create, edit, delete) and inline checks in `teamController.ts` (invite, settings, roles, removal), called from the controllers on every request. Update endpoints build their changes from explicit field whitelists rather than passing `req.body` to Mongoose.
 
-### Cleanup Scheduler (`backend/src/services/cleanupScheduler.ts`)
+### Scheduler and Cleanup (`schedulerService.ts`, `cleanupScheduler.ts`)
 
-Runs at **12:05 AM UTC** every day via `node-cron`:
+`node-cron` runs three jobs, all in UTC:
+
+| Schedule | Job |
+| ---------- | ----- |
+| Daily, 12:05 AM | Task cleanup (below) |
+| Daily, 9:00 AM | Due-date reminders for tasks due the next day |
+| Sundays, 2:00 AM | Delete read notifications older than 30 days |
+
+The daily cleanup has three steps:
 
 1. **Archive** – marks tasks with `lastCompletedDate < today` as `isArchived: true`
 2. **Delete & preserve** – finds archived tasks older than today, saves their `completedDays` to `TaskHistory`, then deletes them
@@ -139,10 +176,23 @@ This design means the `Task` collection only ever contains tasks relevant to the
 
 ### Notification Service (`backend/src/services/notificationService.ts`)
 
-- Detects the Firebase service account from the `FIREBASE_SERVICE_ACCOUNT_JSON` env var, `FIREBASE_SERVICE_ACCOUNT_PATH`, or well-known file locations
-- Sends FCM messages to all valid tokens for a user (up to 5 per user, refreshed on each login)
-- Removes tokens that return `messaging/registration-token-not-registered`
-- Saves in-app `Notification` documents to MongoDB in parallel with the FCM send
+- Detects the Firebase service account from the `FIREBASE_SERVICE_ACCOUNT_JSON` env var, `FIREBASE_SERVICE_ACCOUNT_PATH`, or a well-known local file
+- Sends FCM messages to every token registered for a user
+- Removes tokens that Firebase reports as invalid or unregistered
+- Saves in-app `Notification` documents to MongoDB alongside each FCM send
+- Task-assigned and task-completed notifications are skipped when the team's setting or the recipient's own setting turns them off
+
+### Email and OTP Services (`emailService.ts`, `otpService.ts`)
+
+`emailService.ts` sends mail through the Gmail REST API over HTTPS using an OAuth2 refresh token; the access token is cached in memory and refreshed lazily. `otpService.ts` provides `generateAndSendOtp()`, the shared shape of every code flow: generate a 6-digit code, persist it with an expiry, then try to send it and report `sent` to the caller, which decides whether a send failure fails the request.
+
+| Flow | Code expiry |
+| ------ | ------------- |
+| Email verification (registration, resend) | 5 minutes |
+| Two-factor sign-in (password and Google) | 10 minutes |
+| Password reset, password change, account deletion | 10 minutes |
+
+Resend and request endpoints enforce a 60-second cooldown derived from the stored expiry timestamp.
 
 ---
 
@@ -166,8 +216,11 @@ Task {
   archivedAt: Date
   isTeamTask: Boolean
   assignmentType: individual|multiple|team
+  clientId: String            # idempotency key, set only for offline-queued creates
 }
 ```
+
+A partial unique index on `assignedBy` + `clientId` (only for documents that have a `clientId`) makes replayed creates idempotent.
 
 ### TaskHistory
 
@@ -198,17 +251,51 @@ Team {
 }
 ```
 
+### TeamInvitation
+
+```
+TeamInvitation {
+  team: Team
+  inviter: User
+  invitee: User
+  email: String
+  role: admin|member
+  status: pending|accepted|declined|expired
+  expiresAt: Date             # 7 days after creation
+  message: String
+}
+```
+
+A unique index on `team` + `invitee` + `status` prevents duplicate invitations in the same state.
+
+### Notification
+
+```
+Notification {
+  recipient: User
+  sender: User
+  team: Team
+  task: Task
+  type: task_assigned|task_completed|team_invitation|team_member_joined|task_due_reminder
+  title, message, data
+  isRead, readAt
+  isSent, fcmMessageId
+}
+```
+
 ### User (key fields)
 
 ```
 User {
-  email, password (bcrypt), name
+  email, password (bcrypt), name, googleId
+  isEmailVerified, twoFactorEnabled, isActive
   inviteId: String (unique, auto-generated, e.g. "swift-tiger-1234")
   isPublic: Boolean
   profileVisibility: { showEmail, showName, showBio }
   teams: [Team]
   notificationSettings: { email, push, inApp, taskAssigned, ... }
-  fcmTokens: [{ token, platform, lastUsed }]  # max 5 per user
+  fcmTokens: [{ token, platform, lastUsed }]
+  one-time code fields (verification, 2FA, reset, change, deletion)  # select: false
 }
 ```
 
@@ -236,6 +323,22 @@ The same task can be completed on multiple days (recurring habit tracking). The 
 
 The app supports multiple platforms (Android, iOS, web, desktop) and a stateless REST API is simpler to deploy and scale. JWTs are stored in the device keychain/keystore via `flutter_secure_storage` on mobile.
 
+### Why Idempotency Keys for Offline Sync?
+
+A personal task created while offline is queued and replayed later. Mobile connections are unreliable enough that a replay can arrive after the original request already succeeded, so the client generates the task's id up front and sends it as `clientId`. `POST /tasks` looks the key up first and returns the existing task (HTTP 200) instead of creating a second one, and a partial unique index on `assignedBy` + `clientId` settles concurrent retries. The index uses `partialFilterExpression` rather than `sparse`: on a compound index, `sparse` only skips documents missing every indexed field, and every task has `assignedBy`, so a sparse index would collide on the second task a user created without a `clientId`. Only replayed creates carry a `clientId`; a direct create does not.
+
+### Why a Full-Page Redirect for Google Sign-In on Web?
+
+The popup used by Google's rendered button relays its result back through `postMessage`, and `accounts.google.com`'s own Cross-Origin-Opener-Policy blocks that relay no matter which headers the host page sends. A full-page redirect with `response_type=id_token` involves no popup and no cross-window messaging. The redirect URI is the site origin with a trailing slash and must be registered in Google Cloud Console.
+
+### Why the Gmail REST API Instead of SMTP?
+
+Render blocks outbound SMTP on ports 465 and 587. Mail is sent through the Gmail REST API over HTTPS (port 443) with an OAuth2 refresh token, which works on every host that allows outbound HTTPS.
+
+### Why the Backend Owns Timestamps
+
+Completion timestamps (`completedDays`, `completedBy.completedAt`) are always set by the server. Clients never send them, because device clocks and timezones can't be trusted.
+
 ### Home Widget Data Flow
 
 ```
@@ -250,4 +353,4 @@ TaskCubit.updateWidget()
         → AppWidgetManager.updateAppWidget()
 ```
 
-Widget taps send a `homeWidget://widget?widget_action=...` URI intent which is intercepted by `MainActivity` and routed through `InitializationService._handleWidgetAction()`.
+Widget taps send a `homeWidget://widget?widget_action=...` URI. The home_widget plugin surfaces it to Dart (on cold start and while the app is running), and `InitializationService._handleWidgetAction()` routes it: toggling a task, refreshing data, or navigating to the home page.
