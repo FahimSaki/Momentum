@@ -11,7 +11,7 @@
 migrate_working_dir/
 .env
 supabase_cmd.sql
-momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json
+*firebase-adminsdk*.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 backend/node_modules

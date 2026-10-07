@@ -9,6 +9,7 @@ import {
     saveTaskToHistory,
     getTaskTeam,
 } from '../helpers/taskHelpers';
+import { parseUtcOffset, localDayStamp } from '../helpers/dayHelpers';
 import {
     sendTaskAssignedNotification,
     sendTaskCompletedNotification,
@@ -210,7 +211,10 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
 export const completeTask = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        const { isCompleted } = req.body as { isCompleted: boolean };
+        const { isCompleted, utcOffsetMinutes } = req.body as {
+            isCompleted: boolean;
+            utcOffsetMinutes?: number;
+        };
         const userId = req.userId;
 
         const task = await Task.findById(id)
@@ -238,15 +242,17 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
             }
         }
 
-        // Backend is the sole authority for completion timestamps — never trust client clock
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        // Backend is the sole authority for completion timestamps — never trust
+        // the client clock. The client only reports its UTC offset, and the
+        // completion lands on that user's own calendar date (see dayHelpers).
+        // No offset means UTC, exactly as before this field existed.
+        const offset = parseUtcOffset(utcOffsetMinutes);
+        const today = localDayStamp(new Date(), offset);
+        const isToday = (instant: Date) => localDayStamp(instant, offset).getTime() === today.getTime();
 
         if (isCompleted) {
-            const alreadyToday = task.completedDays.some((d) => {
-                const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                return local.getTime() === today.getTime();
-            });
+            // completedDays holds day stamps, so compare them directly.
+            const alreadyToday = task.completedDays.some((d) => d.getTime() === today.getTime());
             if (!alreadyToday) {
                 task.completedDays.push(today);
                 task.lastCompletedDate = today;
@@ -261,27 +267,11 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
                 }
             }
         } else {
-            task.completedDays = task.completedDays.filter((d) => {
-                const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-                return local.getTime() !== today.getTime();
-            });
-            task.completedBy = task.completedBy.filter((c) => {
-                if (c.user.toString() !== userId) return true;
-                const cd = new Date(
-                    c.completedAt.getFullYear(),
-                    c.completedAt.getMonth(),
-                    c.completedAt.getDate()
-                );
-                return cd.getTime() !== today.getTime();
-            });
-            const otherToday = task.completedBy.some((c) => {
-                const cd = new Date(
-                    c.completedAt.getFullYear(),
-                    c.completedAt.getMonth(),
-                    c.completedAt.getDate()
-                );
-                return cd.getTime() === today.getTime();
-            });
+            task.completedDays = task.completedDays.filter((d) => d.getTime() !== today.getTime());
+            task.completedBy = task.completedBy.filter(
+                (c) => c.user.toString() !== userId || !isToday(c.completedAt)
+            );
+            const otherToday = task.completedBy.some((c) => isToday(c.completedAt));
             if (!otherToday) {
                 task.isArchived = false;
                 task.archivedAt = undefined;
@@ -369,16 +359,19 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
         // status=active  → non-archived + archived-today (mirrors getTeamTasks behaviour)
         // status=archived → archived only
         // status=all      → no archive filter
-        const { userId, teamId, type = 'all', status = 'active' } = req.query as Record<string, string>;
-        const requesterId = req.userId;
+        //
+        // Always scoped to the authenticated user. There is deliberately no way
+        // to ask for another user's tasks.
+        const { teamId, type = 'all', status = 'active' } = req.query as Record<string, string>;
+        const userId = req.userId;
 
         let query: Record<string, any> = {};
         if (type === 'personal') {
-            query = { assignedTo: userId || requesterId, team: { $exists: false } };
+            query = { assignedTo: userId, team: { $exists: false } };
         } else if (type === 'team' && teamId) {
-            query = { team: teamId, assignedTo: userId || requesterId };
+            query = { team: teamId, assignedTo: userId };
         } else {
-            query = { assignedTo: userId || requesterId };
+            query = { assignedTo: userId };
         }
 
         // ── Active/archive filter – backend is the authority on what "today" means ──
@@ -471,18 +464,20 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
 
 export const getTaskHistory = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { userId, teamId } = req.query as Record<string, string>;
-        const requesterId = req.userId;
+        // Team scope requires membership; otherwise it is always the caller's own
+        // history. There is deliberately no way to ask for another user's.
+        const { teamId } = req.query as Record<string, string>;
+        const userId = req.userId;
 
         let query: Record<string, any> = {};
         if (teamId) {
             const team = await Team.findById(teamId);
             if (!team) { res.status(404).json({ message: 'Team not found' }); return; }
-            const isMember = team.members.some((m) => m.user.toString() === requesterId);
+            const isMember = team.members.some((m) => m.user.toString() === userId);
             if (!isMember) { res.status(403).json({ message: 'Access denied' }); return; }
             query.teamId = teamId;
         } else {
-            query.userId = userId || requesterId;
+            query.userId = userId;
         }
 
         const history = await TaskHistory.find(query)
@@ -501,14 +496,14 @@ export const getTaskHistory = async (req: Request, res: Response): Promise<void>
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { teamId } = req.query as { teamId?: string };
+        const { teamId, utcOffsetMinutes } = req.query as { teamId?: string; utcOffsetMinutes?: string };
         const userId = req.userId;
 
         const query: Record<string, any> = { assignedTo: userId };
         if (teamId) query.team = teamId;
 
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        // "Today" is the requesting user's calendar date, as a day stamp.
+        const today = localDayStamp(new Date(), parseUtcOffset(utcOffsetMinutes));
         const tomorrow = new Date(today.getTime() + 86400000);
         const nextWeek = new Date(today.getTime() + 7 * 86400000);
 

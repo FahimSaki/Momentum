@@ -3,6 +3,7 @@ import User from '../models/User';
 import bcrypt from 'bcryptjs';
 import { sendAccountDeletionCode, sendPasswordChangeCode } from '../services/emailService';
 import { generateAndSendOtp } from '../services/otpService';
+import { IUserDocument } from '../types/interfaces';
 
 // Verification codes for account deletion are valid for this long.
 const DELETE_ACCOUNT_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
@@ -144,15 +145,37 @@ export const removeFcmToken = async (req: Request, res: Response): Promise<void>
     }
 };
 
+// ── Public profile (what other users may see) ─────────────────────────────
+
+const PRIVATE_NAME = 'Private user';
+const PUBLIC_PROFILE_FIELDS = 'name email inviteId avatar bio profileVisibility';
+
+/** The invite ID and avatar are always visible. Name, email and bio follow the
+ *  owner's profileVisibility flags; a hidden name is replaced by a placeholder
+ *  and hidden email/bio are left out of the response entirely. Defaults match
+ *  the schema: showName true, showEmail false, showBio true. */
+const toPublicProfile = (user: IUserDocument) => {
+    const visibility = user.profileVisibility;
+    return {
+        _id: user._id,
+        inviteId: user.inviteId,
+        avatar: user.avatar,
+        name: visibility?.showName === false ? PRIVATE_NAME : user.name,
+        email: visibility?.showEmail === true ? user.email : undefined,
+        bio: visibility?.showBio === false ? undefined : user.bio,
+        profileVisibility: visibility,
+    };
+};
+
 // ── Find by invite ID ─────────────────────────────────────────────────────
 
 export const findByInviteId = async (req: Request, res: Response): Promise<void> => {
     try {
         const { inviteId } = req.params;
         const user = await User.findOne({ inviteId, isPublic: true, isActive: true })
-            .select('name email inviteId avatar bio profileVisibility');
+            .select(PUBLIC_PROFILE_FIELDS);
         if (!user) { res.status(404).json({ message: 'User not found with that invite ID' }); return; }
-        res.json(user);
+        res.json(toPublicProfile(user));
     } catch (err) {
         console.error('Find by invite ID error:', err);
         res.status(500).json({ message: 'Server error' });
@@ -171,16 +194,23 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
         const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(escaped, 'i');
 
+        // The invite ID is always searchable. Name and email only match users
+        // who allow them to be seen, otherwise a search would confirm a value
+        // the owner chose to hide.
         const users = await User.find({
             isPublic: true,
             isActive: true,
             _id: { $ne: req.userId },
-            $or: [{ name: regex }, { email: regex }, { inviteId: regex }],
+            $or: [
+                { inviteId: regex },
+                { name: regex, 'profileVisibility.showName': { $ne: false } },
+                { email: regex, 'profileVisibility.showEmail': true },
+            ],
         })
-            .select('name email inviteId avatar bio profileVisibility')
+            .select(PUBLIC_PROFILE_FIELDS)
             .limit(Math.min(parseInt(limit), 50));
 
-        res.json(users);
+        res.json(users.map((u) => toPublicProfile(u)));
     } catch (err) {
         console.error('Search users error:', err);
         res.status(500).json({ message: 'Server error' });

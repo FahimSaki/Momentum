@@ -28,6 +28,12 @@ interface GenerateAndSendOtpOptions {
  * the request since the code is the user's only way forward. That's why
  * this returns `sent` rather than throwing on email failure: the caller
  * inspects it and decides.
+ *
+ * Local development: when NODE_ENV is "development" and the email cannot be
+ * sent (typically because the GMAIL_* variables are not set), the code is
+ * printed to the server console and the send counts as delivered, so every
+ * flow can be completed without mail credentials. In any other environment a
+ * failed send is reported as `sent: false`.
  */
 export async function generateAndSendOtp(
     options: GenerateAndSendOtpOptions
@@ -44,6 +50,14 @@ export async function generateAndSendOtp(
         return { code, sent: true };
     } catch (err: any) {
         console.error(`❌ Failed to send OTP to ${logContext}:`, err?.message ?? err);
+
+        // NODE_ENV is read here, not at import time: dotenv.config() runs after
+        // the route modules (and this file) have already been loaded.
+        if (process.env.NODE_ENV === 'development') {
+            console.warn(`⚠️  [dev] Email not delivered. OTP for ${logContext}: ${code}`);
+            return { code, sent: true };
+        }
+
         return { code, sent: false };
     }
 }

@@ -118,7 +118,6 @@ export interface ITeamNotificationSettings {
 
 export interface ITeamSettings {
     allowMemberInvite: boolean;
-    taskAutoDelete: boolean;
     notificationSettings: ITeamNotificationSettings;
 }
 

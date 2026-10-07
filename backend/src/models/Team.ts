@@ -20,7 +20,6 @@ const teamSchema = new Schema<ITeamDocument>(
         ],
         settings: {
             allowMemberInvite: { type: Boolean, default: false },
-            taskAutoDelete: { type: Boolean, default: true },
             notificationSettings: {
                 taskAssigned: { type: Boolean, default: true },
                 taskCompleted: { type: Boolean, default: true },

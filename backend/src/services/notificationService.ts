@@ -6,16 +6,18 @@ import User from '../models/User';
 import { ITaskDocument, ITeamNotificationSettings, IUserDocument, NotificationPayload } from '../types/interfaces';
 import { Types } from 'mongoose';
 import fs from 'fs';
-import path from 'path';
 
 // ── Firebase init ──────────────────────────────────────────────────────────
 let firebaseInitialised = false;
 
+/** Reads the service account from FIREBASE_SERVICE_ACCOUNT_JSON (hosting) or
+ *  FIREBASE_SERVICE_ACCOUNT_PATH (local). With neither set, push notifications
+ *  are disabled and everything else keeps working. */
 export const initFirebase = (): void => {
     if (firebaseInitialised || admin.apps.length) { firebaseInitialised = true; return; }
     try {
-        let serviceAccount: object | undefined;
-        let source = '';
+        let serviceAccount: object;
+        let source: string;
 
         if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
             serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
@@ -25,20 +27,11 @@ export const initFirebase = (): void => {
                 fs.readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_PATH, 'utf8')
             );
             source = `file at ${process.env.FIREBASE_SERVICE_ACCOUNT_PATH}`;
-        }
-
-        // ── 3. Local development file ───────────────────────────────────────
-        else {
-            const localPath = path.join(
-                __dirname,
-                '../../momentum-51138-firebase-adminsdk-fbsvc-f3005dd37f.json'
+        } else {
+            console.warn(
+                '⚠️ Firebase: set FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH — push notifications disabled'
             );
-            if (!fs.existsSync(localPath)) {
-                console.warn('⚠️ Firebase: no service account found — push notifications disabled');
-                return;
-            }
-            serviceAccount = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-            source = `firebase secret file at ${localPath}`;
+            return;
         }
 
         admin.initializeApp({
@@ -205,16 +198,6 @@ export const sendNotification = async (
     }
 };
 
-// ── Update FCM token ──────────────────────────────────────────────────────
-export const updateFCMToken = async (userId: string, token: string, platform = 'android'): Promise<void> => {
-    const user = await User.findById(userId);
-    if (!user) throw new Error('User not found');
-    user.fcmTokens = user.fcmTokens.filter((t) => t.token !== token);
-    user.fcmTokens.push({ token, platform: platform as any, lastUsed: new Date() });
-    user.fcmTokens = user.fcmTokens.sort((a, b) => b.lastUsed.getTime() - a.lastUsed.getTime()).slice(0, 5);
-    await user.save();
-};
-
 // ── Task assigned notification ────────────────────────────────────────────
 export const sendTaskAssignedNotification = async (
     task: ITaskDocument, assigner: IUserDocument, recipientIds: string[]
@@ -343,39 +326,3 @@ export const cleanupOldNotifications = async (daysOld = 30): Promise<number> => 
         return 0;
     }
 };
-
-// ── Get user notifications ────────────────────────────────────────────────
-export const getUserNotifications = async (
-    userId: string, limit = 50, offset = 0, unreadOnly = false
-) => {
-    const query: Record<string, unknown> = { recipient: userId };
-    if (unreadOnly) query.isRead = false;
-
-    const [notifications, totalCount, unreadCount] = await Promise.all([
-        Notification.find(query)
-            .populate('sender', 'name email avatar')
-            .populate('team', 'name')
-            .populate('task', 'name')
-            .sort({ createdAt: -1 })
-            .limit(limit)
-            .skip(offset)
-            .lean(),
-        Notification.countDocuments(query),
-        Notification.countDocuments({ recipient: userId, isRead: false }),
-    ]);
-
-    return { notifications, totalCount, unreadCount };
-};
-
-export const markNotificationAsRead = async (notificationId: string, userId: string) =>
-    Notification.findOneAndUpdate(
-        { _id: notificationId, recipient: userId },
-        { isRead: true, readAt: new Date() },
-        { new: true }
-    );
-
-export const markAllNotificationsAsRead = async (userId: string) =>
-    Notification.updateMany(
-        { recipient: userId, isRead: false },
-        { isRead: true, readAt: new Date() }
-    );

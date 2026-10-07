@@ -21,7 +21,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+// 10000 is Render's default and the port the Flutter debug build points at.
+const PORT = process.env.PORT || 10000;
 
 // ── Security & parsing ────────────────────────────────────────────────────
 app.use(helmet());

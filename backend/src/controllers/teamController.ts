@@ -26,7 +26,6 @@ export const createTeam = async (req: Request, res: Response): Promise<void> => 
             members: [{ user: userId, role: 'owner', joinedAt: new Date() }],
             settings: {
                 allowMemberInvite: false,
-                taskAutoDelete: true,
                 notificationSettings: { taskAssigned: true, taskCompleted: true, memberJoined: true },
             },
             isActive: true,
@@ -209,18 +208,22 @@ export const respondToInvitation = async (req: Request, res: Response): Promise<
                 await team.save();
                 await User.findByIdAndUpdate(userId, { $push: { teams: team._id } });
 
-                const memberNotifs = team.members
-                    .filter((m) => m.user.toString() !== userId)
-                    .map((m) => ({
-                        recipient: m.user,
-                        sender: new Types.ObjectId(userId),
-                        team: team._id,
-                        type: 'team_member_joined' as const,
-                        title: 'New Team Member',
-                        message: `${req.user.name} joined the team "${team.name}"`,
-                        data: { teamId: team._id, newMemberName: req.user.name },
-                    }));
-                if (memberNotifs.length) await Notification.insertMany(memberNotifs);
+                // The team's memberJoined setting decides whether the existing
+                // members are told about the new one.
+                if (team.settings.notificationSettings.memberJoined) {
+                    const memberNotifs = team.members
+                        .filter((m) => m.user.toString() !== userId)
+                        .map((m) => ({
+                            recipient: m.user,
+                            sender: new Types.ObjectId(userId),
+                            team: team._id,
+                            type: 'team_member_joined' as const,
+                            title: 'New Team Member',
+                            message: `${req.user.name} joined the team "${team.name}"`,
+                            data: { teamId: team._id, newMemberName: req.user.name },
+                        }));
+                    if (memberNotifs.length) await Notification.insertMany(memberNotifs);
+                }
             }
         }
 
@@ -293,9 +296,6 @@ export const updateTeamSettings = async (req: Request, res: Response): Promise<v
         // Prevents clients injecting arbitrary subdocument fields.
         if (typeof settings.allowMemberInvite === 'boolean') {
             team.settings.allowMemberInvite = settings.allowMemberInvite;
-        }
-        if (typeof settings.taskAutoDelete === 'boolean') {
-            team.settings.taskAutoDelete = settings.taskAutoDelete;
         }
         if (settings.notificationSettings && typeof settings.notificationSettings === 'object') {
             const ns = settings.notificationSettings;

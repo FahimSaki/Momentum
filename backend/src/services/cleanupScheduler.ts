@@ -43,18 +43,24 @@ const deleteOldArchivedTasks = async (): Promise<number> => {
 
 const removeOldCompletionDays = async (): Promise<number> => {
     try {
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
+        // Completion days are day stamps naming the completing user's own
+        // calendar date, which can be a day behind UTC for users west of it.
+        // Only stamps older than yesterday are safe to treat as old, otherwise
+        // a completion made just after UTC midnight would lose its day here.
+        const cutoff = new Date();
+        cutoff.setUTCHours(0, 0, 0, 0);
+        cutoff.setTime(cutoff.getTime() - 24 * 60 * 60 * 1000);
+
         const tasks = await Task.find({});
         let cleaned = 0;
         for (const task of tasks) {
             try {
-                const oldCompletions = task.completedDays.filter((d) => new Date(d) < today);
+                const oldCompletions = task.completedDays.filter((d) => new Date(d) < cutoff);
                 if (oldCompletions.length > 0) {
                     await saveTaskToHistory({ ...task.toObject(), completedDays: oldCompletions } as ITaskDocument);
                 }
                 const before = task.completedDays.length;
-                task.completedDays = task.completedDays.filter((d) => new Date(d) >= today);
+                task.completedDays = task.completedDays.filter((d) => new Date(d) >= cutoff);
                 if (before !== task.completedDays.length) {
                     await task.save();
                     cleaned++;
