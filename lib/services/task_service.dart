@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:momentum/config/api_base_url.dart';
 import 'package:momentum/models/task.dart';
+import 'package:momentum/utils/day_utils.dart';
 import 'package:logger/logger.dart';
 
 class TaskService {
@@ -24,13 +25,17 @@ class TaskService {
         'Task ${isCompleted ? "complete" : "uncomplete"} request: $taskId',
       );
 
-      // Backend is the sole authority for completion timestamps —
-      // do NOT send completedAt from the client clock.
+      // Backend is the sole authority for completion timestamps, so no
+      // completedAt is sent. Only the device's UTC offset goes along, so the
+      // completion lands on the user's own calendar date.
       final response = await http
           .patch(
             Uri.parse('$apiBaseUrl/tasks/$taskId/complete'),
             headers: _headers,
-            body: json.encode({'isCompleted': isCompleted}),
+            body: json.encode({
+              'isCompleted': isCompleted,
+              'utcOffsetMinutes': deviceUtcOffsetMinutes(),
+            }),
           )
           .timeout(const Duration(seconds: 15));
 
@@ -241,7 +246,8 @@ class TaskService {
         for (final item in data) {
           final List days = item['completedDays'] ?? [];
           for (final d in days) {
-            results.add(DateTime.parse(d).toLocal());
+            // Day stamps name a calendar date; they are not local instants.
+            results.add(dayStampToDate(DateTime.parse(d)));
           }
         }
 
@@ -256,14 +262,19 @@ class TaskService {
   }
 
   // ─────────────────────────────────────────────
-  // DASHBOARD STATS — now correctly passes teamId
+  // DASHBOARD STATS — passes teamId and the device UTC offset
   // ─────────────────────────────────────────────
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
-      // Pass teamId so backend scopes stats to the selected team.
-      final uri = (teamId != null && teamId.isNotEmpty)
-          ? Uri.parse('$apiBaseUrl/tasks/dashboard-stats?teamId=$teamId')
-          : Uri.parse('$apiBaseUrl/tasks/dashboard-stats');
+      // teamId scopes stats to the selected team; the offset lets the backend
+      // use the user's own calendar date for "completed today".
+      final params = <String, String>{
+        'utcOffsetMinutes': '${deviceUtcOffsetMinutes()}',
+        if (teamId != null && teamId.isNotEmpty) 'teamId': teamId,
+      };
+      final uri = Uri.parse(
+        '$apiBaseUrl/tasks/dashboard-stats',
+      ).replace(queryParameters: params);
 
       final response = await http.get(uri, headers: _headers);
 

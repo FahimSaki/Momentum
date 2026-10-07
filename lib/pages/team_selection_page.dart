@@ -7,8 +7,8 @@ import 'package:momentum/blocs/team_state.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/pages/create_team_page.dart';
 import 'package:momentum/pages/home_page.dart';
+import 'package:momentum/pages/notifications_page.dart';
 import 'package:momentum/pages/team_home_page.dart';
-import 'package:momentum/pages/team_invitations_page.dart';
 import 'package:momentum/pages/team_details_page.dart';
 
 class TeamSelectionPage extends StatefulWidget {
@@ -44,10 +44,13 @@ class _TeamSelectionPageState extends State<TeamSelectionPage> {
                   IconButton(
                     icon: const Icon(Icons.mail),
                     onPressed: () {
+                      // NotificationsPage opens on its Invitations tab, which
+                      // lists exactly what this badge counts and lets the user
+                      // accept or decline.
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const TeamInvitationsPage(),
+                          builder: (context) => const NotificationsPage(),
                         ),
                       );
                     },

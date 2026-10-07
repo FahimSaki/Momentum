@@ -1,6 +1,7 @@
 import 'package:momentum/models/completion_record.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/user.dart';
+import 'package:momentum/utils/day_utils.dart';
 
 /// Tracks whether a task's create request has reached the backend yet.
 /// Anything loaded from the server is [synced]. Tasks created while
@@ -30,6 +31,9 @@ class Task {
   String priority;
   DateTime? dueDate;
   List<String> tags;
+
+  /// Calendar dates (local midnight) the task was completed on. The server
+  /// sends them as day stamps; see day_utils.dart.
   List<DateTime> completedDays;
   List<CompletionRecord> completedBy;
   DateTime? lastCompletedDate;
@@ -98,7 +102,7 @@ class Task {
           [],
       completedDays:
           (json['completedDays'] as List<dynamic>?)
-              ?.map((e) => DateTime.parse(e).toLocal())
+              ?.map((e) => dayStampToDate(DateTime.parse(e)))
               .toList() ??
           [],
       completedBy:
@@ -107,7 +111,7 @@ class Task {
               .toList() ??
           [],
       lastCompletedDate: json['lastCompletedDate'] != null
-          ? DateTime.parse(json['lastCompletedDate']).toLocal()
+          ? dayStampToDate(DateTime.parse(json['lastCompletedDate']))
           : null,
       isArchived: json['isArchived'] ?? false,
       archivedAt: json['archivedAt'] != null
@@ -131,9 +135,14 @@ class Task {
     'priority': priority,
     'dueDate': dueDate?.toIso8601String(),
     'tags': tags,
-    'completedDays': completedDays.map((e) => e.toIso8601String()).toList(),
+    // Written back as day stamps so a cached task reads exactly like a fresh one.
+    'completedDays': completedDays
+        .map((e) => dateToDayStamp(e).toIso8601String())
+        .toList(),
     'completedBy': completedBy.map((c) => c.toJson()).toList(),
-    'lastCompletedDate': lastCompletedDate?.toIso8601String(),
+    'lastCompletedDate': lastCompletedDate == null
+        ? null
+        : dateToDayStamp(lastCompletedDate!).toIso8601String(),
     'isArchived': isArchived,
     'archivedAt': archivedAt?.toIso8601String(),
     'isTeamTask': isTeamTask,
@@ -148,16 +157,27 @@ class Task {
   bool isCompletedBy(String userId) =>
       completedBy.any((c) => c.user.id == userId);
 
+  /// Completed during the current local day.
+  ///
+  /// The server archives a task the moment it is completed, so for an archived
+  /// task the instant it was archived decides this. That is the same rule
+  /// TaskCubit uses to keep archived tasks in its list, so the two cannot
+  /// disagree and leave a task that is neither active nor completed. Tasks
+  /// with no archive time fall back to their completion days.
   bool isCompletedToday() {
-    final today = _localToday();
-    return completedDays.any((d) => _sameDay(d.toLocal(), today));
+    final today = localToday();
+    final archived = archivedAt;
+    if (isArchived && archived != null) {
+      return isSameDay(archived.toLocal(), today);
+    }
+    return completedDays.any((d) => isSameDay(d, today));
   }
 
   bool isCompletedByUserToday(String userId) {
-    final today = _localToday();
+    final today = localToday();
     return completedBy.any((c) {
       if (c.user.id != userId) return false;
-      return _sameDay(c.completedAt.toLocal(), today);
+      return isSameDay(c.completedAt.toLocal(), today);
     });
   }
 
@@ -170,13 +190,14 @@ class Task {
 
   bool get isOverdue {
     if (dueDate == null || isArchived) return false;
-    return _localDay(dueDate!).isBefore(_localToday()) && !isCompletedToday();
+    return dateOnly(dueDate!.toLocal()).isBefore(localToday()) &&
+        !isCompletedToday();
   }
 
   bool get isDueSoon {
     if (dueDate == null || isArchived) return false;
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return _localDay(dueDate!) == _localDay(tomorrow) && !isCompletedToday();
+    final tomorrow = dateOnly(DateTime.now().add(const Duration(days: 1)));
+    return dateOnly(dueDate!.toLocal()) == tomorrow && !isCompletedToday();
   }
 
   String get priorityColor {
@@ -189,18 +210,3 @@ class Task {
     return map[priority] ?? '#FF9800';
   }
 }
-
-// ── Private date helpers (file-private) ─────────────────────────────────
-
-DateTime _localToday() {
-  final n = DateTime.now();
-  return DateTime(n.year, n.month, n.day);
-}
-
-DateTime _localDay(DateTime dt) {
-  final l = dt.toLocal();
-  return DateTime(l.year, l.month, l.day);
-}
-
-bool _sameDay(DateTime a, DateTime b) =>
-    a.year == b.year && a.month == b.month && a.day == b.day;
