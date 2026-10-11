@@ -25,6 +25,10 @@ const taskSchema = new Schema<ITaskDocument>(
         lastCompletedDate: { type: Date },
         isArchived: { type: Boolean, default: false },
         archivedAt: { type: Date },
+        // The instant the completing user's local day ends. The hourly cleanup
+        // removes the task after this, once its days are saved to history.
+        // Absent on tasks archived before this field existed.
+        archiveExpiresAt: { type: Date },
         isTeamTask: { type: Boolean, default: false },
         assignmentType: {
             type: String,
@@ -52,6 +56,7 @@ taskSchema.index({ assignedBy: 1 });
 taskSchema.index({ team: 1 });
 taskSchema.index({ dueDate: 1 });
 taskSchema.index({ isArchived: 1, team: 1 });
+taskSchema.index({ isArchived: 1, archiveExpiresAt: 1 });
 // `sparse` on a COMPOUND index only excludes a document missing ALL of the
 // index's fields — every task has `assignedBy`, so this was indexing
 // every task and colliding on the second one any user created without a

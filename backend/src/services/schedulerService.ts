@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { runDailyCleanup } from './cleanupScheduler';
+import { runDailyCleanup, expireArchivedTasks } from './cleanupScheduler';
 import { sendDueDateReminders, cleanupOldNotifications } from './notificationService';
 
 export const startScheduler = (): void => {
@@ -9,6 +9,13 @@ export const startScheduler = (): void => {
             console.log('⏰ Running daily cleanup...');
             try { await runDailyCleanup(); }
             catch (err) { console.error('❌ Daily cleanup error (non-fatal):', err); }
+        }, { timezone: 'UTC' });
+
+        // Remove completed tasks once their completer's local day has ended.
+        // Hourly, offset from the daily job so the two never overlap.
+        cron.schedule('20 * * * *', async () => {
+            try { await expireArchivedTasks(); }
+            catch (err) { console.error('❌ Task expiry error (non-fatal):', err); }
         }, { timezone: 'UTC' });
 
         // Clean old notifications weekly (Sundays at 2 AM UTC)
@@ -25,7 +32,7 @@ export const startScheduler = (): void => {
             catch (err) { console.error('❌ Due date reminder error (non-fatal):', err); }
         }, { timezone: 'UTC' });
 
-        console.log('📅 Scheduler started (cleanup, notifications, reminders)');
+        console.log('📅 Scheduler started (cleanup, task expiry, notifications, reminders)');
     } catch (err) {
         console.error('❌ Error starting scheduler:', err);
     }

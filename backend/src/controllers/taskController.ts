@@ -9,7 +9,7 @@ import {
     saveTaskToHistory,
     getTaskTeam,
 } from '../helpers/taskHelpers';
-import { parseUtcOffset, localDayStamp } from '../helpers/dayHelpers';
+import { parseUtcOffset, localDayStamp, endOfLocalDay } from '../helpers/dayHelpers';
 import {
     sendTaskAssignedNotification,
     sendTaskCompletedNotification,
@@ -258,6 +258,8 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
                 task.lastCompletedDate = today;
                 task.isArchived = true;
                 task.archivedAt = new Date();
+                // The cleanup job removes the task once the completer's local day is over.
+                task.archiveExpiresAt = endOfLocalDay(today, offset);
                 const existing = task.completedBy.find((c) => c.user.toString() === userId);
                 if (!existing) {
                     task.completedBy.push({
@@ -275,6 +277,7 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
             if (!otherToday) {
                 task.isArchived = false;
                 task.archivedAt = undefined;
+                task.archiveExpiresAt = undefined;
             }
             task.lastCompletedDate = task.completedDays.length
                 ? task.completedDays.reduce((a, b) => (a > b ? a : b))
@@ -378,9 +381,13 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
         if (status === 'active') {
             const todayStart = new Date();
             todayStart.setUTCHours(0, 0, 0, 0);
+            // Archived tasks stay listed until the hourly cleanup removes them, so
+            // their days are already in history before they leave the list. Tasks
+            // archived before per-user expiry existed keep the old UTC-day rule.
             query.$or = [
                 { isArchived: false },
-                { isArchived: true, archivedAt: { $gte: todayStart } },
+                { isArchived: true, archiveExpiresAt: { $exists: true } },
+                { isArchived: true, archiveExpiresAt: { $exists: false }, archivedAt: { $gte: todayStart } },
             ];
         } else if (status === 'archived') {
             query.isArchived = true;
@@ -438,9 +445,13 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
         if (status === 'active') {
             const todayStart = new Date();
             todayStart.setUTCHours(0, 0, 0, 0);
+            // Archived tasks stay listed until the hourly cleanup removes them, so
+            // their days are already in history before they leave the list. Tasks
+            // archived before per-user expiry existed keep the old UTC-day rule.
             query.$or = [
                 { isArchived: false },
-                { isArchived: true, archivedAt: { $gte: todayStart } },
+                { isArchived: true, archiveExpiresAt: { $exists: true } },
+                { isArchived: true, archiveExpiresAt: { $exists: false }, archivedAt: { $gte: todayStart } },
             ];
         } else if (status === 'archived') {
             query.isArchived = true;

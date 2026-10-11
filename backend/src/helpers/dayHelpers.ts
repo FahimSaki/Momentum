@@ -23,3 +23,7 @@ export const localDayStamp = (instant: Date, offsetMinutes: number): Date => {
     const shifted = new Date(instant.getTime() + offsetMinutes * MINUTE_MS);
     return new Date(Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()));
 };
+
+/** The instant the local day named by `dayStamp` ends for someone at `offsetMinutes`. */
+export const endOfLocalDay = (dayStamp: Date, offsetMinutes: number): Date =>
+    new Date(dayStamp.getTime() + 24 * 60 * MINUTE_MS - offsetMinutes * MINUTE_MS);

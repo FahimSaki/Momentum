@@ -45,6 +45,11 @@ class TaskCubit extends Cubit<TaskState> {
   final SessionCubit _sessionCubit;
   StreamSubscription<TeamState>? _teamSubscription;
 
+  /// When history was last loaded successfully. Used to refresh it now and
+  /// then even if no task disappears, as a safety net.
+  DateTime? _lastHistoryLoad;
+  static const Duration _historyRefreshInterval = Duration(minutes: 5);
+
   TaskCubit({
     required NotificationCubit notificationCubit,
     required TeamCubit teamCubit,
@@ -124,6 +129,7 @@ class TaskCubit extends Cubit<TaskState> {
     _sessionCubit.clear();
     emit(const TaskState());
     _taskService = null;
+    _lastHistoryLoad = null;
     await _cacheService.clearAll();
     await _syncQueueService.clear();
   }
@@ -141,25 +147,26 @@ class TaskCubit extends Cubit<TaskState> {
         tasks = await _taskService!.getUserTasks();
       }
 
-      final now = DateTime.now();
-      final todayStart = DateTime(now.year, now.month, now.day);
+      // The server keeps completed tasks in this list until its cleanup has
+      // saved their completion days to history, and only then deletes them.
+      // Every task is kept here, so the heatmap never loses a day: whether a
+      // task still counts as completed today is Task.isCompletedToday()'s call.
+      //
+      // When a task that had completion days is gone from the response, its
+      // days have just moved into history, so reload history before swapping
+      // the list in. The heatmap then goes straight from "counted from the
+      // task" to "counted from history" with no gap.
+      final hadCompletions = state.currentTasks
+          .where((t) => t.completedDays.isNotEmpty)
+          .map((t) => t.id)
+          .toSet();
+      final gone = hadCompletions.difference(tasks.map((t) => t.id).toSet());
+      if (gone.isNotEmpty) {
+        await _loadHistoricalCompletions();
+      }
 
-      final filtered = tasks.where((task) {
-        if (!task.isArchived) return true;
-        if (task.archivedAt != null) {
-          final archivedLocal = task.archivedAt!.toLocal();
-          final archivedDay = DateTime(
-            archivedLocal.year,
-            archivedLocal.month,
-            archivedLocal.day,
-          );
-          return archivedDay.isAtSameMomentAs(todayStart);
-        }
-        return task.isCompletedToday();
-      }).toList();
-
-      emit(state.copyWith(currentTasks: filtered, isOffline: false));
-      await _cacheService.saveTasks(state.selectedTeam?.id, filtered);
+      emit(state.copyWith(currentTasks: tasks, isOffline: false));
+      await _cacheService.saveTasks(state.selectedTeam?.id, tasks);
     } catch (e, stackTrace) {
       if (isNetworkError(e)) {
         _logger.w('Offline — showing cached tasks');
@@ -177,6 +184,7 @@ class TaskCubit extends Cubit<TaskState> {
           await _taskService?.getTaskHistory(teamId: state.selectedTeam?.id) ??
           [];
       emit(state.copyWith(historicalCompletions: historicalData));
+      _lastHistoryLoad = DateTime.now();
       await _cacheService.saveHistoricalCompletions(
         state.selectedTeam?.id,
         historicalData,
@@ -231,6 +239,9 @@ class TaskCubit extends Cubit<TaskState> {
   Future<void> _onTeamChanged(Team? team) async {
     emit(state.copyWith(currentTasks: const [], selectedTeam: team));
     await _loadTasks();
+    // History is scoped to the selected team (or to personal), so it has to
+    // follow the selection like tasks and stats do.
+    await _loadHistoricalCompletions();
     await _loadDashboardStats().catchError(
       (e) => _logger.w('Dashboard stats update failed after team switch: $e'),
     );
@@ -541,11 +552,20 @@ class TaskCubit extends Cubit<TaskState> {
     try {
       if (!state.isInitialized) return;
       await _flushPendingOperations();
+
+      // History normally reloads when a task disappears from the list; this
+      // is the safety net for anything that path misses.
+      final last = _lastHistoryLoad;
+      final historyStale =
+          last == null ||
+          DateTime.now().difference(last) > _historyRefreshInterval;
+
       await Future.wait([
         _loadTasks(),
         _notificationCubit.loadNotifications(),
         _teamCubit.loadPendingInvitations(),
         _loadDashboardStats(),
+        if (historyStale) _loadHistoricalCompletions(),
       ]);
       await updateWidget();
     } catch (e, stackTrace) {

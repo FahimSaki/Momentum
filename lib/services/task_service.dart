@@ -121,7 +121,8 @@ class TaskService {
         body['teamId'] = teamId;
       }
       if (dueDate != null) {
-        body['dueDate'] = dueDate.toIso8601String();
+        // A due date is a calendar date, sent as a day stamp.
+        body['dueDate'] = dateToDayStamp(dueDate).toIso8601String();
       }
       if (tags != null && tags.isNotEmpty) {
         body['tags'] = tags;

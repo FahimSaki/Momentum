@@ -99,6 +99,7 @@ export interface ITask {
     lastCompletedDate?: Date;
     isArchived: boolean;
     archivedAt?: Date;
+    archiveExpiresAt?: Date;
     isTeamTask: boolean;
     assignmentType: 'individual' | 'multiple' | 'team';
     recurrence: IRecurrence;

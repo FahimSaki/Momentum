@@ -39,6 +39,10 @@ class Task {
   DateTime? lastCompletedDate;
   bool isArchived;
   DateTime? archivedAt;
+
+  /// When the completing user's local day ends. The server removes the task
+  /// after this, once its days are in history. Null on older tasks.
+  DateTime? archiveExpiresAt;
   bool isTeamTask;
   String assignmentType;
   DateTime createdAt;
@@ -70,6 +74,7 @@ class Task {
     this.lastCompletedDate,
     this.isArchived = false,
     this.archivedAt,
+    this.archiveExpiresAt,
     this.isTeamTask = false,
     this.assignmentType = 'individual',
     required this.createdAt,
@@ -95,7 +100,7 @@ class Task {
           : null,
       priority: json['priority'] ?? 'medium',
       dueDate: json['dueDate'] != null
-          ? DateTime.parse(json['dueDate']).toLocal()
+          ? dayStampToDate(DateTime.parse(json['dueDate']))
           : null,
       tags:
           (json['tags'] as List<dynamic>?)?.map((t) => t.toString()).toList() ??
@@ -117,6 +122,9 @@ class Task {
       archivedAt: json['archivedAt'] != null
           ? DateTime.parse(json['archivedAt']).toLocal()
           : null,
+      archiveExpiresAt: json['archiveExpiresAt'] != null
+          ? DateTime.parse(json['archiveExpiresAt']).toLocal()
+          : null,
       isTeamTask: json['isTeamTask'] ?? false,
       assignmentType: json['assignmentType'] ?? 'individual',
       createdAt: DateTime.parse(json['createdAt']),
@@ -133,7 +141,10 @@ class Task {
     'assignedBy': assignedBy?.toJson(),
     'team': team?.toJson(),
     'priority': priority,
-    'dueDate': dueDate?.toIso8601String(),
+    // A due date is a calendar date, written in the server's day-stamp form.
+    'dueDate': dueDate == null
+        ? null
+        : dateToDayStamp(dueDate!).toIso8601String(),
     'tags': tags,
     // Written back as day stamps so a cached task reads exactly like a fresh one.
     'completedDays': completedDays
@@ -145,6 +156,7 @@ class Task {
         : dateToDayStamp(lastCompletedDate!).toIso8601String(),
     'isArchived': isArchived,
     'archivedAt': archivedAt?.toIso8601String(),
+    'archiveExpiresAt': archiveExpiresAt?.toIso8601String(),
     'isTeamTask': isTeamTask,
     'assignmentType': assignmentType,
     'createdAt': createdAt.toIso8601String(),
@@ -157,19 +169,23 @@ class Task {
   bool isCompletedBy(String userId) =>
       completedBy.any((c) => c.user.id == userId);
 
-  /// Completed during the current local day.
+  /// Completed and still inside the completing user's day.
   ///
-  /// The server archives a task the moment it is completed, so for an archived
-  /// task the instant it was archived decides this. That is the same rule
-  /// TaskCubit uses to keep archived tasks in its list, so the two cannot
-  /// disagree and leave a task that is neither active nor completed. Tasks
-  /// with no archive time fall back to their completion days.
+  /// The server archives a task the moment it is completed and stamps when that
+  /// user's local day ends (archiveExpiresAt), so no time-zone maths happens
+  /// here. An expired task is still in the list until the server's hourly
+  /// cleanup has moved its days into history; it simply stops counting as
+  /// completed, and its completion days keep feeding the heatmap meanwhile.
+  /// Older archived tasks have no expiry, so the day they were archived on
+  /// decides. A task that is not archived falls back to its completion days.
   bool isCompletedToday() {
-    final today = localToday();
-    final archived = archivedAt;
-    if (isArchived && archived != null) {
-      return isSameDay(archived.toLocal(), today);
+    if (isArchived) {
+      final expires = archiveExpiresAt;
+      if (expires != null) return expires.isAfter(DateTime.now());
+      final archived = archivedAt;
+      if (archived != null) return isSameDay(archived.toLocal(), localToday());
     }
+    final today = localToday();
     return completedDays.any((d) => isSameDay(d, today));
   }
 

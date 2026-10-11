@@ -18,11 +18,12 @@ const archiveCompletedTasks = async (): Promise<number> => {
     }
 };
 
+// Legacy rule, only for tasks archived before archiveExpiresAt existed.
 const deleteOldArchivedTasks = async (): Promise<number> => {
     try {
         const today = new Date();
         today.setUTCHours(0, 0, 0, 0);
-        const tasksToDelete = await Task.find({ isArchived: true, archivedAt: { $lt: today } });
+        const tasksToDelete = await Task.find({ isArchived: true, archivedAt: { $lt: today }, archiveExpiresAt: { $exists: false } });
         let count = 0;
         for (const task of tasksToDelete) {
             try {
@@ -37,6 +38,29 @@ const deleteOldArchivedTasks = async (): Promise<number> => {
         return count;
     } catch (err) {
         console.error('❌ Error deleting archived tasks:', err);
+        return 0;
+    }
+};
+
+/** Removes completed tasks whose completer's local day has ended, saving their
+ *  completion days to history first. Runs hourly. */
+export const expireArchivedTasks = async (): Promise<number> => {
+    try {
+        const expired = await Task.find({ isArchived: true, archiveExpiresAt: { $lte: new Date() } });
+        let count = 0;
+        for (const task of expired) {
+            try {
+                await saveTaskToHistory(task);
+                await task.deleteOne();
+                count++;
+            } catch (err) {
+                console.error(`Error expiring task "${task.name}":`, err);
+            }
+        }
+        if (count > 0) console.log(`✅ Expired ${count} completed tasks, history preserved`);
+        return count;
+    } catch (err) {
+        console.error('❌ Error expiring archived tasks:', err);
         return 0;
     }
 };
