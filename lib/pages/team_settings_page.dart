@@ -400,7 +400,7 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
+// Sub-widgets
 
 class _HeaderCard extends StatelessWidget {
   final Team team;

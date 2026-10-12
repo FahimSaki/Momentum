@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// ── Breakpoints ───────────────────────────────────────────────────────────────
+// Breakpoints
 class AppBreakpoints {
   const AppBreakpoints._();
   static const double mobile = 600;
@@ -8,7 +8,7 @@ class AppBreakpoints {
   static const double desktop = 1200;
 }
 
-// ── Max content widths ────────────────────────────────────────────────────────
+// Max content widths
 class AppWidths {
   const AppWidths._();
   static const double authForm = 420;
@@ -17,7 +17,7 @@ class AppWidths {
   static const double wideContent = 1100;
 }
 
-// ── Screen size helpers ───────────────────────────────────────────────────────
+// Screen size helpers
 bool isMobile(BuildContext context) =>
     MediaQuery.sizeOf(context).width < AppBreakpoints.mobile;
 
@@ -29,7 +29,7 @@ bool isTablet(BuildContext context) {
 bool isDesktop(BuildContext context) =>
     MediaQuery.sizeOf(context).width >= AppBreakpoints.desktop;
 
-// ── Responsive value helper ───────────────────────────────────────────────────
+//  Responsive value helper
 /// Returns the right value for the current screen size. [tablet] falls back to
 /// [desktop] when omitted.
 T responsiveValue<T>(
@@ -43,7 +43,7 @@ T responsiveValue<T>(
   return mobile;
 }
 
-// ── ResponsiveBuilder ─────────────────────────────────────────────────────────
+// ResponsiveBuilder
 /// Renders a different widget tree based on screen width.
 class ResponsiveBuilder extends StatelessWidget {
   const ResponsiveBuilder({
@@ -65,7 +65,7 @@ class ResponsiveBuilder extends StatelessWidget {
   }
 }
 
-// ── ResponsiveCenter ──────────────────────────────────────────────────────────
+// ResponsiveCenter
 /// Centres [child] and constrains its width to [maxWidth]. When [scrollable]
 /// is true (the default) the whole thing is wrapped in a
 /// [SingleChildScrollView]. Ideal for form pages such as login / register.
@@ -117,7 +117,7 @@ class ResponsiveCenter extends StatelessWidget {
   }
 }
 
-// ── ResponsiveBody ────────────────────────────────────────────────────────────
+// ResponsiveBody
 /// Use as [Scaffold.body] when [child] is a self-scrolling widget such as a
 /// [ListView], [RefreshIndicator], or a [Column] that contains an [Expanded].
 ///
@@ -145,7 +145,7 @@ class ResponsiveBody extends StatelessWidget {
   }
 }
 
-// ── ResponsiveScrollView ──────────────────────────────────────────────────────
+// ResponsiveScrollView
 /// A [SingleChildScrollView] whose [children] are rendered in a centred,
 /// max-width-constrained [Column]. Use for profile / settings pages where the
 /// body is a vertical list of cards.

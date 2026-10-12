@@ -33,7 +33,7 @@ function buildUserResponse(user: any) {
     };
 }
 
-// ── Register ──────────────────────────────────────────────────────────────────
+// Register
 
 export const register = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -134,7 +134,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-// ── Verify email OTP ──────────────────────────────────────────────────────────
+// Verify email OTP 
 
 export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -172,7 +172,7 @@ export const verifyEmail = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// ── Resend verification code ──────────────────────────────────────────────────
+// Resend verification code 
 
 export const resendVerification = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -217,7 +217,7 @@ export const resendVerification = async (req: Request, res: Response): Promise<v
     }
 };
 
-// ── Login ─────────────────────────────────────────────────────────────────────
+// Login 
 
 export const login = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -311,7 +311,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-// ── Verify 2FA code ───────────────────────────────────────────────────────────
+// Verify 2FA code 
 
 export const verify2FA = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -350,7 +350,7 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
     }
 };
 
-// ── Google Sign-In ────────────────────────────────────────────────────────────
+// Google Sign-In 
 
 export const googleAuth = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -478,7 +478,7 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Forgot password ───────────────────────────────────────────────────────────
+// Forgot password 
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -529,7 +529,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Reset password ────────────────────────────────────────────────────────────
+// Reset password 
 
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
     try {

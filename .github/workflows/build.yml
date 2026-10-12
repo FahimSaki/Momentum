@@ -31,7 +31,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── Inject Firebase config before anything Flutter touches ──────────
+      # Inject Firebase config before anything Flutter touches
       - name: Create google-services.json
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
@@ -76,31 +76,31 @@ jobs:
     steps:
       - name: Check backend status
         run: |
-          echo "🔍 Checking backend endpoints..."
+          echo "Checking backend endpoints..."
           check_endpoint() {
             local url="$1"
             local name="$2"
             local max_attempts=5
             local wait_time=15
             for i in $(seq 1 $max_attempts); do
-              echo "⏳ Checking $name (attempt $i/$max_attempts)..."
+              echo "Checking $name (attempt $i/$max_attempts)..."
               if curl -sSf --max-time 30 --retry 3 "$url" > /dev/null 2>&1; then
-                echo "✅ $name endpoint working"
+                echo "$name endpoint working"
                 return 0
               elif [ $i -eq $max_attempts ]; then
-                echo "❌ $name endpoint failed after $max_attempts attempts"
+                echo "$name endpoint failed after $max_attempts attempts"
                 return 1
               else
-                echo "⏸️ Waiting ${wait_time}s before retry..."
+                echo "Waiting ${wait_time}s before retry..."
                 sleep $wait_time
               fi
             done
           }
           check_endpoint "https://momentum-g7ah.onrender.com" "Wake-up"
-          echo "⏳ Allowing backend time to fully initialize..."
+          echo "Allowing backend time to fully initialize..."
           sleep 30
           check_endpoint "https://momentum-g7ah.onrender.com/health" "Health"
-          echo "📊 Backend status check completed successfully"
+          echo "Backend status check completed successfully"
   build:
     needs: [code-quality, check-backend]
     strategy:
@@ -132,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      # ── Firebase config — Android ─────────────────────────────────────────
+      # Firebase config — Android
       # Runs on every platform job but only writes the file when the secret
       # exists AND we are on a platform that needs it.  The `if` guards
       # prevent the step from hard-failing on platforms where the secret is
@@ -142,7 +142,7 @@ jobs:
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
             > android/app/google-services.json
-      # ── Firebase config — iOS ─────────────────────────────────────────────
+      # Firebase config — iOS
       - name: Create GoogleService-Info.plist (iOS)
         if: matrix.platform == 'ios'
         run: |
@@ -202,7 +202,7 @@ jobs:
               flutter config --enable-macos-desktop
               ;;
           esac
-      # ── Linux desktop build dependencies ────────────────────────────────
+      # Linux desktop build dependencies
       # Standard Flutter linux-desktop toolchain, plus libsecret/jsoncpp
       # which flutter_secure_storage_linux needs at build time.
       - name: Install Linux build dependencies
@@ -233,13 +233,13 @@ jobs:
             DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           fi
           if [ -n "$DEVICE_ID" ]; then
-            echo "✅ Selected simulator: $DEVICE_ID"
+            echo "Selected simulator: $DEVICE_ID"
             echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
             xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted"
             sleep 30
             xcrun simctl list devices | grep "$DEVICE_ID"
           else
-            echo "❌ No suitable iOS simulator found"
+            echo "No suitable iOS simulator found"
             exit 1
           fi
       - name: Get dependencies
@@ -266,7 +266,7 @@ jobs:
               flutter build windows --release
               ;;
             ios)
-              echo "🍎 Building iOS app..."
+              echo "Building iOS app..."
               if [ -n "$IOS_SIMULATOR_ID" ]; then
                 echo "Building for specific simulator: $IOS_SIMULATOR_ID"
                 if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
@@ -343,7 +343,7 @@ jobs:
         run: |
           mkdir -p release-files
           find artifacts/ -type f -exec cp {} release-files/ \;
-          echo "✅ Release files ready:"
+          echo "Release files ready:"
           ls -la release-files/
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -351,8 +351,8 @@ jobs:
           files: release-files/*
           name: Release ${{ github.ref_name }}
           body: |
-            ## 🚀 Momentum Release ${{ github.ref_name }}
-            ### 📱 Downloads
+            ## Momentum Release ${{ github.ref_name }}
+            ### Downloads
             - Android APK / AAB
             - Web
             - Linux
@@ -386,8 +386,8 @@ jobs:
       - name: Notify Build Status
         run: |
           if [ "${{ needs.build.result }}" = "success" ]; then
-            echo "✅ Build completed successfully"
+            echo "Build completed successfully"
           else
-            echo "❌ Build failed"
+            echo "Build failed"
             exit 1
           fi

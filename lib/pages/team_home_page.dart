@@ -459,7 +459,7 @@ class _TeamHomePageState extends State<TeamHomePage> {
   }
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
+// Sub-widgets
 
 class _OfflineTeamBanner extends StatelessWidget {
   @override

@@ -379,7 +379,7 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-// ── 2FA Toggle (stateful, self-contained) ─────────────────────────────────────
+// 2FA Toggle (stateful, self-contained)
 
 class _TwoFactorTile extends StatefulWidget {
   final bool isDark;
@@ -566,7 +566,7 @@ class _TwoFactorTileState extends State<_TwoFactorTile> {
   }
 }
 
-// ── Change Password entry (stateful, self-contained) ───────────────────────
+// Change Password entry (stateful, self-contained)
 
 class _ChangePasswordTile extends StatefulWidget {
   final bool isDark;

@@ -2,7 +2,7 @@
 // No extra npm packages needed: Node 18+ has native fetch.
 // No SMTP, no nodemailer.
 
-// ── Access-token cache ─────────────────────────────────────────────────────
+// Access-token cache 
 // Tokens expire in 1 hour; cache and refresh lazily.
 let _tokenCache: { token: string; expiresAt: number } | null = null;
 
@@ -38,7 +38,7 @@ async function getAccessToken(): Promise<string> {
     return data.access_token;
 }
 
-// ── Core send ──────────────────────────────────────────────────────────────
+// Core send 
 async function sendMail(to: string, subject: string, html: string): Promise<void> {
     const from = process.env.EMAIL_FROM;
     if (!from) throw new Error('EMAIL_FROM env var is required');
@@ -78,7 +78,7 @@ async function sendMail(to: string, subject: string, html: string): Promise<void
     }
 }
 
-// ── Startup health check (called from index.ts) ────────────────────────────
+// Startup health check (called from index.ts) 
 export const verifyEmailTransporter = async (): Promise<void> => {
     const required = [
         'GMAIL_CLIENT_ID',
@@ -89,20 +89,20 @@ export const verifyEmailTransporter = async (): Promise<void> => {
     const missing = required.filter((k) => !process.env[k]);
 
     if (missing.length) {
-        console.warn('⚠️  Email disabled — missing env vars:', missing.join(', '));
+        console.warn(' Email disabled — missing env vars:', missing.join(', '));
         return;
     }
 
     try {
         await getAccessToken();
-        console.log(`✅ Gmail OAuth2 ready — sending as ${process.env.EMAIL_FROM}`);
+        console.log(`Gmail OAuth2 ready — sending as ${process.env.EMAIL_FROM}`);
     } catch (err: any) {
-        console.error('❌ Gmail OAuth2 token refresh failed:', err?.message ?? err);
+        console.error('Gmail OAuth2 token refresh failed:', err?.message ?? err);
         console.error('   Double-check GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN');
     }
 };
 
-// ── Template helpers ───────────────────────────────────────────────────────
+// Template helpers 
 function codeBlock(code: string): string {
     return `<div style="
       font-size:36px;font-weight:bold;color:#6366F1;letter-spacing:12px;
@@ -125,7 +125,7 @@ function baseTemplate(title: string, body: string): string {
     </div>`;
 }
 
-// ── Public senders ─────────────────────────────────────────────────────────
+// Public senders 
 export const sendVerificationEmail = async (
     to: string,
     name: string,

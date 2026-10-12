@@ -11,11 +11,11 @@ import 'package:logger/logger.dart';
 import 'package:momentum/config/api_base_url.dart';
 import 'package:momentum/firebase_options.dart';
 
-// ── Web Push (VAPID) key ───────────────────────────────────────────────────
+// Web Push (VAPID) key
 const String _webVapidKey =
     'BGUgFaghX7Er_jdcK59JEYoP2hU0OURgms1ct2PJgV23KpJj71CxiCnrRJxwrBs5eRk8DZ4IlZxNwFKrXwFJs5I';
 
-// ── Android notification channel ──────────────────────────────────────────
+// Android notification channel
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
   'momentum_high_importance',
   'Momentum Notifications',
@@ -26,7 +26,7 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
   showBadge: true,
 );
 
-// ── Background message handler (MUST be top-level, not a class method) ────
+// Background message handler (MUST be top-level, not a class method)
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -57,7 +57,7 @@ class PushNotificationService {
     'Content-Type': 'application/json',
   };
 
-  // ── Public init ───────────────────────────────────────────────────────────
+  // Public init
 
   Future<void> init({String? jwtToken}) async {
     _jwtToken = jwtToken;
@@ -93,7 +93,7 @@ class PushNotificationService {
     }
   }
 
-  // ── Local notifications ───────────────────────────────────────────────────
+  // Local notifications
 
   Future<void> _initLocalNotifications() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -130,7 +130,7 @@ class PushNotificationService {
     debugPrint('[FCM] Background notification tapped: ${response.payload}');
   }
 
-  // ── Firebase Messaging ────────────────────────────────────────────────────
+  // Firebase Messaging
 
   Future<void> _initFirebaseMessaging() async {
     final settings = await FirebaseMessaging.instance.requestPermission(
@@ -186,7 +186,7 @@ class PushNotificationService {
     }
   }
 
-  // ── Token management ──────────────────────────────────────────────────────
+  // Token management
 
   Future<void> _registerToken() async {
     try {
@@ -266,7 +266,7 @@ class PushNotificationService {
     return 'android';
   }
 
-  // ── Message handlers ──────────────────────────────────────────────────────
+  // Message handlers
 
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     _logger.i(
@@ -313,7 +313,7 @@ class PushNotificationService {
     _logger.i('Notification tapped: type=${message.data['type']}');
   }
 
-  // ── Cleanup ───────────────────────────────────────────────────────────────
+  // Cleanup
 
   Future<void> dispose() async {
     await _onMessageSub?.cancel();

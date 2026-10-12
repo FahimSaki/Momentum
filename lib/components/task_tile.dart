@@ -108,7 +108,7 @@ class _TaskTileState extends State<TaskTile> {
   }
 }
 
-// ── Active card ──────────────────────────────────────────────────────────
+// Active card
 
 class _ActiveCard extends StatelessWidget {
   final Task task;
@@ -245,7 +245,7 @@ class _Subtitle extends StatelessWidget {
   }
 }
 
-// ── Completed card ───────────────────────────────────────────────────────
+// Completed card
 
 class _CompletedCard extends StatelessWidget {
   final Task task;
@@ -344,7 +344,7 @@ class _CompletedCard extends StatelessWidget {
   }
 }
 
-// ── Priority chip ────────────────────────────────────────────────────────
+// Priority chip
 
 class _PriorityChip extends StatelessWidget {
   final String priority;

@@ -57,7 +57,7 @@ class AuthService {
     );
   }
 
-  // ── Register ────────────────────────────────────────────────────────────────
+  // Register
 
   Future<Map<String, dynamic>> register(
     String email,
@@ -88,7 +88,7 @@ class AuthService {
     throw Exception(_safeDecodeError(response.body));
   }
 
-  // ── Login ───────────────────────────────────────────────────────────────────
+  // Login
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http
@@ -124,7 +124,7 @@ class AuthService {
     throw Exception(_safeDecodeError(response.body));
   }
 
-  // ── Verify email OTP ────────────────────────────────────────────────────────
+  // Verify email OTP
 
   Future<void> verifyEmail(String email, String code) async {
     final response = await http
@@ -140,7 +140,7 @@ class AuthService {
     }
   }
 
-  // ── Resend verification code ─────────────────────────────────────────────────
+  // Resend verification code
 
   Future<void> resendVerification(String email) async {
     final response = await http
@@ -156,7 +156,7 @@ class AuthService {
     }
   }
 
-  // ── Forgot password ──────────────────────────────────────────────────────────
+  // Forgot password
 
   Future<Map<String, dynamic>> forgotPassword(String email) async {
     final response = await http
@@ -174,7 +174,7 @@ class AuthService {
     throw Exception(_safeDecodeError(response.body));
   }
 
-  // ── Reset password ───────────────────────────────────────────────────────────
+  // Reset password
   //
   // On success the backend behaves like login/verify2FA — it returns a
   // fresh token, since proving the emailed code + choosing a new password
@@ -214,7 +214,7 @@ class AuthService {
     throw Exception(_safeDecodeError(response.body));
   }
 
-  // ── Google Sign-In (mobile) ──────────────────────────────────────────────────
+  // Google Sign-In (mobile)
   //
   // On Android/iOS, GoogleSignIn.instance.authenticate() drives the native
   // picker and returns a real, signed GoogleSignInAccount (or throws).
@@ -233,7 +233,7 @@ class AuthService {
     }
   }
 
-  // ── Google Sign-In (web) ─────────────────────────────────────────────────────
+  // Google Sign-In (web)
   //
   // The GIS-rendered button (google_sign_in_web's renderButton) relies on a
   // popup relaying its result back to this page via postMessage. Confirmed
@@ -320,7 +320,7 @@ class AuthService {
     ).join();
   }
 
-  // ── Shared token exchange ─────────────────────────────────────────────────────
+  // Shared token exchange
 
   Future<Map<String, dynamic>> _exchangeIdToken(String idToken) async {
     final response = await http
@@ -364,7 +364,7 @@ class AuthService {
     return _exchangeIdToken(idToken);
   }
 
-  // ── Verify 2FA code ──────────────────────────────────────────────────────────
+  // Verify 2FA code
 
   Future<Map<String, dynamic>> verify2FA(String email, String code) async {
     final response = await http
@@ -388,7 +388,7 @@ class AuthService {
     throw Exception(_safeDecodeError(response.body));
   }
 
-  // ── Stored auth data ─────────────────────────────────────────────────────────
+  // Stored auth data
 
   Future<Map<String, dynamic>?> getStoredAuthData() async {
     try {
@@ -489,7 +489,7 @@ class AuthService {
     }
   }
 
-  // ── Private helpers ──────────────────────────────────────────────────────────
+  // Private helpers
 
   Future<void> _persist(Map<String, dynamic> responseData) async {
     final token = responseData['token'] as String;

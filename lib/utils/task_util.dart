@@ -1,6 +1,6 @@
 import 'package:momentum/models/task.dart';
 
-// ── Completion helpers ───────────────────────────────────────────────────
+// Completion helpers
 
 /// Returns true if any date in [completionDays] falls on today (local time).
 bool isTaskCompletedToday(List<DateTime> completionDays) {
@@ -15,7 +15,7 @@ bool shouldShowTask(Task task) {
   return _toLocalDay(task.lastCompletedDate!) != _localToday();
 }
 
-// ── Heatmap data ─────────────────────────────────────────────────────────
+// Heatmap data
 
 /// Builds the dataset map for HeatMap, merging current tasks and
 /// optional historical completions. Keys are local-midnight DateTimes;
@@ -39,7 +39,7 @@ Map<DateTime, int> prepareMapDatasets(
   return data;
 }
 
-// ── Date range utilities ─────────────────────────────────────────────────
+// Date range utilities
 
 /// Filters [dates] to those within [startDate]...[endDate] (inclusive).
 List<DateTime> filterDatesByRange(
@@ -66,7 +66,7 @@ int countCompletionsInRange(
       sum + filterDatesByRange(t.completedDays, startDate, endDate).length,
 );
 
-// ── Private helpers ──────────────────────────────────────────────────────
+// Private helpers
 
 DateTime _localToday() {
   final n = DateTime.now();

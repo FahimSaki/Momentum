@@ -17,9 +17,8 @@ class TaskService {
     'Content-Type': 'application/json',
   };
 
-  // ─────────────────────────────────────────────
   // COMPLETE / UNCOMPLETE TASK
-  // ─────────────────────────────────────────────
+
   Future<Task> completeTask(String taskId, bool isCompleted) async {
     try {
       _logger.i(
@@ -64,9 +63,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // GET USER TASKS
-  // ─────────────────────────────────────────────
+
   Future<List<Task>> getUserTasks() async {
     try {
       // Backend now defaults to status=active, mirroring team task behaviour.
@@ -97,9 +95,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // CREATE TASK
-  // ─────────────────────────────────────────────
+
   Future<Task> createTask({
     required String name,
     String? description,
@@ -172,9 +169,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // GET TEAM TASKS
-  // ─────────────────────────────────────────────
+
   Future<List<Task>> getTeamTasks(String teamId) async {
     try {
       final response = await http.get(
@@ -197,9 +193,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // UPDATE TASK
-  // ─────────────────────────────────────────────
+
   Future<Task> updateTask(String taskId, Map<String, dynamic> updates) async {
     try {
       final response = await http.put(
@@ -224,9 +219,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // DELETE TASK
-  // ─────────────────────────────────────────────
+
   Future<void> deleteTask(String taskId) async {
     try {
       final response = await http.delete(
@@ -246,9 +240,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // HISTORY — now correctly passes teamId
-  // ─────────────────────────────────────────────
+
   Future<List<DateTime>> getTaskHistory({String? teamId}) async {
     try {
       // Pass teamId so the backend returns team-scoped history when a team
@@ -281,9 +274,8 @@ class TaskService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // DASHBOARD STATS — passes teamId and the device UTC offset
-  // ─────────────────────────────────────────────
+
   Future<Map<String, int>> getDashboardStats({String? teamId}) async {
     try {
       // teamId scopes stats to the selected team; the offset lets the backend

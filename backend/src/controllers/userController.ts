@@ -9,7 +9,7 @@ import { IUserDocument } from '../types/interfaces';
 const DELETE_ACCOUNT_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const PASSWORD_CHANGE_CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
-// ── Get current user profile ──────────────────────────────────────────────
+// Get current user profile 
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -31,7 +31,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Update profile ────────────────────────────────────────────────────────
+// Update profile 
 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -58,7 +58,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
             update.isPublic = isPublic;
         }
 
-        // ── Whitelist profileVisibility keys — only allow known boolean flags ──
+        // Whitelist profileVisibility keys — only allow known boolean flags
         // Never pass the raw object; clients could inject arbitrary nested fields.
         if (profileVisibility !== undefined &&
             profileVisibility !== null &&
@@ -86,7 +86,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
     }
 };
 
-// ── Update notification settings ──────────────────────────────────────────
+// Update notification settings 
 
 export const updateNotificationSettings = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -106,7 +106,7 @@ export const updateNotificationSettings = async (req: Request, res: Response): P
     }
 };
 
-// ── Register / update FCM token ───────────────────────────────────────────
+// Register / update FCM token 
 
 export const registerFcmToken = async (req: Request, res: Response): Promise<void> => {
     console.log('📱 [FCM HIT] registerFcmToken called');
@@ -130,7 +130,7 @@ export const registerFcmToken = async (req: Request, res: Response): Promise<voi
     }
 };
 
-// ── Remove FCM token ──────────────────────────────────────────────────────
+// Remove FCM token 
 
 export const removeFcmToken = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -145,7 +145,7 @@ export const removeFcmToken = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Public profile (what other users may see) ─────────────────────────────
+// Public profile (what other users may see) 
 
 const PRIVATE_NAME = 'Private user';
 const PUBLIC_PROFILE_FIELDS = 'name email inviteId avatar bio profileVisibility';
@@ -167,7 +167,7 @@ const toPublicProfile = (user: IUserDocument) => {
     };
 };
 
-// ── Find by invite ID ─────────────────────────────────────────────────────
+// Find by invite ID 
 
 export const findByInviteId = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -182,7 +182,7 @@ export const findByInviteId = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Search users ──────────────────────────────────────────────────────────
+// Search users 
 
 export const searchUsers = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -217,7 +217,7 @@ export const searchUsers = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
-// ── Request password change (step 1: verify current password, send OTP) ───
+// Request password change (step 1: verify current password, send OTP)
 
 export const requestPasswordChange = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -264,7 +264,7 @@ export const requestPasswordChange = async (req: Request, res: Response): Promis
     }
 };
 
-// ── Confirm password change (step 2: verify OTP, apply new password) ───────
+// Confirm password change (step 2: verify OTP, apply new password) 
 
 export const confirmPasswordChange = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -303,7 +303,7 @@ export const confirmPasswordChange = async (req: Request, res: Response): Promis
     }
 };
 
-// ── Request account deletion (sends verification code) ────────────────────
+// Request account deletion (sends verification code) 
 
 export const requestAccountDeletion = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -343,7 +343,7 @@ export const requestAccountDeletion = async (req: Request, res: Response): Promi
     }
 };
 
-// ── Confirm account deletion (verifies code, deactivates account) ─────────
+// Confirm account deletion (verifies code, deactivates account)
 
 export const confirmAccountDeletion = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -380,7 +380,7 @@ export const confirmAccountDeletion = async (req: Request, res: Response): Promi
     }
 };
 
-// ── Enable 2FA ────────────────────────────────────────────────────────────────
+// Enable 2FA 
 
 export const enableTwoFactor = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -397,7 +397,7 @@ export const enableTwoFactor = async (req: Request, res: Response): Promise<void
     }
 };
 
-// ── Disable 2FA ───────────────────────────────────────────────────────────────
+// Disable 2FA 
 
 export const disableTwoFactor = async (req: Request, res: Response): Promise<void> => {
     try {

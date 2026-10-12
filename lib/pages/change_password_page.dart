@@ -218,7 +218,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 }
 
-// ── OTP confirmation dialog ────────────────────────────────────────────────
+// OTP confirmation dialog
 
 class _PasswordChangeVerificationDialog extends StatefulWidget {
   final UserService userService;

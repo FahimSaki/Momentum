@@ -64,7 +64,7 @@ class TaskDatabase extends ChangeNotifier {
 
   bool _isInitialized = false;
 
-  // ── Getters ───────────────────────────────────────────────────────────────
+  // Getters
 
   List<DateTime> get historicalCompletions =>
       List.unmodifiable(_historicalCompletions);
@@ -97,7 +97,7 @@ class TaskDatabase extends ChangeNotifier {
     return role == 'owner' || role == 'admin';
   }
 
-  // ── Constructor ───────────────────────────────────────────────────────────
+  // Constructor
 
   TaskDatabase() {
     // Always create the notification service — it also owns the plain REST
@@ -119,7 +119,7 @@ class TaskDatabase extends ChangeNotifier {
     );
   }
 
-  // ── Initialization ────────────────────────────────────────────────────────
+  // Initialization
 
   Future<void> initialize({required String jwt, required String userId}) async {
     // Guards against a corrupted/undecryptable secure-storage read that
@@ -211,7 +211,7 @@ class TaskDatabase extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Private loaders ───────────────────────────────────────────────────────
+  // Private loaders
 
   Future<void> _loadTasks() async {
     try {
@@ -368,7 +368,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── Team operations ───────────────────────────────────────────────────────
+  // Team operations
 
   Future<Team> createTeam(String name, {String? description}) async {
     try {
@@ -547,7 +547,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── Task operations ───────────────────────────────────────────────────────
+  // Task operations
 
   Future<Task> createTask({
     required String name,
@@ -907,7 +907,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── Notification operations ───────────────────────────────────────────────
+  // Notification operations
 
   Future<void> markNotificationAsRead(String notificationId) async {
     try {
@@ -980,7 +980,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── Timer / polling ───────────────────────────────────────────────────────
+  // Timer / polling
 
   void _startPolling() {
     if (kIsWeb) return;
@@ -1024,7 +1024,7 @@ class TaskDatabase extends ChangeNotifier {
     }
   }
 
-  // ── Public helpers ────────────────────────────────────────────────────────
+  // Public helpers
 
   Future<void> refreshData() async => await _refreshData();
 

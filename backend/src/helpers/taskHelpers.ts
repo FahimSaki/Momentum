@@ -2,7 +2,7 @@ import Team from '../models/Team';
 import TaskHistory from '../models/TaskHistory';
 import { ITaskDocument, ITeamDocument } from '../types/interfaces';
 
-// ── Permission helpers ────────────────────────────────────────────────────
+// Permission helpers 
 
 /** Returns true if the user can create tasks in the team.
  *  Pass null for personal tasks — always allowed. */
@@ -35,7 +35,7 @@ export const canDeleteTask = (
     userId: string
 ): boolean => canEditTask(task, team, userId);
 
-// ── History ───────────────────────────────────────────────────────────────
+// History 
 
 /** Saves a task's completedDays to TaskHistory before deletion.
  *  Merges with any existing record for the same user+taskName. */
@@ -72,7 +72,7 @@ export const saveTaskToHistory = async (task: ITaskDocument): Promise<void> => {
     }
 };
 
-// ── Team lookup ───────────────────────────────────────────────────────────
+// Team lookup 
 
 /** Fetches the Team document for a task, or null for personal tasks. */
 export const getTaskTeam = async (

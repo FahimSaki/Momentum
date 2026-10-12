@@ -18,7 +18,7 @@ class LocalCacheService {
 
   String _scope(String? teamId) => teamId ?? 'personal';
 
-  // ── Tasks ──────────────────────────────────────────────────────────────
+  // Tasks
 
   Future<void> saveTasks(String? teamId, List<Task> tasks) async {
     try {
@@ -45,7 +45,7 @@ class LocalCacheService {
     }
   }
 
-  // ── Teams ──────────────────────────────────────────────────────────────
+  // Teams
 
   Future<void> saveTeams(List<Team> teams) async {
     try {
@@ -72,7 +72,7 @@ class LocalCacheService {
     }
   }
 
-  // ── Historical completions ────────────────────────────────────────────
+  // Historical completions
 
   Future<void> saveHistoricalCompletions(
     String? teamId,
@@ -110,7 +110,7 @@ class LocalCacheService {
     }
   }
 
-  // ── Dashboard stats ───────────────────────────────────────────────────
+  // Dashboard stats
 
   Future<void> saveDashboardStats(
     String? teamId,
@@ -144,7 +144,7 @@ class LocalCacheService {
     }
   }
 
-  // ── Cleanup ────────────────────────────────────────────────────────────
+  // Cleanup
 
   /// Clears every cache key this service owns. Call on logout so the next
   /// account signed in on this device doesn't briefly see stale data.

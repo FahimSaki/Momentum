@@ -575,7 +575,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 }
 
-// ── Delete-account OTP dialog ─────────────────────────────────────────────
+// Delete-account OTP dialog
 
 class _DeleteAccountVerificationDialog extends StatefulWidget {
   final UserService userService;

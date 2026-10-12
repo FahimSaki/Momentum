@@ -17,7 +17,7 @@ import {
 import { ITaskDocument } from '../types/interfaces';
 import { Types } from 'mongoose';
 
-// ── Create task ───────────────────────────────────────────────────────────────
+// Create task 
 
 export const createTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -140,7 +140,7 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Update task ───────────────────────────────────────────────────────────────
+// Update task 
 
 export const updateTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -156,7 +156,7 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
             return;
         }
 
-        // ── Whitelist: only allow safe, user-editable fields ──────────────
+        // Whitelist: only allow safe, user-editable fields 
         // Never pass req.body directly — clients could overwrite system fields
         // like assignedBy, completedDays, isArchived, archivedAt, team, etc.
         const allowedUpdates: Record<string, unknown> = {};
@@ -206,7 +206,7 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Complete task ─────────────────────────────────────────────────────────────
+// Complete task 
 
 export const completeTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -286,7 +286,7 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
 
         await task.save();
 
-        // ── Completion notifications (team tasks only) ──────────────────────
+        // Completion notifications (team tasks only) 
         // Recipients = the task's original assignee(s) plus whoever assigned
         // it (always owner/admin, per canCreateTask), minus whoever just
         // completed it. "Assigned to A, completed by B" -> notify A and the
@@ -329,7 +329,7 @@ export const completeTask = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Delete task ───────────────────────────────────────────────────────────────
+// Delete task 
 
 export const deleteTask = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -355,7 +355,7 @@ export const deleteTask = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Get user tasks ────────────────────────────────────────────────────────────
+// Get user tasks 
 
 export const getUserTasks = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -377,7 +377,7 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
             query = { assignedTo: userId };
         }
 
-        // ── Active/archive filter – backend is the authority on what "today" means ──
+        // Active/archive filter – backend is the authority on what "today" means 
         if (status === 'active') {
             const todayStart = new Date();
             todayStart.setUTCHours(0, 0, 0, 0);
@@ -424,7 +424,7 @@ export const getUserTasks = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Get team tasks ────────────────────────────────────────────────────────────
+// Get team tasks 
 
 export const getTeamTasks = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -471,7 +471,7 @@ export const getTeamTasks = async (req: Request, res: Response): Promise<void> =
     }
 };
 
-// ── Get task history ──────────────────────────────────────────────────────────
+// Get task history 
 
 export const getTaskHistory = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -503,7 +503,7 @@ export const getTaskHistory = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// ── Dashboard stats ───────────────────────────────────────────────────────────
+// Dashboard stats 
 
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
     try {

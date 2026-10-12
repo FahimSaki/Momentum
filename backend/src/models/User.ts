@@ -68,10 +68,10 @@ const userSchema = new Schema<IUserDocument>(
     { timestamps: true }
 );
 
-// ── Indexes ─────────────────────────────────────────────
+// Indexes 
 userSchema.index({ teams: 1 });
 
-// ── Invite ID Generator ────────────────────────────────
+// Invite ID Generator 
 function generateUniqueInviteId(): string {
     const adjectives = [
         'swift', 'brave', 'wise', 'calm', 'bold', 'quick', 'smart', 'cool', 'neat', 'fast',
@@ -93,7 +93,7 @@ function generateUniqueInviteId(): string {
     return `${adjective}-${noun}-${numbers}`;
 }
 
-// ── Pre-save hook ───────────────────────────────────────
+// Pre-save hook 
 userSchema.pre('validate', async function (next) {
     if (!this.inviteId) {
         let attempts = 0;
@@ -134,12 +134,12 @@ userSchema.pre('validate', async function (next) {
     next();
 });
 
-// ── Post-save log ───────────────────────────────────────
+// Post-save log 
 userSchema.post('save', function (doc) {
     console.log(`✅ User saved: ${doc.email} — inviteId: ${doc.inviteId}`);
 });
 
-// ── Static methods typing ───────────────────────────────
+// Static methods typing 
 type UserModel = Model<IUserDocument> & {
     findByInviteId(inviteId: string): Promise<IUserDocument | null>;
     searchUsers(

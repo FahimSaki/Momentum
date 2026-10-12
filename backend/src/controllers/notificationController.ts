@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import Notification from '../models/Notification';
 
-// ── Get notifications ─────────────────────────────────────────────────────
+// Get notifications 
 
 export const getNotifications = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -36,7 +36,7 @@ export const getNotifications = async (req: Request, res: Response): Promise<voi
     }
 };
 
-// ── Mark as read ──────────────────────────────────────────────────────────
+// Mark as read 
 
 export const markAsRead = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -56,7 +56,7 @@ export const markAsRead = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
-// ── Mark all as read ──────────────────────────────────────────────────────
+// Mark all as read 
 
 export const markAllAsRead = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -71,7 +71,7 @@ export const markAllAsRead = async (req: Request, res: Response): Promise<void> 
     }
 };
 
-// ── Delete notification ───────────────────────────────────────────────────
+// Delete notification 
 
 export const deleteNotification = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -85,7 +85,7 @@ export const deleteNotification = async (req: Request, res: Response): Promise<v
     }
 };
 
-// ── Get unread count ──────────────────────────────────────────────────────
+// Get unread count 
 
 export const getUnreadCount = async (req: Request, res: Response): Promise<void> => {
     try {

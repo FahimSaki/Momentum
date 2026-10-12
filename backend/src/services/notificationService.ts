@@ -7,7 +7,7 @@ import { ITaskDocument, ITeamNotificationSettings, IUserDocument, NotificationPa
 import { Types } from 'mongoose';
 import fs from 'fs';
 
-// ── Firebase init ──────────────────────────────────────────────────────────
+// Firebase init 
 let firebaseInitialised = false;
 
 /** Reads the service account from FIREBASE_SERVICE_ACCOUNT_JSON (hosting) or
@@ -46,7 +46,7 @@ export const initFirebase = (): void => {
     }
 };
 
-// ── Notification-setting gates ─────────────────────────────────────────────
+// Notification-setting gates 
 // Both sendTaskAssignedNotification and sendTaskCompletedNotification used
 // to fire unconditionally — the taskAssigned/taskCompleted toggles on
 // TeamSettings and UserNotificationSettings were modeled and editable in
@@ -77,7 +77,7 @@ const userAllowsNotification = async (
     return user.notificationSettings[setting];
 };
 
-// ── Send FCM to one user ──────────────────────────────────────────────────
+// Send FCM to one user 
 export const sendNotification = async (
     userId: string,
     payload: NotificationPayload
@@ -198,7 +198,7 @@ export const sendNotification = async (
     }
 };
 
-// ── Task assigned notification ────────────────────────────────────────────
+// Task assigned notification 
 export const sendTaskAssignedNotification = async (
     task: ITaskDocument, assigner: IUserDocument, recipientIds: string[]
 ): Promise<void> => {
@@ -231,7 +231,7 @@ export const sendTaskAssignedNotification = async (
     }
 };
 
-// ── Task completed notification ───────────────────────────────────────────
+// Task completed notification 
 export const sendTaskCompletedNotification = async (
     task: ITaskDocument, completer: IUserDocument, recipientId: Types.ObjectId | string
 ): Promise<void> => {
@@ -261,7 +261,7 @@ export const sendTaskCompletedNotification = async (
     } catch (err) { console.error('sendTaskCompletedNotification error:', err); }
 };
 
-// ── Due date reminders ────────────────────────────────────────────────────
+// Due date reminders 
 export const sendDueDateReminders = async (): Promise<number> => {
     try {
         const tomorrow = new Date();
@@ -314,7 +314,7 @@ export const sendDueDateReminders = async (): Promise<number> => {
     }
 };
 
-// ── Cleanup old notifications ─────────────────────────────────────────────
+// Cleanup old notifications 
 export const cleanupOldNotifications = async (daysOld = 30): Promise<number> => {
     try {
         const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);

@@ -15,9 +15,8 @@ class TaskApiService {
     'Content-Type': 'application/json',
   };
 
-  // ─────────────────────────────────────────────
   // GET TASKS (replaces /assigned + /user)
-  // ─────────────────────────────────────────────
+
   Future<List<Task>> fetchTasks() async {
     try {
       final response = await http.get(
@@ -38,9 +37,8 @@ class TaskApiService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // HISTORY
-  // ─────────────────────────────────────────────
+
   Future<List<DateTime>> fetchHistoricalCompletions() async {
     try {
       final response = await http.get(
@@ -74,9 +72,8 @@ class TaskApiService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // CREATE TASK (NO userId anymore)
-  // ─────────────────────────────────────────────
+
   Future<void> createTask(String taskName) async {
     try {
       final response = await http.post(
@@ -94,9 +91,8 @@ class TaskApiService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // UPDATE TASK
-  // ─────────────────────────────────────────────
+
   Future<void> updateTask(String id, Map<String, dynamic> updates) async {
     try {
       final response = await http.put(
@@ -114,9 +110,8 @@ class TaskApiService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // DELETE TASK
-  // ─────────────────────────────────────────────
+
   Future<void> deleteTask(String id) async {
     try {
       final response = await http.delete(
@@ -133,9 +128,8 @@ class TaskApiService {
     }
   }
 
-  // ─────────────────────────────────────────────
   // COMPLETE TASK (NEW: PATCH route)
-  // ─────────────────────────────────────────────
+
   Future<void> completeTask(String id) async {
     try {
       final response = await http.patch(
@@ -151,11 +145,4 @@ class TaskApiService {
       rethrow;
     }
   }
-
-  // ─────────────────────────────────────────────
-  // REMOVE UNUSED ENDPOINTS (NOT IN TS BACKEND)
-  // ─────────────────────────────────────────────
-  // ❌ removed:
-  // - removeYesterdayCompletions
-  // - deleteCompletedTasks
 }

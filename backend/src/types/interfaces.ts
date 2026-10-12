@@ -1,7 +1,7 @@
 import { Request } from 'express';
 import { Types, HydratedDocument } from 'mongoose';
 
-// ── Augment Express Request ────────────────────────────────────────────────
+// Augment Express Request 
 declare global {
     namespace Express {
         interface Request {
@@ -11,14 +11,14 @@ declare global {
     }
 }
 
-// ── Profile Visibility ─────────────────────────────────────────────────────
+// Profile Visibility 
 export interface IProfileVisibility {
     showEmail: boolean;
     showName: boolean;
     showBio: boolean;
 }
 
-// ── Notification Settings (User) ──────────────────────────────────────────
+// Notification Settings (User) 
 export interface IUserNotificationSettings {
     email: boolean;
     push: boolean;
@@ -29,14 +29,14 @@ export interface IUserNotificationSettings {
     dailyReminder: boolean;
 }
 
-// ── FCM Token ─────────────────────────────────────────────────────────────
+// FCM Token 
 export interface IFcmToken {
     token: string;
     platform: 'android' | 'ios' | 'web' | 'legacy';
     lastUsed: Date;
 }
 
-// ── User ──────────────────────────────────────────────────────────────────
+// User 
 export interface IUser {
     email: string;
     password?: string;
@@ -73,7 +73,7 @@ export interface IUser {
 
 export type IUserDocument = HydratedDocument<IUser>;
 
-// ── Task ──────────────────────────────────────────────────────────────────
+// Task 
 export interface ICompletedBy {
     user: Types.ObjectId;
     completedAt: Date;
@@ -110,7 +110,7 @@ export interface ITask {
 
 export type ITaskDocument = HydratedDocument<ITask>;
 
-// ── Team ──────────────────────────────────────────────────────────────────
+// Team
 export interface ITeamNotificationSettings {
     taskAssigned: boolean;
     taskCompleted: boolean;
@@ -142,7 +142,7 @@ export interface ITeam {
 
 export type ITeamDocument = HydratedDocument<ITeam>;
 
-// ── Team Invitation ───────────────────────────────────────────────────────
+// Team Invitation
 export interface ITeamInvitation {
     team: Types.ObjectId;
     inviter: Types.ObjectId;
@@ -158,7 +158,7 @@ export interface ITeamInvitation {
 
 export type ITeamInvitationDocument = HydratedDocument<ITeamInvitation>;
 
-// ── Task History ──────────────────────────────────────────────────────────
+// Task History 
 export interface ITaskHistory {
     userId: Types.ObjectId;
     taskName: string;
@@ -170,7 +170,7 @@ export interface ITaskHistory {
 
 export type ITaskHistoryDocument = HydratedDocument<ITaskHistory>;
 
-// ── Notification ──────────────────────────────────────────────────────────
+// Notification 
 export type NotificationType =
     | 'task_assigned'
     | 'task_completed'
@@ -197,7 +197,7 @@ export interface INotification {
 
 export type INotificationDocument = HydratedDocument<INotification>;
 
-// ── Notification Payload ──────────────────────────────────────────────────
+// Notification Payload 
 export interface NotificationPayload {
     type?: string;
     title: string;
@@ -209,13 +209,13 @@ export interface NotificationPayload {
     data?: Record<string, string>;
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────
+// Auth 
 export interface AuthenticatedRequest extends Request {
     userId: string;
     user: IUserDocument;
 }
 
-// ── JWT Payload ───────────────────────────────────────────────────────────
+// JWT Payload 
 export interface JwtPayload {
     userId: string;
 }

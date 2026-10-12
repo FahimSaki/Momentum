@@ -270,7 +270,7 @@ class _HomePageState extends State<HomePage>
   }
 }
 
-// ── Offline banner ────────────────────────────────────────────────────────────
+// Offline banner
 
 class _OfflineBanner extends StatelessWidget {
   const _OfflineBanner();
@@ -304,7 +304,7 @@ class _OfflineBanner extends StatelessWidget {
   }
 }
 
-// ── Tab bar ───────────────────────────────────────────────────────────────────
+// Tab bar
 
 class _TabBar extends StatelessWidget {
   final TabController controller;
@@ -338,7 +338,7 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-// ── Dashboard tab ─────────────────────────────────────────────────────────────
+// Dashboard tab
 
 class _DashboardTab extends StatelessWidget {
   final VoidCallback onViewAllTasks;
@@ -574,7 +574,7 @@ class _TaskRowState extends State<_TaskRow> {
   }
 }
 
-// ── Analytics tab ─────────────────────────────────────────────────────────────
+// Analytics tab
 
 class _AnalyticsTab extends StatelessWidget {
   const _AnalyticsTab();

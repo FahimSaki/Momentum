@@ -145,7 +145,7 @@ class _NotificationsPageState extends State<NotificationsPage>
   }
 }
 
-// ── Invitations tab ───────────────────────────────────────────────────────────
+// Invitations tab
 
 class _InvitationsTab extends StatelessWidget {
   final bool isLoading;
@@ -237,7 +237,7 @@ class _InvitationsTab extends StatelessWidget {
   }
 }
 
-// ── Activity tab ──────────────────────────────────────────────────────────────
+// Activity tab
 
 class _ActivityTab extends StatelessWidget {
   final bool isLoading;
@@ -295,7 +295,7 @@ class _ActivityTab extends StatelessWidget {
   }
 }
 
-// ── Invitation card ───────────────────────────────────────────────────────────
+// Invitation card
 
 class _InvitationCard extends StatefulWidget {
   final TeamInvitation invitation;

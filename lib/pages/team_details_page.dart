@@ -343,7 +343,7 @@ class _TeamDetailsPageState extends State<TeamDetailsPage> {
   );
 }
 
-// ── Sub-widgets ───────────────────────────────────────────────────────────────
+// Sub-widgets
 
 class _TeamInfoCard extends StatelessWidget {
   final Team team;

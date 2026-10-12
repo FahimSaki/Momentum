@@ -196,7 +196,7 @@ class _TaskListState extends State<TaskList> {
   }
 }
 
-// ── Filter / sort row ─────────────────────────────────────────────────────────
+// Filter / sort row
 
 class _FilterSortRow extends StatelessWidget {
   final String filterBy;

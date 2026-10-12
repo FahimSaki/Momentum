@@ -24,7 +24,7 @@ const app = express();
 // 10000 is Render's default and the port the Flutter debug build points at.
 const PORT = process.env.PORT || 10000;
 
-// ── Security & parsing ────────────────────────────────────────────────────
+// Security & parsing 
 app.use(helmet());
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim());
 app.use(cors({
@@ -34,13 +34,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── Request logging ───────────────────────────────────────────────────────
+// Request logging 
 app.use((req, _res, next) => {
     console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
     next();
 });
 
-// ── Public routes ─────────────────────────────────────────────────────────
+// Public routes 
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() });
 });
@@ -60,7 +60,7 @@ const manualCleanupHandler = async (_req: express.Request, res: express.Response
 app.get('/manual-cleanup', manualCleanupHandler);
 app.post('/manual-cleanup', manualCleanupHandler);
 
-// ── API routes ────────────────────────────────────────────────────────────
+// API routes 
 app.use('/auth', authRoutes);
 app.use('/tasks', taskRoutes);
 app.use('/teams', teamRoutes);
@@ -70,33 +70,33 @@ app.get('/', (_req, res) => {
     res.json({ status: 'ok', message: 'Momentum API is running 🚀', health: '/health' });
 });
 
-// ── 404 ───────────────────────────────────────────────────────────────────
+// 404 handler 
 app.use((req, res) => {
     console.log(`404: ${req.method} ${req.originalUrl}`);
     res.status(404).json({ message: 'Route not found', method: req.method, url: req.originalUrl });
 });
 
-// ── Global error handler ──────────────────────────────────────────────────
+// Global error handler 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('Unhandled error:', err);
     res.status(500).json({ message: 'Internal server error' });
 });
 
-// ── DB + Firebase + Scheduler + start ────────────────────────────────────
+// DB + Firebase + Scheduler + start 
 const startServer = async (): Promise<void> => {
     const mongoUri = process.env.MONGODB_URI;
     if (!mongoUri) throw new Error('MONGODB_URI is required');
 
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
-    console.log('✅ MongoDB connected');
+    console.log('MongoDB connected');
 
     initFirebase();
     startScheduler();
 
     app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-        console.log(`   NODE_ENV : ${process.env.NODE_ENV ?? 'development'}`);
-        console.log(`   Health   : http://localhost:${PORT}/health`);
+        console.log(`Server running on port ${PORT}`);
+        console.log(`NODE_ENV : ${process.env.NODE_ENV ?? 'development'}`);
+        console.log(`Health   : http://localhost:${PORT}/health`);
     });
 
     // Verify email credentials in background — never block server startup
@@ -104,7 +104,7 @@ const startServer = async (): Promise<void> => {
 };
 
 startServer().catch((err) => {
-    console.error('❌ Failed to start:', err);
+    console.error('Failed to start:', err);
     process.exit(1);
 });
 

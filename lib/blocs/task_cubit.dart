@@ -71,7 +71,7 @@ class TaskCubit extends Cubit<TaskState> {
     });
   }
 
-  // ── Session ─────────────────────────────────────────────────────────────
+  // Session
 
   Future<void> initializeSession({
     required String jwt,
@@ -135,7 +135,7 @@ class TaskCubit extends Cubit<TaskState> {
     await _syncQueueService.clear();
   }
 
-  // ── Loaders ─────────────────────────────────────────────────────────────
+  // Loaders
 
   Future<void> _loadTasks() async {
     try {
@@ -235,7 +235,7 @@ class TaskCubit extends Cubit<TaskState> {
     }
   }
 
-  // ── Team selection ──────────────────────────────────────────────────────
+  // Team selection
 
   Future<void> _onTeamChanged(Team? team) async {
     emit(state.copyWith(currentTasks: const [], selectedTeam: team));
@@ -248,7 +248,7 @@ class TaskCubit extends Cubit<TaskState> {
     );
   }
 
-  // ── Task mutations ──────────────────────────────────────────────────────
+  // Task mutations
 
   Future<Task> createTask({
     required String name,
@@ -548,7 +548,7 @@ class TaskCubit extends Cubit<TaskState> {
     }
   }
 
-  // ── Refresh / midnight cleanup ──────────────────────────────────────────
+  // Refresh / midnight cleanup
 
   Future<void> refreshData() async {
     try {
@@ -591,7 +591,7 @@ class TaskCubit extends Cubit<TaskState> {
     }
   }
 
-  // ── Public helpers ──────────────────────────────────────────────────────
+  // Public helpers
 
   /// Public — InitializationService calls this directly after completing
   /// a task via the home-screen-widget tap action, to refresh the widget
