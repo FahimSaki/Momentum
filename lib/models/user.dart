@@ -104,6 +104,25 @@ class User {
     );
   }
 
+  /// A stand-in for a user the server only referenced by id, or sent malformed.
+  factory User.placeholder({
+    required String id,
+    String name = 'Unknown User',
+    String email = '',
+    String? avatar,
+  }) {
+    return User(
+      id: id,
+      email: email,
+      name: name,
+      avatar: avatar,
+      notificationSettings: UserNotificationSettings(),
+      lastLoginAt: DateTime.now(),
+      inviteId: '',
+      profileVisibility: ProfileVisibility(),
+    );
+  }
+
   String get initials {
     if (name.isEmpty) return '?';
     final names = name.split(' ');

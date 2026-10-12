@@ -5,6 +5,7 @@ import 'package:momentum/blocs/task_state.dart';
 import 'package:momentum/components/responsive_layout.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/theme/theme.dart';
+import 'package:momentum/utils/priority_helpers.dart';
 import 'package:logger/logger.dart';
 
 class TaskCreationDialog extends StatefulWidget {
@@ -157,26 +158,10 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
                             prefixIcon: Icon(Icons.flag_rounded),
                           ),
                           items: [
-                            _priorityItem(
-                              'low',
-                              'Low',
-                              const Color(0xFF22C55E),
-                            ),
-                            _priorityItem(
-                              'medium',
-                              'Medium',
-                              const Color(0xFFF59E0B),
-                            ),
-                            _priorityItem(
-                              'high',
-                              'High',
-                              const Color(0xFFF97316),
-                            ),
-                            _priorityItem(
-                              'urgent',
-                              'Urgent',
-                              const Color(0xFFE53E3E),
-                            ),
+                            _priorityItem('low', 'Low'),
+                            _priorityItem('medium', 'Medium'),
+                            _priorityItem('high', 'High'),
+                            _priorityItem('urgent', 'Urgent'),
                           ],
                           onChanged: _isLoading
                               ? null
@@ -366,11 +351,8 @@ class _TaskCreationDialogState extends State<TaskCreationDialog> {
     );
   }
 
-  DropdownMenuItem<String> _priorityItem(
-    String value,
-    String label,
-    Color color,
-  ) {
+  DropdownMenuItem<String> _priorityItem(String value, String label) {
+    final color = PriorityHelpers.color(value);
     return DropdownMenuItem(
       value: value,
       child: Row(

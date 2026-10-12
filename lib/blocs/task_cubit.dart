@@ -15,6 +15,7 @@ import 'package:momentum/database/widget_service.dart';
 import 'package:momentum/models/pending_task_create.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/models/team.dart';
+import 'package:momentum/services/api_exception.dart';
 import 'package:momentum/services/push_notification_service.dart';
 import 'package:momentum/services/task_service.dart';
 import 'package:momentum/utils/network_utils.dart';
@@ -315,14 +316,14 @@ class TaskCubit extends Cubit<TaskState> {
       );
       String userMessage;
       final msg = e.toString();
-      if (msg.contains('Task service not initialized')) {
+      if (e is ApiException) {
+        userMessage = e.isUnauthorized
+            ? 'Session expired - please login again'
+            : e.message;
+      } else if (msg.contains('Task service not initialized')) {
         userMessage = 'App not ready - please restart and try again';
       } else if (isNetworkError(e)) {
         userMessage = 'Network error - check your connection';
-      } else if (msg.contains('401') || msg.contains('unauthorized')) {
-        userMessage = 'Session expired - please login again';
-      } else if (msg.contains('403') || msg.contains('permission')) {
-        userMessage = 'Permission denied';
       } else {
         userMessage =
             'Failed to create task: ${msg.replaceFirst('Exception: ', '')}';
@@ -485,11 +486,12 @@ class TaskCubit extends Cubit<TaskState> {
       );
       String userMessage =
           'Failed to ${isCompleted ? 'complete' : 'uncomplete'} task';
-      final msg = e.toString();
-      if (isNetworkError(e)) {
+      if (e is ApiException) {
+        userMessage = e.isUnauthorized
+            ? 'Session expired - please login again'
+            : e.message;
+      } else if (isNetworkError(e)) {
         userMessage = 'Network error - check your connection';
-      } else if (msg.contains('401') || msg.contains('unauthorized')) {
-        userMessage = 'Session expired - please login again';
       }
       throw Exception(userMessage);
     }

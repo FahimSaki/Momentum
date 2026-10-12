@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:momentum/models/app_notification.dart';
 
-/// Shared notification tile used by NotificationsPage and TeamInvitationsPage.
+/// Notification tile used by NotificationsPage.
 class NotificationTile extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;

@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:momentum/config/api_base_url.dart';
+import 'package:momentum/services/api_exception.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/utils/day_utils.dart';
 import 'package:logger/logger.dart';
@@ -52,7 +53,10 @@ class TaskService {
         return task;
       } else {
         _logger.e('Complete task failed: ${response.body}');
-        throw Exception('Failed to update task');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to update task',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error completing task', error: e, stackTrace: stackTrace);
@@ -82,7 +86,10 @@ class TaskService {
         return tasksData.map((t) => Task.fromJson(t)).toList();
       } else {
         _logger.e('Get tasks failed: ${response.body}');
-        throw Exception('Failed to fetch tasks');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to fetch tasks',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error fetching tasks', error: e, stackTrace: stackTrace);
@@ -154,7 +161,10 @@ class TaskService {
         return Task.fromJson(taskData);
       } else {
         _logger.e('Create task failed: ${response.body}');
-        throw Exception('Failed to create task');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to create task',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error creating task', error: e, stackTrace: stackTrace);
@@ -176,7 +186,10 @@ class TaskService {
         final List data = json.decode(response.body);
         return data.map((t) => Task.fromJson(t)).toList();
       } else {
-        throw Exception('Failed to fetch team tasks');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to fetch team tasks',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error fetching team tasks', error: e, stackTrace: stackTrace);
@@ -200,7 +213,10 @@ class TaskService {
         final taskData = data['task'] ?? data;
         return Task.fromJson(taskData);
       } else {
-        throw Exception('Failed to update task');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to update task',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error updating task', error: e, stackTrace: stackTrace);
@@ -219,7 +235,10 @@ class TaskService {
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to delete task');
+        throw ApiException.fromResponse(
+          response,
+          fallback: 'Failed to delete task',
+        );
       }
     } catch (e, stackTrace) {
       _logger.e('Error deleting task', error: e, stackTrace: stackTrace);
@@ -296,7 +315,10 @@ class TaskService {
       // cache-fallback branch never ran, so dashboard numbers silently
       // reset to 0 whenever this was called while offline instead of
       // showing the last-known cached values.
-      throw Exception('Failed to fetch dashboard stats');
+      throw ApiException.fromResponse(
+        response,
+        fallback: 'Failed to fetch dashboard stats',
+      );
     } catch (e, stackTrace) {
       _logger.e(
         'Error fetching dashboard stats',

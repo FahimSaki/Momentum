@@ -594,8 +594,8 @@ class _TasksSection extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(
-              'You can only view and complete tasks assigned to you. '
-              'Owners/admins manage creation, deletion, and assignment.',
+              'You can view and complete every task in this team. '
+              'Owners and admins create, edit, delete, and assign tasks.',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
           ),
@@ -788,7 +788,7 @@ class _EmptyStateView extends StatelessWidget {
             Text(
               canCreate
                   ? 'Create the first task for your team'
-                  : 'Tasks assigned to you by admins will appear here',
+                  : 'Tasks created by owners and admins will appear here',
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF6B66A3), fontSize: 14),
             ),

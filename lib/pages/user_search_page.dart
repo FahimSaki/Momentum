@@ -161,7 +161,7 @@ class _UserSearchPageState extends State<UserSearchPage> {
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              labelText: 'Search by name or email',
+              labelText: 'Search by name or invite ID',
               prefixIcon: const Icon(Icons.search),
               border: const OutlineInputBorder(),
               suffixIcon: _isSearching

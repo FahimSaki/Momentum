@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:momentum/models/task.dart';
 import 'package:momentum/utils/date_helpers.dart';
+import 'package:momentum/utils/priority_helpers.dart';
 import 'package:momentum/theme/theme_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -349,16 +350,9 @@ class _PriorityChip extends StatelessWidget {
   final String priority;
   const _PriorityChip({required this.priority});
 
-  static const _colors = <String, Color>{
-    'low': Colors.green,
-    'medium': Colors.orange,
-    'high': Colors.red,
-    'urgent': Colors.purple,
-  };
-
   @override
   Widget build(BuildContext context) {
-    final color = _colors[priority.toLowerCase()] ?? Colors.grey;
+    final color = PriorityHelpers.color(priority);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(

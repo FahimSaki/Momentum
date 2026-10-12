@@ -29,7 +29,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   bool _hasChanges = false;
 
   late bool _allowMemberInvite;
-  late bool _taskAutoDelete;
   late bool _notifyTaskAssigned;
   late bool _notifyTaskCompleted;
   late bool _notifyMemberJoined;
@@ -38,7 +37,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
   void initState() {
     super.initState();
     _allowMemberInvite = widget.team.settings.allowMemberInvite;
-    _taskAutoDelete = widget.team.settings.taskAutoDelete;
     _notifyTaskAssigned =
         widget.team.settings.notificationSettings.taskAssigned;
     _notifyTaskCompleted =
@@ -72,7 +70,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
     try {
       await context.read<TeamCubit>().updateTeamSettings(widget.team.id, {
         'allowMemberInvite': _allowMemberInvite,
-        'taskAutoDelete': _taskAutoDelete,
         'notificationSettings': {
           'taskAssigned': _notifyTaskAssigned,
           'taskCompleted': _notifyTaskCompleted,
@@ -289,26 +286,6 @@ class _TeamSettingsPageState extends State<TeamSettingsPage> {
                         isDark: isDark,
                         onChanged: (v) {
                           setState(() => _allowMemberInvite = v);
-                          _markChanged();
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _SettingsSection(
-                    icon: Icons.task_alt_rounded,
-                    iconBg: const Color(0xFF22C55E),
-                    title: 'Tasks',
-                    isDark: isDark,
-                    children: [
-                      _ToggleTile(
-                        title: 'Auto-Delete Completed Tasks',
-                        subtitle:
-                            'Tasks are cleared at midnight after completion',
-                        value: _taskAutoDelete,
-                        isDark: isDark,
-                        onChanged: (v) {
-                          setState(() => _taskAutoDelete = v);
                           _markChanged();
                         },
                       ),

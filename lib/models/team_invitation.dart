@@ -1,10 +1,6 @@
 import 'package:logger/logger.dart';
 import 'package:momentum/models/user.dart';
 import 'package:momentum/models/team.dart';
-import 'package:momentum/models/profile_visibility.dart';
-import 'package:momentum/models/user_notification_settings.dart';
-import 'package:momentum/models/team_settings.dart';
-import 'package:momentum/models/notification_settings.dart';
 
 final Logger _logger = Logger();
 
@@ -114,32 +110,10 @@ class TeamInvitation {
     return DateTime.now();
   }
 
-  // Create default Team object
-  static Team _createDefaultTeam(String id) {
-    return Team(
-      id: id,
-      name: 'Unknown Team',
-      description: '',
-      owner: _createDefaultUser('unknown', 'Unknown'),
-      members: [],
-      settings: TeamSettings(notificationSettings: NotificationSettings()),
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-    );
-  }
+  static Team _createDefaultTeam(String id) => Team.placeholder(id: id);
 
-  // Create default User object
-  static User _createDefaultUser(String id, String name) {
-    return User(
-      id: id,
-      email: '',
-      name: name,
-      notificationSettings: UserNotificationSettings(),
-      lastLoginAt: DateTime.now(),
-      inviteId: '',
-      profileVisibility: ProfileVisibility(),
-    );
-  }
+  static User _createDefaultUser(String id, String name) =>
+      User.placeholder(id: id, name: name);
 
   bool get isPending => status == 'pending';
   bool get isExpired => DateTime.now().isAfter(expiresAt);

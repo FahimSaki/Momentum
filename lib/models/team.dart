@@ -80,6 +80,24 @@ class Team {
     }
   }
 
+  /// A stand-in for a team the server only referenced by id, or sent malformed.
+  factory Team.placeholder({
+    required String id,
+    String name = 'Unknown Team',
+    String? description,
+  }) {
+    return Team(
+      id: id,
+      name: name,
+      description: description ?? '',
+      owner: User.placeholder(id: 'unknown', name: 'Unknown'),
+      members: [],
+      settings: TeamSettings(notificationSettings: NotificationSettings()),
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       '_id': id,

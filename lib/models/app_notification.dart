@@ -1,10 +1,6 @@
 import 'package:momentum/models/user.dart';
 import 'package:momentum/models/team.dart';
 import 'package:momentum/models/task.dart';
-import 'package:momentum/models/profile_visibility.dart';
-import 'package:momentum/models/user_notification_settings.dart';
-import 'package:momentum/models/team_settings.dart';
-import 'package:momentum/models/notification_settings.dart';
 import 'package:logger/logger.dart';
 
 final Logger _logger = Logger();
@@ -57,30 +53,19 @@ class AppNotification {
     );
   }
 
-  // Parse optional user (returns null if unpopulated or missing)
+  // Parse optional user (returns null if missing)
   static User? _parseOptionalUser(dynamic userData) {
     if (userData == null) return null;
 
-    // If it's a String (ObjectId), create minimal User
-    if (userData is String) {
-      return User(
-        id: userData,
-        name: 'Unknown User',
-        email: '',
-        notificationSettings: UserNotificationSettings(),
-        lastLoginAt: DateTime.now(),
-        inviteId: '',
-        profileVisibility: ProfileVisibility(),
-      );
-    }
+    // An unpopulated reference arrives as a bare id string.
+    if (userData is String) return User.placeholder(id: userData);
 
-    // If it's a Map, try to parse
     if (userData is Map<String, dynamic>) {
       try {
         return User.fromJson(userData);
       } catch (e) {
         _logger.e('Error parsing notification user: $e');
-        return User(
+        return User.placeholder(
           id:
               userData['_id']?.toString() ??
               userData['id']?.toString() ??
@@ -88,10 +73,6 @@ class AppNotification {
           name: userData['name']?.toString() ?? 'Unknown User',
           email: userData['email']?.toString() ?? '',
           avatar: userData['avatar']?.toString(),
-          notificationSettings: UserNotificationSettings(),
-          lastLoginAt: DateTime.now(),
-          inviteId: '',
-          profileVisibility: ProfileVisibility(),
         );
       }
     }
@@ -99,58 +80,25 @@ class AppNotification {
     return null;
   }
 
-  // Parse optional team (returns null if unpopulated or missing)
+  // Parse optional team (returns null if missing)
   static Team? _parseOptionalTeam(dynamic teamData) {
     if (teamData == null) return null;
 
-    // If it's a String (ObjectId), create minimal Team
-    if (teamData is String) {
-      return Team(
-        id: teamData,
-        name: 'Unknown Team',
-        description: '',
-        owner: User(
-          id: 'unknown',
-          name: 'Unknown',
-          email: '',
-          notificationSettings: UserNotificationSettings(),
-          lastLoginAt: DateTime.now(),
-          inviteId: '',
-          profileVisibility: ProfileVisibility(),
-        ),
-        members: [],
-        settings: TeamSettings(notificationSettings: NotificationSettings()),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-    }
+    // An unpopulated reference arrives as a bare id string.
+    if (teamData is String) return Team.placeholder(id: teamData);
 
-    // If it's a Map, try to parse
     if (teamData is Map<String, dynamic>) {
       try {
         return Team.fromJson(teamData);
       } catch (e) {
         _logger.e('Error parsing notification team: $e');
-        return Team(
+        return Team.placeholder(
           id:
               teamData['_id']?.toString() ??
               teamData['id']?.toString() ??
               'unknown',
           name: teamData['name']?.toString() ?? 'Unknown Team',
-          description: teamData['description']?.toString() ?? '',
-          owner: User(
-            id: 'unknown',
-            name: 'Unknown',
-            email: '',
-            notificationSettings: UserNotificationSettings(),
-            lastLoginAt: DateTime.now(),
-            inviteId: '',
-            profileVisibility: ProfileVisibility(),
-          ),
-          members: [],
-          settings: TeamSettings(notificationSettings: NotificationSettings()),
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
+          description: teamData['description']?.toString(),
         );
       }
     }

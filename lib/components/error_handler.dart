@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:momentum/services/api_exception.dart';
 import 'package:momentum/utils/network_utils.dart';
 
 class ErrorHandler {
@@ -68,6 +69,13 @@ class ErrorHandler {
       return error is TimeoutException
           ? 'Request timed out. Please try again.'
           : 'Network connection error. Please check your internet.';
+    }
+
+    // A backend error response already carries the server's own reason.
+    if (error is ApiException) {
+      return error.isUnauthorized
+          ? 'Your session has expired. Please login again.'
+          : error.message;
     }
 
     String message = error.toString();
