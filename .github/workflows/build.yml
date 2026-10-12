@@ -31,12 +31,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      # ── Inject Firebase config before anything Flutter touches
+      # ── Inject Firebase config before anything Flutter touches ──────────
       - name: Create google-services.json
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
             > android/app/google-services.json
-
       - name: Setup Flutter
         uses: flutter-actions/setup-flutter@v4
         with:
@@ -51,7 +50,6 @@ jobs:
           key: flutter-pub-${{ hashFiles('**/pubspec.yaml') }}
           restore-keys: |
             flutter-pub-
-
       - name: Get dependencies
         run: flutter pub get
 
@@ -78,39 +76,31 @@ jobs:
     steps:
       - name: Check backend status
         run: |
-          echo "Checking backend endpoints..."
-
+          echo "🔍 Checking backend endpoints..."
           check_endpoint() {
             local url="$1"
             local name="$2"
             local max_attempts=5
             local wait_time=15
-
             for i in $(seq 1 $max_attempts); do
-              echo "Checking $name (attempt $i/$max_attempts)..."
-
+              echo "⏳ Checking $name (attempt $i/$max_attempts)..."
               if curl -sSf --max-time 30 --retry 3 "$url" > /dev/null 2>&1; then
-                echo "$name endpoint working"
+                echo "✅ $name endpoint working"
                 return 0
-              elif [ "$i" -eq "$max_attempts" ]; then
-                echo "$name endpoint failed after $max_attempts attempts"
+              elif [ $i -eq $max_attempts ]; then
+                echo "❌ $name endpoint failed after $max_attempts attempts"
                 return 1
               else
-                echo "Waiting ${wait_time}s before retry..."
-                sleep "$wait_time"
+                echo "⏸️ Waiting ${wait_time}s before retry..."
+                sleep $wait_time
               fi
             done
           }
-
           check_endpoint "https://momentum-g7ah.onrender.com" "Wake-up"
-
-          echo "Allowing backend time to fully initialize..."
+          echo "⏳ Allowing backend time to fully initialize..."
           sleep 30
-
           check_endpoint "https://momentum-g7ah.onrender.com/health" "Health"
-
-          echo "Backend status check completed successfully"
-
+          echo "📊 Backend status check completed successfully"
   build:
     needs: [code-quality, check-backend]
     strategy:
@@ -142,20 +132,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4.2.2
 
-      # Firebase config: Android
+      # ── Firebase config — Android ─────────────────────────────────────────
+      # Runs on every platform job but only writes the file when the secret
+      # exists AND we are on a platform that needs it.  The `if` guards
+      # prevent the step from hard-failing on platforms where the secret is
+      # irrelevant (windows / web / linux).
       - name: Create google-services.json (Android)
         if: matrix.platform == 'android'
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 --decode \
             > android/app/google-services.json
-
-      # Firebase config: iOS
+      # ── Firebase config — iOS ─────────────────────────────────────────────
       - name: Create GoogleService-Info.plist (iOS)
         if: matrix.platform == 'ios'
         run: |
           echo "${{ secrets.GOOGLE_SERVICES_PLIST }}" | base64 --decode \
             > ios/Runner/GoogleService-Info.plist
-
       - name: Setup Java
         if: matrix.platform == 'android'
         uses: actions/setup-java@v4.2.0
@@ -177,7 +169,6 @@ jobs:
           key: flutter-pub-${{ hashFiles('**/pubspec.yaml') }}
           restore-keys: |
             flutter-pub-
-
       - name: Cache Gradle
         if: matrix.platform == 'android'
         uses: actions/cache@v4.2.0
@@ -188,7 +179,6 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-
-
       - name: Platform Setup
         shell: bash
         run: |
@@ -212,8 +202,9 @@ jobs:
               flutter config --enable-macos-desktop
               ;;
           esac
-
-      # Linux desktop dependencies, including AppImage packaging tools
+      # ── Linux desktop build dependencies ────────────────────────────────
+      # Standard Flutter linux-desktop toolchain, plus libsecret/jsoncpp
+      # which flutter_secure_storage_linux needs at build time.
       - name: Install Linux build dependencies
         if: matrix.platform == 'linux'
         run: |
@@ -227,46 +218,30 @@ jobs:
             liblzma-dev \
             libstdc++-12-dev \
             libsecret-1-dev \
-            libjsoncpp-dev \
-            file \
-            wget \
-            imagemagick
-
+            libjsoncpp-dev
       - name: Setup iOS Simulator
         if: matrix.platform == 'ios'
         run: |
-          echo "Setting up iOS Simulator..."
+          echo "📱 Setting up iOS Simulator with compatible version..."
           echo "Available simulators:"
           xcrun simctl list devices available
           echo "Available runtimes:"
           xcrun simctl list runtimes
-
-          DEVICE_ID=$(xcrun simctl list devices available \
-            | grep -E "iPhone.*\(iOS 17\.[0-9]+\)" \
-            | head -1 \
-            | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' \
-            | tr -d ' ')
-
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone.*\(iOS 17\.[0-9]+\)" | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           if [ -z "$DEVICE_ID" ]; then
             echo "No iOS 17 simulator found, using any available iPhone..."
-            DEVICE_ID=$(xcrun simctl list devices available \
-              | grep iPhone \
-              | head -1 \
-              | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' \
-              | tr -d ' ')
+            DEVICE_ID=$(xcrun simctl list devices available | grep iPhone | head -1 | sed -E 's/.*\(([0-9A-F-]+)\).*/\1/' | tr -d ' ')
           fi
-
           if [ -n "$DEVICE_ID" ]; then
-            echo "Selected simulator: $DEVICE_ID"
-            echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+            echo "✅ Selected simulator: $DEVICE_ID"
+            echo "IOS_SIMULATOR_ID=$DEVICE_ID" >> $GITHUB_ENV
             xcrun simctl boot "$DEVICE_ID" || echo "Simulator may already be booted"
             sleep 30
             xcrun simctl list devices | grep "$DEVICE_ID"
           else
-            echo "No suitable iOS simulator found"
+            echo "❌ No suitable iOS simulator found"
             exit 1
           fi
-
       - name: Get dependencies
         run: flutter pub get
 
@@ -291,14 +266,11 @@ jobs:
               flutter build windows --release
               ;;
             ios)
-              echo "Building iOS app..."
-
+              echo "🍎 Building iOS app..."
               if [ -n "$IOS_SIMULATOR_ID" ]; then
-                echo "Building for simulator: $IOS_SIMULATOR_ID"
-
+                echo "Building for specific simulator: $IOS_SIMULATOR_ID"
                 if xcrun simctl list devices | grep -q "$IOS_SIMULATOR_ID"; then
-                  flutter build ios --simulator --no-codesign \
-                    --device-id="$IOS_SIMULATOR_ID"
+                  flutter build ios --simulator --no-codesign --device-id="$IOS_SIMULATOR_ID"
                 else
                   flutter build ios --simulator --no-codesign
                 fi
@@ -310,7 +282,6 @@ jobs:
               flutter build macos --release
               ;;
           esac
-
       - name: Install zip (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y zip
@@ -319,134 +290,21 @@ jobs:
         shell: bash
         run: |
           mkdir -p releases
-
           case "${{ matrix.platform }}" in
             android)
               cp build/app/outputs/flutter-apk/*.apk releases/
               cp build/app/outputs/bundle/release/*.aab releases/
               ;;
-
             web)
-              cd build/web
-              zip -r "../../releases/momentum-web-${{ github.sha }}.zip" .
+              cd build/web && zip -r "../../releases/momentum-web-${{ github.sha }}.zip" .
               ;;
-
             linux)
-              # 1. Preserve the existing tar.gz output.
               cd build/linux/x64/release/bundle
               tar -czf "../../../../../releases/momentum-linux-${{ github.sha }}.tar.gz" .
-
-              # 2. Return to the repository root.
-              cd "$GITHUB_WORKSPACE"
-
-              # 3. Download linuxdeploy for AppImage packaging.
-              wget -q \
-                https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
-                -O linuxdeploy-x86_64.AppImage
-
-              chmod +x linuxdeploy-x86_64.AppImage
-
-              # 4. Detect the Flutter Linux executable.
-              APP_EXECUTABLE=$(find build/linux/x64/release/bundle \
-                -maxdepth 1 \
-                -type f \
-                -executable \
-                ! -name '*.so' \
-                -printf '%f\n' | head -n 1)
-
-              if [ -z "$APP_EXECUTABLE" ]; then
-                echo "ERROR: Flutter Linux executable not found"
-                exit 1
-              fi
-
-              echo "Flutter executable: $APP_EXECUTABLE"
-
-              # 5. Prepare AppDir with the complete Flutter bundle.
-              rm -rf AppDir
-              mkdir -p AppDir
-
-              cp -a build/linux/x64/release/bundle/. AppDir/
-
-              # 6. Create a desktop entry.
-              mkdir -p AppDir/usr/share/applications
-              mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-
-              cat > AppDir/momentum.desktop <<EOF
-              [Desktop Entry]
-              Name=Momentum
-              Comment=Team management and task scheduling
-              Exec=${APP_EXECUTABLE}
-              Icon=momentum
-              Type=Application
-              Categories=Utility;
-              Terminal=false
-              EOF
-
-              cp AppDir/momentum.desktop \
-                AppDir/usr/share/applications/momentum.desktop
-
-              # 7. Use the project icon if available; otherwise create one.
-              if [ -f assets/icon.png ]; then
-                cp assets/icon.png \
-                  AppDir/usr/share/icons/hicolor/256x256/apps/momentum.png
-              else
-                convert -size 256x256 xc:'#2563EB' \
-                  -fill white \
-                  -gravity center \
-                  -pointsize 100 \
-                  -font DejaVu-Sans \
-                  -annotate 0 'M' \
-                  AppDir/usr/share/icons/hicolor/256x256/apps/momentum.png
-              fi
-
-              # 8. Create an AppRun launcher that starts the app
-              # from the directory containing Flutter's data and libraries.
-              cat > AppDir/AppRun <<'EOF'
-              #!/bin/sh
-              HERE="$(dirname "$(readlink -f "$0")")"
-              cd "$HERE"
-              exec "$HERE/${APP_EXECUTABLE}" "$@"
-              EOF
-
-              # Substitute the actual executable name into AppRun.
-              sed -i "s/\\\${APP_EXECUTABLE}/${APP_EXECUTABLE}/" AppDir/AppRun
-              chmod +x AppDir/AppRun
-
-              # 9. Bundle dependencies and generate the AppImage.
-              # Extract-and-run avoids requiring FUSE to launch linuxdeploy.
-              APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
-                --appdir AppDir \
-                --executable "AppDir/${APP_EXECUTABLE}" \
-                --desktop-file AppDir/momentum.desktop \
-                --icon-file AppDir/usr/share/icons/hicolor/256x256/apps/momentum.png \
-                --output appimage
-
-              # 10. Find the generated AppImage and move it into releases/.
-              APPIMAGE_FILE=$(find "$GITHUB_WORKSPACE" \
-                -maxdepth 1 \
-                -type f \
-                -name '*.AppImage' \
-                ! -name 'linuxdeploy-x86_64.AppImage' \
-                -print -quit)
-
-              if [ -z "$APPIMAGE_FILE" ]; then
-                echo "ERROR: AppImage generation failed"
-                exit 1
-              fi
-
-              mv "$APPIMAGE_FILE" \
-                "releases/momentum-${{ github.sha }}.AppImage"
-
-              chmod +x "releases/momentum-${{ github.sha }}.AppImage"
-
-              echo "Linux packages created:"
-              ls -lh releases/
               ;;
-
             windows)
               pwsh -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'releases/momentum-windows-${{ github.sha }}.zip'"
               ;;
-
             ios)
               if [ -d "build/ios/iphonesimulator" ] && [ "$(ls -A build/ios/iphonesimulator 2>/dev/null)" ]; then
                 cd build/ios/iphonesimulator
@@ -455,7 +313,6 @@ jobs:
                 echo "iOS build directory not found" > "releases/momentum-ios-simulator-${{ github.sha }}.txt"
               fi
               ;;
-
             macos)
               if [ -d "build/macos/Build/Products/Release" ] && [ "$(ls -A build/macos/Build/Products/Release 2>/dev/null)" ]; then
                 cd build/macos/Build/Products/Release
@@ -465,7 +322,6 @@ jobs:
               fi
               ;;
           esac
-
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4.4.3
         with:
@@ -479,20 +335,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
-
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4.1.8
         with:
           path: artifacts/
-
       - name: Prepare Release Files
         run: |
           mkdir -p release-files
           find artifacts/ -type f -exec cp {} release-files/ \;
-
-          echo "Release files ready:"
+          echo "✅ Release files ready:"
           ls -la release-files/
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -500,17 +352,17 @@ jobs:
           name: Release ${{ github.ref_name }}
           body: |
             ## 🚀 Momentum Release ${{ github.ref_name }}
-
             ### 📱 Downloads
             - Android APK / AAB
-            - Web ZIP
-            - Linux TAR.GZ
-            - Linux AppImage
-            - Windows ZIP
+            - Web
+            - Linux
+            - Windows
             - iOS Simulator
-            - macOS ZIP
+            - macOS
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          prerelease:
+            contains(github.ref_name, 'beta') || contains(github.ref_name,
+            'alpha')
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -534,8 +386,8 @@ jobs:
       - name: Notify Build Status
         run: |
           if [ "${{ needs.build.result }}" = "success" ]; then
-            echo "Build completed successfully"
+            echo "✅ Build completed successfully"
           else
-            echo "Build failed"
+            echo "❌ Build failed"
             exit 1
           fi
