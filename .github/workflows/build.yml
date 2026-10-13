@@ -301,6 +301,27 @@ jobs:
             linux)
               cd build/linux/x64/release/bundle
               tar -czf "../../../../../releases/momentum-linux-${{ github.sha }}.tar.gz" .
+              cd "$GITHUB_WORKSPACE"
+              mkdir -p AppDir/usr/bin
+              cp -r build/linux/x64/release/bundle/. AppDir/usr/bin/
+              cp assets/images/momentum_app_logo_main.png AppDir/momentum.png
+              printf '%s\n' \
+                '[Desktop Entry]' \
+                'Type=Application' \
+                'Name=Momentum' \
+                'Comment=Smart daily task manager with team collaboration' \
+                'Exec=momentum' \
+                'Icon=momentum' \
+                'Categories=Office;ProjectManagement;' \
+                'Terminal=false' > AppDir/momentum.desktop
+              printf '%s\n' \
+                '#!/bin/sh' \
+                'HERE="$(dirname "$(readlink -f "$0")")"' \
+                'exec "$HERE/usr/bin/momentum" "$@"' > AppDir/AppRun
+              chmod +x AppDir/AppRun
+              curl -fL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+              chmod +x appimagetool
+              ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool -n AppDir "releases/momentum-linux-${{ github.sha }}-x86_64.AppImage"
               ;;
             windows)
               pwsh -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'releases/momentum-windows-${{ github.sha }}.zip'"
