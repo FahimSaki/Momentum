@@ -16,6 +16,8 @@ The `activeTasks` and `completedTasks` getters on `TaskState` iterate `currentTa
 
 `TimerService` polls the backend every **10 seconds** while the app is in the foreground. This is intentional for near-real-time team updates. Each tick flushes the offline queue and reloads tasks, notifications, pending invitations, and dashboard stats. A tick is skipped if the previous one is still running, so a slow backend (for example one waking from sleep) never stacks up overlapping refreshes. On the web target, polling is disabled (`if (kIsWeb) return`) to avoid excessive background requests in the browser.
 
+History is not part of every tick: it reloads when a completed task leaves the list, when the selected team changes, and at most every five minutes.
+
 If battery life or data usage is a concern, the interval can be increased in `TimerService`:
 
 ```dart
@@ -52,7 +54,7 @@ The following indexes are defined in Mongoose schemas:
 
 | Collection | Index |
 | ----------- | ------- |
-| `Task` | `assignedTo`, `assignedBy`, `team`, `dueDate`, `isArchived + team`, `assignedBy + clientId` (unique, partial) |
+| `Task` | `assignedTo`, `assignedBy`, `team`, `dueDate`, `isArchived + team`, `isArchived + archiveExpiresAt`, `assignedBy + clientId` (unique, partial) |
 | `TaskHistory` | `userId`, `teamId`, `userId + taskName` |
 | `Notification` | `recipient + isRead`, `recipient + createdAt` |
 | `Team` | `members.user`, `owner` |
@@ -63,7 +65,9 @@ The `assignedBy + clientId` index only covers documents that have a `clientId` (
 
 ### Cleanup Job Performance
 
-The daily cleanup job (`cleanupScheduler.ts`) runs three sequential passes over the `Task` collection. The archive pass is a single `updateMany`. The delete pass loads every archived task from before today and removes them one by one, and the completion-day pass calls `Task.find({})` with no filter, loading every task into memory. That is fine at small scale but will become slow with tens of thousands of tasks. For high-volume deployments:
+The daily cleanup job (`cleanupScheduler.ts`) runs three sequential passes over the `Task` collection. The archive pass is a single `updateMany`. The delete pass loads every archived task from before today and removes them one by one, and the completion-day pass calls `Task.find({})` with no filter, loading every task into memory. That is fine at small scale but will become slow with tens of thousands of tasks. The hourly expiry job queries `isArchived + archiveExpiresAt`, which is indexed, and only touches tasks that have expired.
+
+For high-volume deployments:
 
 - Add a `lastCompletedDate` index to speed up the archive step.
 - Filter the completion-day pass to tasks that actually have old entries instead of loading every task.

@@ -83,7 +83,7 @@ Same as above – download from Firebase (Project Settings → Your apps → iOS
 
 ### Tasks disappear after midnight
 
-This is expected behaviour. The cleanup scheduler archives and deletes tasks completed on previous days. Their completion data is preserved in `TaskHistory` and visible in the heatmap. Only tasks relevant to today remain in the main `Task` collection.
+This is expected behaviour. A completed task is removed once the completing user's day has ended: an hourly job saves its completion days to `TaskHistory` and deletes it, and the heatmap keeps showing those days. Only active tasks and tasks completed in the current day remain in the main `Task` collection.
 
 ---
 
@@ -182,7 +182,7 @@ If you change `JWT_SECRET` in production, all existing tokens become invalid. Us
 
 ### Verification, 2FA, and reset emails never arrive
 
-The server logs "Email disabled — missing env vars" at startup when any of `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, or `EMAIL_FROM` is missing, and "Gmail OAuth2 token refresh failed" when the credentials are rejected. Registration still reports success in that state, so the user is simply never sent a code. Fix the variables (see [INSTALLATION.md](INSTALLATION.md)) and use "Resend". Also check the spam folder, and that `EMAIL_FROM` is the mailbox the refresh token belongs to or a verified "Send mail as" alias.
+The server logs "Email disabled — missing env vars" at startup when any of `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, or `EMAIL_FROM` is missing, and "Gmail OAuth2 token refresh failed" when the credentials are rejected. Registration still reports success in that state, so the user is simply never sent a code. Fix the variables (see [INSTALLATION.md](INSTALLATION.md)) and use "Resend". Also check the spam folder, and that `EMAIL_FROM` is the mailbox the refresh token belongs to or a verified "Send mail as" alias. For local development, set `NODE_ENV=development`: the code is printed to the server console and the flow continues.
 
 ---
 
@@ -200,7 +200,7 @@ It drops the stale index and rebuilds the `Task` indexes from the current schema
 
 ### Firebase not initialised – push notifications skipped
 
-The server logs a warning that no service account was found. Set one of `FIREBASE_SERVICE_ACCOUNT_PATH` or `FIREBASE_SERVICE_ACCOUNT_JSON` in your `.env` (see [DEPLOYMENT.md](DEPLOYMENT.md)). The server still starts and works normally without Firebase – only push notifications are disabled.
+The server logs a warning that no service account was found. Set one of `FIREBASE_SERVICE_ACCOUNT_PATH` or `FIREBASE_SERVICE_ACCOUNT_JSON` in your `.env` (see [DEPLOYMENT.md](DEPLOYMENT.md)). A key file is only used when `FIREBASE_SERVICE_ACCOUNT_PATH` points at it. The server still starts and works normally without Firebase – only push notifications are disabled.
 
 ---
 
@@ -235,6 +235,12 @@ Restart the server after updating the variable. No code changes are needed.
 ### Team invitation returns 400 "pending invitation already exists"
 
 A user already has a pending (not yet accepted or declined) invitation to this team. The inviter must wait for the invitee to respond, or the invitation must expire (7-day TTL). Once the invitee declines, a new invitation can be sent – the controller automatically cleans up declined/expired invitations before creating a new one.
+
+---
+
+### Searching for a user by name or email finds nobody
+
+Search only matches a name or email the user has chosen to show. Their invite ID always matches, so ask them to share it, or use the Email tab with the full address.
 
 ---
 

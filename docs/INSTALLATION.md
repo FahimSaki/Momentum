@@ -83,7 +83,7 @@ Momentum sends registration, 2FA, password-reset, password-change, and account-d
 3. Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` from that client.
 4. Set `EMAIL_FROM` to the Gmail address the refresh token belongs to. Gmail overrides the `From` header unless the address matches a verified "Send mail as" alias on the account, so add one under Gmail → Settings → Accounts if you want a different display address.
 
-If any of the four Gmail variables are missing, the server still starts and logs a warning ("Email disabled — missing env vars"). Registration will appear to succeed but the user never receives a code, and the other code flows (resend, 2FA, password reset and change, account deletion) answer with a server error.
+If any of the four Gmail variables are missing, the server still starts and logs a warning ("Email disabled — missing env vars"). With `NODE_ENV=development` every one-time code is then printed to the server console and the flow continues, so you can run everything locally without mail credentials. In any other environment registration appears to succeed but the user never receives a code, and the other code flows (resend, 2FA, password reset and change, account deletion) answer with a server error.
 
 ### Run the Backend
 
@@ -169,7 +169,7 @@ Firebase is required only for push notifications. The app runs fully without it.
 ### Backend Service Account
 
 1. In Firebase Console → Project Settings → Service Accounts → **Generate new private key**.
-2. Save the downloaded JSON as `backend/momentum-firebase-adminsdk.json`.
+2. Save the downloaded JSON as `backend/momentum-firebase-adminsdk.json`. Any file matching `*firebase-adminsdk*.json` is git-ignored.
 3. Add to `.env`:
 
    ```env

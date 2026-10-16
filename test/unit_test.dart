@@ -1,246 +1,53 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:momentum/models/task.dart';
+import 'package:momentum/utils/day_utils.dart';
 import 'package:momentum/utils/task_util.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-// DateTime extension to compare only year/month/day
-extension DateOnlyCompare on DateTime {
-  bool isAtSameMoment(DateTime other) {
-    return year == other.year && month == other.month && day == other.day;
-  }
+Task _task({
+  String id = 'test-id',
+  String name = 'Test Task',
+  List<DateTime> completedDays = const [],
+  DateTime? lastCompletedDate,
+  DateTime? dueDate,
+  bool isArchived = false,
+  TaskSyncStatus syncStatus = TaskSyncStatus.synced,
+}) => Task(
+  id: id,
+  name: name,
+  completedDays: completedDays,
+  lastCompletedDate: lastCompletedDate,
+  dueDate: dueDate,
+  isArchived: isArchived,
+  syncStatus: syncStatus,
+  createdAt: DateTime(2026, 1, 1),
+  updatedAt: DateTime(2026, 1, 1),
+);
+
+DateTime _daysFromToday(int days) {
+  final t = localToday();
+  return DateTime(t.year, t.month, t.day + days);
 }
 
 void main() {
-  // Setup shared preferences mock for all tests
-  setUpAll(() {
-    SharedPreferences.setMockInitialValues({});
-  });
-
-  group('Task Model Tests', () {
-    test('Task creation from JSON works correctly', () {
-      final json = {
+  group('Task model', () {
+    test('fromJson reads the fields the backend sends', () {
+      final task = Task.fromJson({
         '_id': 'test-id',
         'name': 'Test Task',
         'completedDays': ['2024-01-01T00:00:00.000Z'],
         'isArchived': false,
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
-      };
+      });
 
-      final task = Task.fromJson(json);
-
-      expect(task.id, equals('test-id'));
-      expect(task.name, equals('Test Task'));
-      expect(task.completedDays.length, equals(1));
-      expect(task.isArchived, equals(false));
-    });
-
-    test('Task toJson works correctly', () {
-      final task = Task(
-        id: 'test-id',
-        name: 'Test Task',
-        completedDays: [DateTime(2024, 1, 1)],
-        isArchived: false,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      final json = task.toJson();
-
-      expect(json['_id'], equals('test-id'));
-      expect(json['name'], equals('Test Task'));
-      expect(json['isArchived'], equals(false));
-    });
-
-    test('Task with empty completedDays', () {
-      final task = Task(
-        id: 'test-id',
-        name: 'Empty Task',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      expect(task.completedDays, isEmpty);
+      expect(task.id, 'test-id');
+      expect(task.name, 'Test Task');
+      expect(task.completedDays, [DateTime(2024, 1, 1)]);
       expect(task.isArchived, isFalse);
-      expect(task.lastCompletedDate, isNull);
     });
 
-    test('Task with multiple completion days', () {
-      final dates = [
-        DateTime(2024, 1, 1),
-        DateTime(2024, 1, 2),
-        DateTime(2024, 1, 3),
-      ];
-
-      final task = Task(
-        id: 'test-id',
-        name: 'Multi Day Task',
-        completedDays: dates,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      expect(task.completedDays.length, equals(3));
-      expect(task.completedDays.contains(dates[0]), isTrue);
-      expect(task.completedDays.contains(dates[1]), isTrue);
-      expect(task.completedDays.contains(dates[2]), isTrue);
-    });
-  });
-
-  group('Task Utility Tests', () {
-    test('prepareMapDatasets creates correct heatmap data', () {
-      final tasks = [
-        Task(
-          id: '1',
-          name: 'Task 1',
-          completedDays: [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-        Task(
-          id: '2',
-          name: 'Task 2',
-          completedDays: [DateTime(2024, 1, 1)],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
-
-      final result = prepareMapDatasets(tasks);
-
-      expect(result.length, equals(2));
-      expect(result[DateTime(2024, 1, 1)], equals(2));
-      expect(result[DateTime(2024, 1, 2)], equals(1));
-    });
-
-    test('prepareMapDatasets with historical data', () {
-      final tasks = [
-        Task(
-          id: '1',
-          name: 'Task 1',
-          completedDays: [DateTime(2024, 1, 1)],
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ),
-      ];
-
-      final historicalCompletions = [
-        DateTime(2024, 1, 1),
-        DateTime(2024, 1, 2),
-      ];
-
-      final result = prepareMapDatasets(tasks, historicalCompletions);
-
-      expect(result.length, equals(2));
-      expect(result[DateTime(2024, 1, 1)], equals(2));
-      expect(result[DateTime(2024, 1, 2)], equals(1));
-    });
-
-    test('isTaskCompletedToday works correctly', () {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final yesterday = today.subtract(const Duration(days: 1));
-
-      final todayCompletions = [DateTime.now()];
-      expect(isTaskCompletedToday(todayCompletions), isTrue);
-
-      final yesterdayCompletions = [yesterday];
-      expect(isTaskCompletedToday(yesterdayCompletions), isFalse);
-
-      expect(isTaskCompletedToday([]), isFalse);
-
-      final multipleCompletions = [yesterday, DateTime.now()];
-      expect(isTaskCompletedToday(multipleCompletions), isTrue);
-
-      final todayWithTime = DateTime(now.year, now.month, now.day, 14, 30);
-      expect(isTaskCompletedToday([todayWithTime]), isTrue);
-
-      expect(isTaskCompletedToday([today]), isTrue);
-    });
-
-    test('shouldShowTask works correctly', () {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final yesterday = today.subtract(const Duration(days: 1));
-
-      final newTask = Task(
-        id: '1',
-        name: 'New Task',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      expect(shouldShowTask(newTask), isTrue);
-
-      final yesterdayTask = Task(
-        id: '2',
-        name: 'Yesterday Task',
-        lastCompletedDate: yesterday,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      expect(shouldShowTask(yesterdayTask), isTrue);
-
-      final todayTask = Task(
-        id: '3',
-        name: 'Today Task',
-        lastCompletedDate: today,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      expect(shouldShowTask(todayTask), isFalse);
-
-      final todayWithTime = Task(
-        id: '4',
-        name: 'Today with Time Task',
-        lastCompletedDate: DateTime(now.year, now.month, now.day, 14, 30),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      expect(shouldShowTask(todayWithTime), isFalse);
-
-      final nowTask = Task(
-        id: '5',
-        name: 'Now Task',
-        lastCompletedDate: DateTime.now(),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-      expect(shouldShowTask(nowTask), isFalse);
-    });
-  });
-
-  group('Date Utility Tests', () {
-    test('DateTime comparison extension works', () {
-      final date1 = DateTime(2024, 1, 1, 10, 30);
-      final date2 = DateTime(2024, 1, 1, 15, 45);
-      final date3 = DateTime(2024, 1, 2, 10, 30);
-
-      expect(date1.isAtSameMoment(date2), isTrue);
-      expect(date1.isAtSameMoment(date3), isFalse);
-    });
-
-    test('Date normalization', () {
-      final dateWithTime = DateTime(2024, 1, 1, 14, 30, 45);
-      final normalizedDate = DateTime(
-        dateWithTime.year,
-        dateWithTime.month,
-        dateWithTime.day,
-      );
-
-      expect(normalizedDate.hour, equals(0));
-      expect(normalizedDate.minute, equals(0));
-      expect(normalizedDate.second, equals(0));
-    });
-  });
-
-  group('Edge Case Tests', () {
-    test('Empty task list handling', () {
-      final result = prepareMapDatasets([]);
-      expect(result, isEmpty);
-    });
-
-    test('Task with null values', () {
-      final json = {
+    test('fromJson tolerates null optional fields', () {
+      final task = Task.fromJson({
         '_id': 'test-id',
         'name': 'Test Task',
         'completedDays': null,
@@ -249,46 +56,224 @@ void main() {
         'archivedAt': null,
         'createdAt': DateTime.now().toIso8601String(),
         'updatedAt': DateTime.now().toIso8601String(),
-      };
+      });
 
-      final task = Task.fromJson(json);
-
-      expect(task.id, equals('test-id'));
-      expect(task.name, equals('Test Task'));
       expect(task.completedDays, isEmpty);
       expect(task.lastCompletedDate, isNull);
       expect(task.isArchived, isFalse);
       expect(task.archivedAt, isNull);
+      expect(task.priority, 'medium');
+      expect(task.assignmentType, 'individual');
     });
 
-    test('Task JSON serialization roundtrip', () {
-      final originalTask = Task(
+    test('toJson uses the backend field names', () {
+      final json = _task(completedDays: [DateTime(2024, 1, 1)]).toJson();
+
+      expect(json['_id'], 'test-id');
+      expect(json['name'], 'Test Task');
+      expect(json['isArchived'], isFalse);
+      expect(json['completedDays'], ['2024-01-01T00:00:00.000Z']);
+    });
+
+    test('toJson then fromJson keeps every field the cache relies on', () {
+      final original = Task(
         id: 'test-id',
         name: 'Test Task',
+        description: 'Cover the model',
+        priority: 'high',
+        tags: const ['testing'],
         completedDays: [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
         lastCompletedDate: DateTime(2024, 1, 2),
         isArchived: true,
-        archivedAt: DateTime(2024, 1, 3),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        archivedAt: DateTime(2024, 1, 3, 10),
+        isTeamTask: true,
+        assignmentType: 'team',
+        createdAt: DateTime(2024, 1, 1),
+        updatedAt: DateTime(2024, 1, 2),
+        syncStatus: TaskSyncStatus.syncFailed,
       );
 
-      final json = originalTask.toJson();
-      final recreatedTask = Task.fromJson(json);
+      final copy = Task.fromJson(original.toJson());
 
-      expect(recreatedTask.id, equals(originalTask.id));
-      expect(recreatedTask.name, equals(originalTask.name));
-      expect(
-        recreatedTask.completedDays.length,
-        equals(originalTask.completedDays.length),
-      );
-      expect(recreatedTask.isArchived, equals(originalTask.isArchived));
+      expect(copy.id, original.id);
+      expect(copy.name, original.name);
+      expect(copy.description, original.description);
+      expect(copy.priority, original.priority);
+      expect(copy.tags, original.tags);
+      expect(copy.completedDays, original.completedDays);
+      expect(copy.lastCompletedDate, original.lastCompletedDate);
+      expect(copy.isArchived, isTrue);
+      expect(copy.isTeamTask, isTrue);
+      expect(copy.assignmentType, 'team');
+      expect(copy.syncStatus, TaskSyncStatus.syncFailed);
     });
   });
 
-  group('Constants and Configuration', () {
-    test('Basic constants are accessible', () {
-      expect(true, isTrue);
+  group('Offline sync status', () {
+    test('local ids are recognised and server ids are not', () {
+      expect(Task.isLocalId('local_1767225600000000'), isTrue);
+      expect(Task.isLocalId('665f1c2a9b1e4c0012ab34cd'), isFalse);
+      expect(Task.isLocalId(Task.generateLocalId()), isTrue);
+    });
+
+    test('a synced task is not pending and not local', () {
+      final task = _task(id: '665f1c2a9b1e4c0012ab34cd');
+      expect(task.isPendingSync, isFalse);
+      expect(task.isLocalOnly, isFalse);
+    });
+
+    test('a queued or failed task counts as pending sync', () {
+      expect(
+        _task(syncStatus: TaskSyncStatus.pendingCreate).isPendingSync,
+        isTrue,
+      );
+      expect(
+        _task(syncStatus: TaskSyncStatus.syncFailed).isPendingSync,
+        isTrue,
+      );
+    });
+
+    test('only a task that still has a local id is local-only', () {
+      expect(_task(id: 'local_1').isLocalOnly, isTrue);
+    });
+
+    test('an unknown or missing syncStatus reads as synced', () {
+      const base = {
+        '_id': '1',
+        'name': 'T',
+        'createdAt': '2026-10-03T00:00:00.000Z',
+        'updatedAt': '2026-10-03T00:00:00.000Z',
+      };
+      expect(Task.fromJson(base).syncStatus, TaskSyncStatus.synced);
+      expect(
+        Task.fromJson({...base, 'syncStatus': 'something-new'}).syncStatus,
+        TaskSyncStatus.synced,
+      );
+    });
+  });
+
+  group('Overdue', () {
+    test('a task due before today is overdue', () {
+      expect(_task(dueDate: _daysFromToday(-1)).isOverdue, isTrue);
+    });
+
+    test('a task due today or later is not overdue', () {
+      expect(_task(dueDate: _daysFromToday(0)).isOverdue, isFalse);
+      expect(_task(dueDate: _daysFromToday(3)).isOverdue, isFalse);
+    });
+
+    test('a task with no due date is never overdue', () {
+      expect(_task().isOverdue, isFalse);
+    });
+
+    test('completing or archiving an overdue task clears the flag', () {
+      final yesterday = _daysFromToday(-1);
+      expect(
+        _task(dueDate: yesterday, completedDays: [localToday()]).isOverdue,
+        isFalse,
+      );
+      expect(_task(dueDate: yesterday, isArchived: true).isOverdue, isFalse);
+    });
+  });
+
+  group('Heatmap data', () {
+    test('prepareMapDatasets counts completions per local day', () {
+      final tasks = [
+        _task(
+          id: '1',
+          completedDays: [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
+        ),
+        _task(id: '2', completedDays: [DateTime(2024, 1, 1)]),
+      ];
+
+      final result = prepareMapDatasets(tasks);
+
+      expect(result.length, 2);
+      expect(result[DateTime(2024, 1, 1)], 2);
+      expect(result[DateTime(2024, 1, 2)], 1);
+    });
+
+    test('prepareMapDatasets adds historical completions on top', () {
+      final result = prepareMapDatasets(
+        [
+          _task(completedDays: [DateTime(2024, 1, 1)]),
+        ],
+        [DateTime(2024, 1, 1), DateTime(2024, 1, 2)],
+      );
+
+      expect(result[DateTime(2024, 1, 1)], 2);
+      expect(result[DateTime(2024, 1, 2)], 1);
+    });
+
+    test('prepareMapDatasets of nothing is empty', () {
+      expect(prepareMapDatasets([]), isEmpty);
+    });
+
+    test('filterDatesByRange is inclusive at both ends and ignores time', () {
+      final dates = [
+        DateTime(2024, 1, 1, 23, 59),
+        DateTime(2024, 1, 5, 8),
+        DateTime(2024, 1, 6),
+        DateTime(2023, 12, 31),
+      ];
+
+      final result = filterDatesByRange(
+        dates,
+        DateTime(2024, 1, 1),
+        DateTime(2024, 1, 5),
+      );
+
+      expect(result, [DateTime(2024, 1, 1, 23, 59), DateTime(2024, 1, 5, 8)]);
+    });
+
+    test('countCompletionsInRange sums across tasks', () {
+      final tasks = [
+        _task(
+          id: '1',
+          completedDays: [
+            DateTime(2024, 1, 1),
+            DateTime(2024, 1, 2),
+            DateTime(2024, 1, 10),
+          ],
+        ),
+        _task(id: '2', completedDays: [DateTime(2024, 1, 2)]),
+      ];
+
+      expect(
+        countCompletionsInRange(
+          tasks,
+          DateTime(2024, 1, 1),
+          DateTime(2024, 1, 5),
+        ),
+        3,
+      );
+    });
+  });
+
+  group('Completed today', () {
+    test('isTaskCompletedToday matches today at any time of day', () {
+      final now = DateTime.now();
+      final yesterday = DateTime(now.year, now.month, now.day - 1);
+
+      expect(isTaskCompletedToday([now]), isTrue);
+      expect(
+        isTaskCompletedToday([DateTime(now.year, now.month, now.day, 14, 30)]),
+        isTrue,
+      );
+      expect(isTaskCompletedToday([yesterday, now]), isTrue);
+      expect(isTaskCompletedToday([yesterday]), isFalse);
+      expect(isTaskCompletedToday([]), isFalse);
+    });
+
+    test('shouldShowTask hides a task last completed today', () {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final yesterday = today.subtract(const Duration(days: 1));
+
+      expect(shouldShowTask(_task()), isTrue);
+      expect(shouldShowTask(_task(lastCompletedDate: yesterday)), isTrue);
+      expect(shouldShowTask(_task(lastCompletedDate: today)), isFalse);
+      expect(shouldShowTask(_task(lastCompletedDate: now)), isFalse);
     });
   });
 }

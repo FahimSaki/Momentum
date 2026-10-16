@@ -21,6 +21,8 @@ permissions:
 env:
   FLUTTER_VERSION: "3.47.5"
   JAVA_VERSION: "17"
+  NODE_VERSION: "24"
+  APPIMAGETOOL_VERSION: "1.9.1"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -56,9 +58,10 @@ jobs:
       - name: Run Flutter analyzer
         run: flutter analyze --fatal-infos
 
+      # A failing test now fails the job. Previously the failure was swallowed
+      # by `|| echo` and continue-on-error, so a red test never blocked a build.
       - name: Run tests
-        run: flutter test --coverage || echo "Tests failed but continuing build"
-        continue-on-error: true
+        run: flutter test --coverage
 
       - name: Upload coverage reports
         if: always()
@@ -70,9 +73,35 @@ jobs:
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed .
 
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+  # Informational only. It pings the production server, so it must never be
+  # able to block a build: a sleeping or down Render instance says nothing
+  # about whether the app compiles. continue-on-error keeps the job green.
   check-backend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: true
     steps:
       - name: Check backend status
         run: |
@@ -101,8 +130,10 @@ jobs:
           sleep 30
           check_endpoint "https://momentum-g7ah.onrender.com/health" "Health"
           echo "Backend status check completed successfully"
+
   build:
-    needs: [code-quality, check-backend]
+    # Gated on code quality only; see check-backend above.
+    needs: [code-quality]
     strategy:
       fail-fast: false
       matrix:
@@ -115,7 +146,7 @@ jobs:
             output: web
           - os: ubuntu-latest
             platform: linux
-            output: tar.gz
+            output: tar.gz + AppImage
           - os: windows-latest
             platform: windows
             output: exe
@@ -301,27 +332,6 @@ jobs:
             linux)
               cd build/linux/x64/release/bundle
               tar -czf "../../../../../releases/momentum-linux-${{ github.sha }}.tar.gz" .
-              cd "$GITHUB_WORKSPACE"
-              mkdir -p AppDir/usr/bin
-              cp -r build/linux/x64/release/bundle/. AppDir/usr/bin/
-              cp assets/images/momentum_app_logo_main.png AppDir/momentum.png
-              printf '%s\n' \
-                '[Desktop Entry]' \
-                'Type=Application' \
-                'Name=Momentum' \
-                'Comment=Smart daily task manager with team collaboration' \
-                'Exec=momentum' \
-                'Icon=momentum' \
-                'Categories=Office;ProjectManagement;' \
-                'Terminal=false' > AppDir/momentum.desktop
-              printf '%s\n' \
-                '#!/bin/sh' \
-                'HERE="$(dirname "$(readlink -f "$0")")"' \
-                'exec "$HERE/usr/bin/momentum" "$@"' > AppDir/AppRun
-              chmod +x AppDir/AppRun
-              curl -fL https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
-              chmod +x appimagetool
-              ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool -n AppDir "releases/momentum-linux-${{ github.sha }}-x86_64.AppImage"
               ;;
             windows)
               pwsh -Command "Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath 'releases/momentum-windows-${{ github.sha }}.zip'"
@@ -348,6 +358,65 @@ jobs:
         with:
           name: momentum-${{ matrix.platform }}-${{ github.sha }}
           path: releases/
+          if-no-files-found: error
+          retention-days: 30
+
+      # AppImage — Linux only. This is a step inside the Linux matrix job, not
+      # a separate job, so the job count does not change. It is its own step
+      # and its own artifact so it is easy to find and fails loudly: the step
+      # errors out if the file is not produced.
+      - name: Build AppImage (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          bundle=build/linux/x64/release/bundle
+          out="appimage/momentum-linux-${GITHUB_SHA}-x86_64.AppImage"
+
+          test -x "$bundle/momentum"
+          rm -rf AppDir appimage
+          mkdir -p AppDir/usr/bin appimage
+
+          cp -r "$bundle/." AppDir/usr/bin/
+          cp assets/images/momentum_app_logo_main.png AppDir/momentum.png
+
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Type=Application' \
+            'Name=Momentum' \
+            'Comment=Smart daily task manager with team collaboration' \
+            'Exec=momentum' \
+            'Icon=momentum' \
+            'Categories=Office;ProjectManagement;' \
+            'Terminal=false' > AppDir/momentum.desktop
+
+          printf '%s\n' \
+            '#!/bin/sh' \
+            'HERE="$(dirname "$(readlink -f "$0")")"' \
+            'exec "$HERE/usr/bin/momentum" "$@"' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+
+          # Pinned release, not the moving "continuous" tag, so a change
+          # upstream cannot break or alter the build.
+          curl -fsSL \
+            "https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage" \
+            -o appimagetool
+          chmod +x appimagetool
+
+          # APPIMAGE_EXTRACT_AND_RUN lets the tool run without FUSE, which
+          # GitHub-hosted runners do not provide.
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool -n AppDir "$out"
+
+          ls -lh appimage
+          test -s "$out"
+
+      - name: Upload AppImage
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: momentum-linux-appimage-${{ github.sha }}
+          path: appimage/
+          if-no-files-found: error
           retention-days: 30
 
   release:
@@ -364,6 +433,8 @@ jobs:
         run: |
           mkdir -p release-files
           find artifacts/ -type f -exec cp {} release-files/ \;
+          # Artifact zips drop the executable bit.
+          chmod +x release-files/*.AppImage 2>/dev/null || true
           echo "Release files ready:"
           ls -la release-files/
       - name: Create Release
@@ -376,14 +447,12 @@ jobs:
             ### Downloads
             - Android APK / AAB
             - Web
-            - Linux
+            - Linux (tar.gz and AppImage)
             - Windows
             - iOS Simulator
             - macOS
           draft: false
-          prerelease:
-            contains(github.ref_name, 'beta') || contains(github.ref_name,
-            'alpha')
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -401,12 +470,18 @@ jobs:
 
   notify:
     if: always()
-    needs: [code-quality, check-backend, build, release]
+    needs: [code-quality, backend, check-backend, build, release]
     runs-on: ubuntu-latest
     steps:
       - name: Notify Build Status
         run: |
-          if [ "${{ needs.build.result }}" = "success" ]; then
+          echo "code-quality:      ${{ needs.code-quality.result }}"
+          echo "backend:           ${{ needs.backend.result }}"
+          echo "check-backend:     ${{ needs.check-backend.result }} (informational)"
+          echo "build:             ${{ needs.build.result }}"
+          if [ "${{ needs.code-quality.result }}" = "success" ] \
+            && [ "${{ needs.backend.result }}" = "success" ] \
+            && [ "${{ needs.build.result }}" = "success" ]; then
             echo "Build completed successfully"
           else
             echo "Build failed"

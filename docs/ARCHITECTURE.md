@@ -64,7 +64,7 @@ Widgets subscribe with `BlocBuilder<XCubit, XState>`, `context.watch<XCubit>()`,
 
 | Cubit | State | Responsibility |
 | ------- | ------- | ----------------- |
-| `TaskCubit` | `TaskState` | `currentTasks`, `historicalCompletions`, `dashboardStats`, `isOffline`; computed getters `activeTasks`, `completedTasks`, `personalTasks`, `teamTasks`; the offline cache (`LocalCacheService`) and sync queue (`SyncQueueService`); polling and midnight cleanup (`TimerService`); FCM setup (`PushNotificationService`); calls `WidgetService` after every mutation and every poll |
+| `TaskCubit` | `TaskState` | `currentTasks`, `historicalCompletions`, `dashboardStats`, `isOffline`; computed getters `activeTasks`, `completedTasks`, `personalTasks`, `teamTasks`; the offline cache (`LocalCacheService`) and sync queue (`SyncQueueService`); history reloads (when a completed task leaves the list, on team change, and every five minutes); polling and midnight cleanup (`TimerService`); FCM setup (`PushNotificationService`); calls `WidgetService` after every mutation and every poll |
 | `TeamCubit` | `TeamState` | `userTeams` (cached for offline use), `pendingInvitations`, `selectedTeam` |
 | `NotificationCubit` | `NotificationState` | in-app notification list and unread count |
 | `SessionCubit` | `SessionState` | `jwtToken`, `userId` |
@@ -158,21 +158,22 @@ Controllers are thin: they validate input, check permissions, call Mongoose mode
 
 ### Scheduler and Cleanup (`schedulerService.ts`, `cleanupScheduler.ts`)
 
-`node-cron` runs three jobs, all in UTC:
+`node-cron` runs four jobs, all in UTC:
 
 | Schedule | Job |
 | ---------- | ----- |
 | Daily, 12:05 AM | Task cleanup (below) |
+| Hourly, minute 20 | Remove completed tasks whose `archiveExpiresAt` has passed, saving their completion days to `TaskHistory` first |
 | Daily, 9:00 AM | Due-date reminders for tasks due the next day |
 | Sundays, 2:00 AM | Delete read notifications older than 30 days |
 
 The daily cleanup has three steps:
 
 1. **Archive** – marks tasks with `lastCompletedDate < today` as `isArchived: true`
-2. **Delete & preserve** – finds archived tasks older than today, saves their `completedDays` to `TaskHistory`, then deletes them
+2. **Delete & preserve** – for tasks archived before `archiveExpiresAt` existed, finds archived tasks older than today, saves their `completedDays` to `TaskHistory`, then deletes them (newer tasks are handled by the hourly job)
 3. **Clean active tasks** – removes `completedDays` entries older than today from still-active tasks (saves history first)
 
-This design means the `Task` collection only ever contains tasks relevant to the current day. All historical data lives in `TaskHistory` and is never deleted.
+This design means the `Task` collection only holds tasks that are active or completed within the completing user's current day. All historical data lives in `TaskHistory` and is never deleted.
 
 ### Notification Service (`backend/src/services/notificationService.ts`)
 
@@ -214,6 +215,7 @@ Task {
   lastCompletedDate: Date
   isArchived: Boolean
   archivedAt: Date
+  archiveExpiresAt: Date      # end of the completing user's day; the hourly job removes the task after it
   isTeamTask: Boolean
   assignmentType: individual|multiple|team
   clientId: String            # idempotency key, set only for offline-queued creates
@@ -244,7 +246,6 @@ Team {
   members: [{ user, role: owner|admin|member, joinedAt, invitedBy }]
   settings: {
     allowMemberInvite: Boolean
-    taskAutoDelete: Boolean
     notificationSettings: { taskAssigned, taskCompleted, memberJoined }
   }
   isActive: Boolean
@@ -334,6 +335,12 @@ The popup used by Google's rendered button relays its result back through `postM
 ### Why the Gmail REST API Instead of SMTP?
 
 Render blocks outbound SMTP on ports 465 and 587. Mail is sent through the Gmail REST API over HTTPS (port 443) with an OAuth2 refresh token, which works on every host that allows outbound HTTPS.
+
+### Days and Time Zones
+
+A completion day is a calendar date, not a moment. The server stores it as a day stamp, the UTC-midnight value of the date (2026-10-03 is `2026-10-03T00:00:00Z`), and clients read it through its UTC year, month, and day, never through local time. The date a completion belongs to is the completing user's own: the app sends its UTC offset in minutes with the complete request and the dashboard stats request, and the server derives the date from it. A missing offset means UTC. Nothing about the zone is stored on the user, so there is no stale zone to go wrong, and daylight saving is correct at the moment of each request.
+
+When a task is completed the server also stores `archiveExpiresAt`, the instant that user's day ends. The task stays in the list until the hourly job removes it, and that job saves its completion days to `TaskHistory` first. The app keeps counting a task's days in the heatmap until the task disappears and reloads history when it does, so a day is never in neither place. Due dates follow the same date-only rule.
 
 ### Why the Backend Owns Timestamps
 

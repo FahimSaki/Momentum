@@ -36,8 +36,8 @@ Thank you for your interest in contributing! This document covers how to set up 
 
 | Tool | Minimum version |
 | ------ | ---------------- |
-| Flutter SDK | 3.41.0 |
-| Dart SDK | 3.11.1 |
+| Flutter SDK | 3.44.0 |
+| Dart SDK | 3.12.0 |
 | Node.js | 20 LTS |
 | MongoDB | 6+ (local) or Atlas |
 | Android Studio / Xcode | Latest stable |
@@ -69,6 +69,8 @@ PORT=10000
 NODE_ENV=development
 ```
 
+With `NODE_ENV=development` and no Gmail credentials, one-time codes (verification, 2FA, password reset) are printed to the server console instead of emailed.
+
 Optional (needed for push notifications):
 
 ```env
@@ -78,7 +80,7 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 ```
 
 ```bash
-npm run dev   # nodemon, auto-restarts on save
+npm run dev   # ts-node-dev, restarts on save
 ```
 
 ### 3 – Flutter Frontend
@@ -88,15 +90,14 @@ cd ..          # back to project root
 flutter pub get
 ```
 
-The API base URL is resolved automatically by `lib/constants/api_base_url.dart`:
+The API base URL is set at compile time by `lib/config/api_base_url.dart`:
 
 | Context | URL used |
 | --------- | --------- |
-| Android emulator (debug) | `http://10.0.2.2:10000` |
-| iOS simulator (debug) | `http://127.0.0.1:10000` |
+| Debug, any non-web platform | `http://10.0.2.2:10000` (Android emulator) |
 | Release / web | `https://momentum-g7ah.onrender.com` |
 
-To point at a different server, edit `api_base_url.dart` locally (do not commit personal URLs).
+On an iOS simulator or a desktop target, change `apiBaseUrl` locally to `http://127.0.0.1:10000`. Do not commit personal URLs.
 
 ```bash
 flutter run          # pick a connected device / emulator
@@ -121,12 +122,13 @@ Push notifications and FCM token registration require a Firebase project. For lo
 - Run `flutter analyze` and resolve all issues before committing.
 - Format with `dart format .` (enforced by CI).
 - Use `Logger` from the `logger` package instead of `print`.
-- All HTTP calls belong in `lib/services/`; widgets call the relevant Cubit's methods only (e.g. `context.read<TaskCubit>().deleteTask(id)`), never the service layer directly.
+- All HTTP calls belong in `lib/services/`. Task, team, and notification state goes through its Cubit (e.g. `context.read<TaskCubit>().deleteTask(id)`); the profile and security screens call `UserService` directly because that data is not shared state.
+- Services throw `ApiException` for error responses so the server's message reaches the user.
 - Dispose controllers, animation controllers, and timers in `dispose()`.
 - Avoid `dynamic` types where a typed alternative exists.
 
 ```dart
-//
+// Good
 Future<void> deleteTask(String taskId) async {
   try {
     await _taskService!.deleteTask(taskId);
@@ -138,27 +140,27 @@ Future<void> deleteTask(String taskId) async {
   }
 }
 
-// Swallows errors, no logging, dynamic return
+// Bad: swallows errors, no logging, dynamic return
 deleteTask(id) async {
   final updatedTasks = state.currentTasks.where((t) => t.id != id).toList();
   emit(state.copyWith(currentTasks: updatedTasks));
 }
 ```
 
-### JavaScript / Node.js
+### TypeScript / Node.js
 
-- Use ES modules (`import`/`export`), async/await, and optional chaining.
+- Write strict TypeScript (no implicit `any`), with async/await and optional chaining. Run `npm run typecheck` before committing.
 - Wrap every async controller in try/catch; never let unhandled rejections crash the server.
 - Return a clean error object: `{ message: '...' }` with an appropriate HTTP status.
-- Log with `console.log` / `console.error` prefixed with an emoji for easy scanning (✅ ❌ ⚠️).
+- Log failures with `console.error('functionName:', err)`.
 - Do not hardcode MongoDB IDs, secrets, or file paths – use environment variables.
 
-```js
-//
-export const createTask = async (req, res) => {
+```ts
+// Good
+export const createTask = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name } = req.body;
-    if (!name?.trim()) return res.status(400).json({ message: 'Task name is required' });
+    const { name } = req.body as { name?: string };
+    if (!name?.trim()) { res.status(400).json({ message: 'Task name is required' }); return; }
     const task = await Task.create({ name: name.trim(), assignedBy: req.userId });
     res.status(201).json({ message: 'Task created', task });
   } catch (err) {
@@ -225,7 +227,7 @@ Examples: `feature/google-oauth`, `bugfix/widget-empty-state`, `docs/api-endpoin
 - [ ] `flutter analyze` passes with no errors
 - [ ] `dart format . --set-exit-if-changed` passes
 - [ ] `flutter test` passes
-- [ ] Backend starts without errors (`npm run dev`)
+- [ ] Backend starts without errors (`npm run dev`) and `npm run typecheck` passes
 - [ ] No secrets, personal URLs, or debug `print` statements in the diff
 - [ ] Documentation updated if the change affects public API or user-facing behaviour
 

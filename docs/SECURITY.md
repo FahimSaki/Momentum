@@ -89,7 +89,7 @@ The middleware only authenticates. Role-based checks are plain functions in `bac
 | Complete task | Personal task: its assignee. Team task: any member of the team |
 | View team tasks | Any member of the team sees every task in it |
 
-These checks run server-side on every request. The frontend enforces the same rules via `TeamPermissions` and `PermissionHelper` for a consistent UI, but server-side enforcement is the authoritative gate.
+These checks run server-side on every request. The frontend enforces the same rules via `TeamPermissions` and `PermissionHelper` for a consistent UI, but server-side enforcement is the authoritative gate. `GET /tasks` and `GET /tasks/history` return only the caller's own data and accept no user override.
 
 ### Team Permissions
 
@@ -103,7 +103,7 @@ Members can view every task in their team and complete any of them.
 
 ### Invite ID Privacy
 
-User search (`GET /users/search` and `GET /users/invite/:inviteId`) only returns active users where `isPublic: true`. The `inviteId` and `name` are always included in results (they are the minimum required to send an invitation). The response also carries each user's `email`, `bio`, and `profileVisibility` flags; the Flutter client hides email and bio unless the matching flag is enabled, but the server does not redact those fields yet. Treat `showEmail` and `showBio` as display preferences until server-side redaction is added.
+User search and lookup (`GET /users/search`, `GET /users/invite/:inviteId`) only return active users with `isPublic: true`. The invite ID and avatar are always returned. A hidden name is replaced by "Private user", hidden email and bio are omitted, and a search only matches a name or email the user has chosen to show, so it cannot confirm a value the owner hides.
 
 ---
 
@@ -112,7 +112,7 @@ User search (`GET /users/search` and `GET /users/invite/:inviteId`) only returns
 All controller inputs are validated before touching the database:
 
 - `name` fields are trimmed and checked for empty strings.
-- `email` is lowercased and trimmed; format validation is applied at registration.
+- `email` is lowercased and trimmed. The backend checks that it is present; its format is validated by the app's forms.
 - `password` minimum length is enforced at registration, password reset, and password change (6 characters).
 - Enum values (`priority`, `role`, `assignmentType`, `status`) are validated by Mongoose schema enums.
 - Update endpoints build their changes from explicit field whitelists (task updates, team settings, profile fields, and `profileVisibility` keys), so clients cannot overwrite system fields such as `assignedBy`, `completedDays`, `isArchived`, or `team`.
@@ -170,7 +170,7 @@ Credentials (`credentials: true`) are enabled so the browser can send the `Autho
 ## Recommendations for Production Self-Hosting
 
 1. **Use HTTPS everywhere.** Render provides TLS automatically. For self-hosted servers, use Let's Encrypt via Caddy or Nginx.
-2. **Set `NODE_ENV=production`** so Express and its dependencies run in production mode. The global error handler never returns stack traces to clients.
+2. **Set `NODE_ENV=production`** so Express and its dependencies run in production mode. The global error handler never returns stack traces to clients. It also disables the development fallback that prints one-time codes to the server console.
 3. **Set `ALLOWED_ORIGINS`** to a comma-separated list of your frontend domains instead of relying on the `*` default.
 4. **Set `GOOGLE_CLIENT_ID`** to the OAuth client ID(s) your apps use, so only Google tokens issued for your application are accepted.
 5. **Use a strong, unique `JWT_SECRET`.** Rotate it if you suspect it has been compromised (this logs out all users).
@@ -178,7 +178,7 @@ Credentials (`credentials: true`) are enabled so the browser can send the `Autho
 7. **Keep dependencies updated.** Run `npm audit` and `flutter pub outdated` regularly.
 8. **Add rate limiting** to `/auth/login`, `/auth/register`, and every code-verification endpoint (`/auth/verify-email`, `/auth/verify-2fa`, `/auth/reset-password`, `/users/confirm-password-change`, `/users/confirm-account-deletion`) using `express-rate-limit`. This is not currently implemented, and six-digit codes have no attempt cap today.
 9. **Protect or remove `/manual-cleanup`.** It is currently unauthenticated, so anyone who can reach the server can trigger the cleanup job. Require a secret header or an authenticated admin, or disable it in production.
-10. **Store the Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku).
+10. **Store the Firebase service account as an environment variable**, not a file on disk, especially on platforms with ephemeral filesystems (Render, Heroku). Key files matching `*firebase-adminsdk*.json` are git-ignored; if one was ever committed, rotate the key.
 
 ---
 

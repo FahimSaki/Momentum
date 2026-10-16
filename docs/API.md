@@ -243,16 +243,15 @@ Verify a JWT is still valid, belongs to an active (non-deactivated) account, and
 
 ### GET /tasks
 
-Fetch tasks assigned to the authenticated user.
+Fetch tasks assigned to the authenticated user. There is no way to request another user's tasks.
 
 **Query parameters**
 
 | Param | Type | Description |
 | ------- | ------ | ------------- |
-| `userId` | string | Override – defaults to authenticated user |
 | `teamId` | string | Filter by team |
 | `type` | `personal` \| `team` \| `all` | Default: `all` |
-| `status` | `active` \| `archived` \| `all` | Default: `active`. `active` includes non-archived tasks plus tasks archived earlier today |
+| `status` | `active` \| `archived` \| `all` | Default: `active`. `active` includes non-archived tasks plus completed tasks that the cleanup job has not removed yet |
 
 **Response 200** – array of Task objects (see schema below)
 
@@ -278,7 +277,7 @@ Create a new task.
 }
 ```
 
-`teamId`, `description`, `assignedTo`, `dueDate`, `tags`, and `clientId` are optional. If `teamId` is absent the task is personal (assigned to the creating user). If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically. Assignees other than the creator are notified.
+`teamId`, `description`, `assignedTo`, `dueDate`, `tags`, and `clientId` are optional. If `teamId` is absent the task is personal (assigned to the creating user). `dueDate` is a calendar date: send it as UTC midnight of that date (for example `2026-10-05T00:00:00.000Z`); it is returned the same way. If `assignmentType` is `"team"` and `teamId` is set, the task is assigned to every team member automatically. Assignees other than the creator are notified.
 
 `clientId` is an idempotency key. The app sets it only when it replays a task that was created offline. If a task with the same `clientId` already exists for the creating user, the server returns it instead of creating a second one.
 
@@ -309,12 +308,14 @@ Toggle the completion state of a task for the current day. The server sets all c
 **Request body**
 
 ```json
-{ "isCompleted": true }
+{ "isCompleted": true, "utcOffsetMinutes": 360 }
 ```
+
+`utcOffsetMinutes` is optional: the minutes the caller's device is ahead of UTC (UTC+6 is 360), from -720 to 840. The completion lands on the caller's own calendar date, worked out from it. A missing or invalid value means UTC.
 
 **Permissions**: for a team task, any member of that team; for a personal task, only its assignee.
 
-Completing a task archives it for the day (`isArchived: true`) and records the user in `completedBy`. Un-completing removes today's completion and, if nobody else completed it today, un-archives it. Completing a team task notifies the original assignees and the assigner, except the person who completed it.
+Completing a task archives it (`isArchived: true`), records the user in `completedBy`, adds the caller's calendar date to `completedDays`, and sets `archiveExpiresAt` to the end of the caller's day. An hourly job removes the task after that and saves its days to history. Un-completing removes today's completion and, if nobody else completed it today, un-archives it. Completing a team task notifies the original assignees and the assigner, except the person who completed it.
 
 **Response 200**
 
@@ -341,13 +342,12 @@ Delete a task. The task's `completedDays` are saved to `TaskHistory` before dele
 
 ### GET /tasks/history
 
-Retrieve historical completion data for the heatmap.
+Retrieve historical completion data for the heatmap. Returns the caller's own history, or a team's when `teamId` is given. `completedDays` entries are day stamps (see Dates).
 
 **Query parameters**
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `userId` | string | Defaults to authenticated user |
 | `teamId` | string | Filter by team (members only) |
 
 **Response 200** – array of `TaskHistory` objects:
@@ -370,7 +370,7 @@ Retrieve historical completion data for the heatmap.
 
 Dashboard statistics for the authenticated user.
 
-**Query parameters**: `teamId` (optional)
+**Query parameters**: `teamId` (optional), `utcOffsetMinutes` (optional, same meaning as above; decides what "today" is for `completedToday`, `overdueTasks`, and `upcomingTasks`)
 
 **Response 200**
 
@@ -438,7 +438,7 @@ Get full team details.
 
 ### PUT /teams/:teamId/settings
 
-Update team settings. Only `allowMemberInvite`, `taskAutoDelete`, and the three `notificationSettings` flags are accepted; anything else is ignored. The `taskAssigned` and `taskCompleted` flags control whether those notifications are sent for this team's tasks.
+Update team settings. Only `allowMemberInvite` and the three `notificationSettings` flags are accepted; anything else is ignored. `taskAssigned` and `taskCompleted` control whether those notifications are sent for this team's tasks, and `memberJoined` controls whether existing members are notified when someone accepts an invitation.
 
 **Permissions**: owner or admin.
 
@@ -448,7 +448,6 @@ Update team settings. Only `allowMemberInvite`, `taskAutoDelete`, and the three 
 {
   "settings": {
     "allowMemberInvite": true,
-    "taskAutoDelete": true,
     "notificationSettings": {
       "taskAssigned": true,
       "taskCompleted": false,
@@ -632,7 +631,7 @@ Search for users to invite to a team.
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `q` | string | Minimum 2 characters; matches name, email, or inviteId |
+| `q` | string | Minimum 2 characters; matches the invite ID, and the name or email where the user allows it to be shown |
 | `limit` | number | Default 20, max 50 |
 
 Only active users with `isPublic: true` are returned, and the requesting user is excluded.
@@ -644,7 +643,6 @@ Only active users with `isPublic: true` are returned, and the requesting user is
   {
     "_id": "...",
     "name": "Jane Doe",
-    "email": "jane@example.com",
     "inviteId": "swift-tiger-1234",
     "avatar": null,
     "bio": "...",
@@ -653,7 +651,7 @@ Only active users with `isPublic: true` are returned, and the requesting user is
 ]
 ```
 
-The response includes `email` and `bio` together with the user's `profileVisibility` flags. The Flutter client hides them unless the matching flag is `true`; the server does not redact them.
+Visibility is enforced by the server. The invite ID and avatar are always returned. `name` is `"Private user"` when the user hides it, and `email` and `bio` are omitted when hidden. A name or email only matches a search when the user allows it to be shown.
 
 ---
 
@@ -892,6 +890,13 @@ This endpoint is currently unauthenticated; see the production recommendations i
 
 ---
 
+## Dates
+
+- A completion day (`completedDays`, `lastCompletedDate`, history) is a day stamp: the UTC-midnight value of a calendar date, so 2026-10-03 is `2026-10-03T00:00:00Z`. Read its UTC year, month, and day; do not convert it to local time.
+- The date of a completion is the completing user's own, derived from `utcOffsetMinutes`.
+- `dueDate` is a calendar date in the same form.
+- `archivedAt`, `archiveExpiresAt`, and `completedBy[].completedAt` are real instants.
+
 ## Task Object Schema
 
 ```json
@@ -910,6 +915,7 @@ This endpoint is currently unauthenticated; see the production recommendations i
   "lastCompletedDate": "ISO8601 | null",
   "isArchived": false,
   "archivedAt": "ISO8601 | null",
+  "archiveExpiresAt": "ISO8601 | null",
   "isTeamTask": false,
   "assignmentType": "individual | multiple | team",
   "clientId": "string | null",

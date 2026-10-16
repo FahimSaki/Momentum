@@ -54,7 +54,7 @@ Render free-tier instances spin down after 15 minutes of inactivity, and the fir
 
 Every push to `main` triggers a new Render build automatically if auto-deploy is enabled in the Render dashboard. Render re-runs the full build command (`npm install && npm run build`) on each deploy so compiled output is always up to date.
 
-**Deploy order.** When a release adds or changes a MongoDB index (for example the partial unique index on `assignedBy` + `clientId`), deploy the backend first so Mongoose builds the index before any client that depends on it goes live.
+**Deploy order.** When a release adds or changes a MongoDB index (for example the partial unique index on `assignedBy` + `clientId`, or the `isArchived` + `archiveExpiresAt` index behind the hourly task expiry), deploy the backend first so Mongoose builds the index before any client that depends on it goes live.
 
 ### MongoDB Atlas Setup
 
@@ -211,7 +211,7 @@ The CI workflow only checks the already-deployed production server (`/wake-up`, 
 | `MONGODB_URI` | Yes | MongoDB connection string |
 | `JWT_SECRET` | Yes | Secret for signing JWTs |
 | `PORT` | No | Server port (default 10000) |
-| `NODE_ENV` | No | `development` or `production` |
+| `NODE_ENV` | No | `development` or `production`. Use `production` on every deployed server; `development` prints one-time codes to the console when email fails |
 | `ALLOWED_ORIGINS` | No | Comma-separated list of allowed CORS origins; defaults to `*` if unset |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID(s) accepted by `POST /auth/google`, comma-separated; the token audience is not checked if unset |
 | `GMAIL_CLIENT_ID` | Yes† | OAuth2 client ID for outgoing email |

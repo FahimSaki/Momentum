@@ -10,16 +10,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 ### Planned
 
 - WebSocket support for real-time collaborative updates
-- Google OAuth login
 - Task comments and file attachments
 - GraphQL endpoint (API v2)
 - Enterprise SSO and audit logs
+
+### Added
+
+- Email verification with 6-digit codes, two-factor sign-in by email code, password reset, password change, and account deletion, all sent through the Gmail API
+- Google Sign-In: native on mobile, full-page redirect on web
+- Offline support: on-device cache of tasks, teams, history, and stats; queued personal task creation; idempotent creates through `clientId`
+- Web push notifications (service worker and VAPID key)
+- Per-user calendar days: completions are stamped with the user's own date from the device UTC offset, and each completed task carries `archiveExpiresAt`, the end of the completing user's day; an hourly job removes expired tasks after saving their days to history
+- Development console fallback for one-time codes when `NODE_ENV=development` and email cannot be sent
+- `ApiException`, so error messages from the backend reach the user
 
 ### Changed
 
 - **State management migrated Provider → BLoC → Cubit.** `TaskDatabase` (the single `ChangeNotifier`) is replaced by four `Cubit`s in `lib/blocs/`: `TaskCubit`, `TeamCubit`, `NotificationCubit`, `SessionCubit`, each paired with an immutable state class; `ThemeProvider` remains a plain `ChangeNotifier`
 - `TaskCubit` subscribes directly to `TeamCubit.stream` to reload tasks, history, and dashboard stats when the selected team changes
 - `InitializationService.registerTaskBloc()` renamed to `registerTaskCubit()`
+- Team members can view and complete every task in their team; personal tasks can only be completed by their assignee
+- User search and invite lookup honor `profileVisibility` on the server: a hidden name is returned as "Private user", hidden email and bio are omitted, and search matches name and email only for users who allow them
+- Team and user notification settings for task assignment and completion are enforced; the team `memberJoined` setting now controls member-joined notifications
+- History reloads when a completed task leaves the list, when the selected team changes, and every five minutes
+- Due dates are read and written as calendar dates
+- `PORT` defaults to 10000
+- The mail icon on the team selection page opens the Notifications page; `TeamInvitationsPage` was removed
+
+### Removed
+
+- The team `taskAutoDelete` setting, which was never enforced
+- The `userId` parameter on `GET /tasks` and `GET /tasks/history`
+
+### Fixed
+
+- Any signed-in user could read another user's tasks and history through the `userId` parameter
+- Firebase service account keys saved under the documented filename are now git-ignored
+- Completed tasks could end up hidden, and heatmap days could be missing or shifted, because the app and the server disagreed about which day a completion belonged to
+- Backend error messages were replaced by generic ones in the app
 
 ---
 
